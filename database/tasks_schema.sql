@@ -1,0 +1,52 @@
+CREATE TABLE IF NOT EXISTS task_types (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'todo',
+  type_id INT NULL,
+  description TEXT NOT NULL,
+  executor_id INT NULL,
+  author_id INT NULL,
+  responsible_id INT NULL,
+  owner_id INT NULL,
+  time_set DATETIME NOT NULL,
+  time_start DATETIME NULL,
+  time_end DATETIME NULL,
+  deadline DATETIME NULL,
+  priority ENUM('insignificant', 'low', 'medium', 'high', 'blocker') NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (type_id) REFERENCES task_types(id) ON DELETE SET NULL,
+  FOREIGN KEY (executor_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (responsible_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS task_links (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  url VARCHAR(2048) NOT NULL,
+  title VARCHAR(255) NULL,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  author_id INT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+INSERT IGNORE INTO task_types (name) VALUES
+  ('Задача'),
+  ('Баг'),
+  ('Улучшение');

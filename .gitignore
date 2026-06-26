@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+.dart_tool/
+.env
+*.log
+.DS_Store

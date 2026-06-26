@@ -1,0 +1,43 @@
+name: ddt_frontend
+description: "DDT Flutter web frontend"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  bolt_ui_kit: ^1.2.2
+  get: ^4.7.3
+  get_storage: ^2.1.1
+  google_fonts: ^6.3.3
+  flutter_screenutil: ^5.9.3
+  flutter_secure_storage: ^10.3.1
+  intl: ^0.20.2
+  flutter_widget_from_html: ^0.17.2
+  url_launcher: ^6.3.2
+  web: ^1.1.1
+  pointer_interceptor: ^0.10.1+2
+  infinite_calendar_view: ^2.11.5
+
+dependency_overrides:
+  get_storage:
+    path: packages/get_storage
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/login/

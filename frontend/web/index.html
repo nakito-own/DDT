@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="DDT — задачи, пространство и автоматизации">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="DDT">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>DDT</title>
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@500;800&display=swap" rel="stylesheet">
+
+  <script>
+    (function () {
+      function resolveTheme() {
+        try {
+          var raw = localStorage.getItem('ddt_storage');
+          if (raw) {
+            var data = JSON.parse(raw);
+            if (data.theme_mode === 'dark') return 'dark';
+            if (data.theme_mode === 'light') return 'light';
+          }
+        } catch (error) {
+          console.warn('DDT splash: unable to read saved theme', error);
+        }
+        return 'light';
+      }
+
+      document.documentElement.setAttribute('data-theme', resolveTheme());
+    })();
+  </script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --ddt-primary: #1976d2;
+      --ddt-bg: #ffffff;
+      --ddt-title: #1976d2;
+      --ddt-subtitle: rgba(25, 118, 210, 0.65);
+      --ddt-border: rgba(25, 118, 210, 0.3);
+      --ddt-radius: 18px;
+      --ddt-spacing: 16px;
+    }
+
+    html[data-theme='dark'] {
+      color-scheme: dark;
+      --ddt-bg: #212121;
+      --ddt-title: #ffffff;
+      --ddt-subtitle: rgba(255, 255, 255, 0.65);
+      --ddt-border: rgba(255, 255, 255, 0.2);
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--ddt-bg);
+    }
+
+    .flutter-loader {
+      display: none !important;
+    }
+
+    .ddt-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--ddt-bg);
+      font-family: 'Nunito Sans', sans-serif;
+      transition: opacity 350ms ease;
+    }
+
+    .ddt-splash--hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ddt-splash__content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .ddt-splash__logo {
+      padding: var(--ddt-spacing) calc(var(--ddt-spacing) * 2);
+      border: 1px solid var(--ddt-border);
+      border-radius: var(--ddt-radius);
+      color: var(--ddt-title);
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .ddt-splash__text {
+      margin: var(--ddt-spacing) 0 calc(var(--ddt-spacing) * 2);
+      color: var(--ddt-subtitle);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .ddt-splash__spinner {
+      width: 28px;
+      height: 28px;
+      border: 2.5px solid rgba(25, 118, 210, 0.2);
+      border-top-color: var(--ddt-primary);
+      border-radius: 50%;
+      animation: ddt-spin 0.9s linear infinite;
+    }
+
+    @keyframes ddt-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="ddt-splash" class="ddt-splash" aria-live="polite" aria-busy="true">
+    <div class="ddt-splash__content">
+      <div class="ddt-splash__logo">DDT</div>
+      <p class="ddt-splash__text">Загрузка...</p>
+      <div class="ddt-splash__spinner" role="progressbar" aria-label="Загрузка приложения"></div>
+    </div>
+  </div>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
