@@ -43,9 +43,12 @@ class DdtApp extends StatelessWidget {
           darkTheme: DdtTheme.dark(),
           themeMode: themeController.themeMode,
           builder: (context, child) {
-            return DefaultTextStyle(
-              style: DdtTheme.style(color: DdtTheme.textPrimary(context)),
-              child: child ?? const SizedBox.shrink(),
+            return Material(
+              type: MaterialType.transparency,
+              child: DefaultTextStyle(
+                style: DdtTheme.style(color: DdtTheme.textPrimary(context)),
+                child: child ?? const SizedBox.shrink(),
+              ),
             );
           },
           home: const EwsAuthGate(child: MainShellPage()),

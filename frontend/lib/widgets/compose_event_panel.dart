@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../controllers/calendar_controller.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_side_panel.dart';
+import 'ddt_tappable.dart';
 
 Future<bool?> showComposeEventPanel(BuildContext context) {
   return showDdtSidePanel<bool>(
@@ -128,12 +129,23 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
   }) {
     final format = DateFormat('dd.MM.yyyy HH:mm');
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label, style: DdtTheme.style(fontSize: 13.sp)),
-      subtitle: Text(format.format(value)),
-      trailing: const Icon(Icons.calendar_today_outlined),
+    return DdtTappable(
       onTap: onTap,
+      padding: EdgeInsets.symmetric(vertical: 8.h),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: DdtTheme.style(fontSize: 13.sp)),
+                Text(format.format(value)),
+              ],
+            ),
+          ),
+          const Icon(Icons.calendar_today_outlined),
+        ],
+      ),
     );
   }
 

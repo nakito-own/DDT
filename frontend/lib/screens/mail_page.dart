@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../controllers/mail_controller.dart';
 import '../models/mail_message.dart';
 import '../theme/ddt_theme.dart';
+import '../widgets/ddt_tappable.dart';
 import '../widgets/compose_mail_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/mail_body_view.dart';
@@ -294,132 +295,122 @@ class MailListItem extends StatelessWidget {
     }
 
     return RepaintBoundary(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: borderRadius,
-          border: Border.all(color: borderColor, width: borderWidth),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.18),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: borderRadius,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              child: Stack(
+      child: DdtTappable(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        backgroundColor: backgroundColor,
+        border: Border.all(color: borderColor, width: borderWidth),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+        child: Stack(
+          children: [
+            if (isUnread && !selected)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 4.w,
+                  color: AppColors.primary,
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                isUnread && !selected ? 16.w : 12.w,
+                12.h,
+                12.w,
+                12.h,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isUnread && !selected)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 4.w,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      isUnread && !selected ? 16.w : 12.w,
-                      12.h,
-                      12.w,
-                      12.h,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (isUnread && !selected)
-                              Padding(
-                                padding: EdgeInsets.only(top: 5.h, right: 8.w),
-                                child: Container(
-                                  width: 8.w,
-                                  height: 8.w,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            Expanded(
-                              child: Text(
-                                message.subject,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: DdtTheme.style(
-                                  fontSize: 14.sp,
-                                  fontWeight: isUnread
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: selected
-                                      ? AppColors.primary
-                                      : DdtTheme.taskCardTextPrimary(context),
-                                ),
-                              ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isUnread && !selected)
+                        Padding(
+                          padding: EdgeInsets.only(top: 5.h, right: 8.w),
+                          child: Container(
+                            width: 8.w,
+                            height: 8.w,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
                             ),
-                            if (message.datetimeReceived != null)
-                              Text(
-                                _dateFormat.format(
-                                  message.datetimeReceived!.toLocal(),
-                                ),
-                                style: DdtTheme.style(
-                                  fontSize: 12.sp,
-                                  fontWeight: isUnread
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: DdtTheme.taskCardTextSecondary(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          message.sender ?? '—',
+                      Expanded(
+                        child: Text(
+                          message.subject,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          style: DdtTheme.style(
+                            fontSize: 14.sp,
+                            fontWeight: isUnread
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: selected
+                                ? AppColors.primary
+                                : DdtTheme.taskCardTextPrimary(context),
+                          ),
+                        ),
+                      ),
+                      if (message.datetimeReceived != null)
+                        Text(
+                          _dateFormat.format(
+                            message.datetimeReceived!.toLocal(),
+                          ),
                           style: DdtTheme.style(
                             fontSize: 12.sp,
                             fontWeight: isUnread
                                 ? FontWeight.w600
                                 : FontWeight.w400,
-                            color: DdtTheme.taskCardTextSecondary(context),
-                          ),
-                        ),
-                        if (message.preview.isNotEmpty) ...[
-                          SizedBox(height: 4.h),
-                          Text(
-                            message.preview,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: DdtTheme.style(
-                              fontSize: 12.sp,
-                              color: isUnread
-                                  ? DdtTheme.taskCardTextPrimary(context)
-                                      .withValues(alpha: 0.85)
-                                  : DdtTheme.taskCardTextSecondary(context),
+                            color: DdtTheme.taskCardTextSecondary(
+                              context,
                             ),
                           ),
-                        ],
-                      ],
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    message.sender ?? '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: 12.sp,
+                      fontWeight: isUnread
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: DdtTheme.taskCardTextSecondary(context),
                     ),
                   ),
+                  if (message.preview.isNotEmpty) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      message.preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DdtTheme.style(
+                        fontSize: 12.sp,
+                        color: isUnread
+                            ? DdtTheme.taskCardTextPrimary(context)
+                                .withValues(alpha: 0.85)
+                            : DdtTheme.taskCardTextSecondary(context),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

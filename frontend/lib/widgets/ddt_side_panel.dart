@@ -102,7 +102,7 @@ class DdtSidePanelShell extends StatelessWidget {
     final borderColor = DdtTheme.sidePanelDivider(context);
 
     return Material(
-      color: Colors.transparent,
+      type: MaterialType.transparency,
       child: Theme(
         data: DdtTheme.sidePanelTheme(context),
         child: DdtTheme.sidePanelGlass(

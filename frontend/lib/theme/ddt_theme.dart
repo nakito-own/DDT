@@ -6,16 +6,26 @@ import 'package:google_fonts/google_fonts.dart';
 class DdtTheme {
   DdtTheme._();
 
-  static const double borderRadius = 18;
+  static const double borderRadius = 16;
   static const double spacing = 16;
 
-  static const Color lightTextPrimary = Color(0xFF0A0F18);
-  static const Color lightTextSecondary = Color(0xFF1C2736);
-  static const Color lightTextMuted = Color(0xFF334155);
+  static const Color lightBackground = Color(0xFFE8ECF2);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightWidget = Color(0xFFFFFFFF);
+  static const Color lightBorderStrong = Color(0xFF94A3B8);
+
+  static const Color darkBackground = Color(0xFF050508);
+  static const Color darkSurface = Color(0xFF0C0C10);
+  static const Color darkWidget = Color(0xFF121216);
+  static const Color darkBorderStrong = Color(0xFF3F3F48);
+
+  static const Color lightTextPrimary = Color(0xFF050A12);
+  static const Color lightTextSecondary = Color(0xFF152030);
+  static const Color lightTextMuted = Color(0xFF475569);
 
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color darkTextSecondary = Color(0xFFE8EDF5);
-  static const Color darkTextMuted = Color(0xFFCBD5E1);
+  static const Color darkTextSecondary = Color(0xFFE2E8F0);
+  static const Color darkTextMuted = Color(0xFF94A3B8);
 
   static bool _isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
@@ -48,11 +58,13 @@ class DdtTheme {
   static SizedBox verticalGap() => SizedBox(height: shellSize(spacing));
 
   static Color glassBorderColor(Brightness brightness) {
-    return brightness == Brightness.dark ? Colors.white : AppColors.primary;
+    return brightness == Brightness.dark
+        ? Colors.white
+        : AppColors.primary;
   }
 
   static double glassBorderOpacity(Brightness brightness) {
-    return brightness == Brightness.dark ? 0.2 : 0.3;
+    return brightness == Brightness.dark ? 0.34 : 0.42;
   }
 
   static GlassContainer glass({
@@ -224,8 +236,8 @@ class DdtTheme {
 
   static Color sidePanelDivider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.grey.shade300;
+        ? Colors.white.withValues(alpha: 0.22)
+        : lightBorderStrong.withValues(alpha: 0.55);
   }
 
   static ThemeData sidePanelTheme(BuildContext context) {
@@ -253,7 +265,7 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
-          side: BorderSide(color: darkTextSecondary.withValues(alpha: 0.45)),
+          side: BorderSide(color: darkBorderStrong),
           shape: roundedShape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
@@ -309,17 +321,66 @@ class DdtTheme {
     return theme;
   }
 
+  static const Duration selectionAnimationDuration = Duration(milliseconds: 220);
+  static const Curve selectionAnimationCurve = Curves.easeOutCubic;
+
+  static const WidgetStateProperty<Color> _transparentOverlay =
+      WidgetStatePropertyAll(Colors.transparent);
+
+  static ButtonStyle _withoutMaterialOverlay(ButtonStyle? style) {
+    return (style ?? const ButtonStyle()).copyWith(
+      overlayColor: _transparentOverlay,
+      splashFactory: NoSplash.splashFactory,
+    );
+  }
+
+  static ThemeData _applyInteractionTheme(ThemeData theme) {
+    return theme.copyWith(
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      iconButtonTheme: IconButtonThemeData(
+        style: _withoutMaterialOverlay(
+          IconButton.styleFrom(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        enableFeedback: false,
+      ),
+      checkboxTheme: theme.checkboxTheme.copyWith(
+        splashRadius: 0,
+        overlayColor: _transparentOverlay,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: _withoutMaterialOverlay(theme.elevatedButtonTheme.style),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: _withoutMaterialOverlay(theme.outlinedButtonTheme.style),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: _withoutMaterialOverlay(theme.textButtonTheme.style),
+      ),
+    );
+  }
+
   static ThemeData light() {
     final theme = AppTheme.lightTheme();
     final typography = textTheme(Brightness.light);
     final shape = roundedShape;
 
-    return theme.copyWith(
+    return _applyInteractionTheme(
+      theme.copyWith(
       textTheme: typography,
       primaryTextTheme: typography,
+      scaffoldBackgroundColor: lightBackground,
       colorScheme: theme.colorScheme.copyWith(
+        surface: lightSurface,
         onSurface: lightTextPrimary,
         onSurfaceVariant: lightTextSecondary,
+        outline: lightBorderStrong,
       ),
       appBarTheme: theme.appBarTheme.copyWith(
         titleTextStyle: GoogleFonts.nunitoSans(
@@ -328,8 +389,20 @@ class DdtTheme {
           fontWeight: FontWeight.bold,
         ),
       ),
-      dialogTheme: theme.dialogTheme.copyWith(shape: shape),
-      cardTheme: theme.cardTheme.copyWith(shape: shape),
+      dialogTheme: theme.dialogTheme.copyWith(
+        shape: shape,
+        backgroundColor: lightSurface,
+      ),
+      cardTheme: theme.cardTheme.copyWith(
+        color: lightSurface,
+        shape: shape,
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+      ),
+      dividerTheme: DividerThemeData(
+        color: lightBorderStrong.withValues(alpha: 0.45),
+        thickness: 1,
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -341,22 +414,24 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: lightTextPrimary,
-          side: BorderSide(color: AppColors.primary),
+          side: BorderSide(color: AppColors.primary, width: 1.5),
           shape: shape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: lightSurface,
         labelStyle: TextStyle(color: lightTextSecondary),
         floatingLabelStyle: TextStyle(color: lightTextPrimary),
         hintStyle: TextStyle(color: lightTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.lightBorder),
+          borderSide: BorderSide(color: lightBorderStrong),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.lightBorder),
+          borderSide: BorderSide(color: lightBorderStrong),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
@@ -373,9 +448,10 @@ class DdtTheme {
         disabledBorder: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(
-            color: AppColors.lightBorder.withValues(alpha: 0.55),
+            color: lightBorderStrong.withValues(alpha: 0.45),
           ),
         ),
+      ),
       ),
     );
   }
@@ -385,12 +461,16 @@ class DdtTheme {
     final typography = textTheme(Brightness.dark);
     final shape = roundedShape;
 
-    return theme.copyWith(
+    return _applyInteractionTheme(
+      theme.copyWith(
       textTheme: typography,
       primaryTextTheme: typography,
+      scaffoldBackgroundColor: darkBackground,
       colorScheme: theme.colorScheme.copyWith(
+        surface: darkSurface,
         onSurface: darkTextPrimary,
         onSurfaceVariant: darkTextSecondary,
+        outline: darkBorderStrong,
       ),
       appBarTheme: theme.appBarTheme.copyWith(
         titleTextStyle: GoogleFonts.nunitoSans(
@@ -399,8 +479,19 @@ class DdtTheme {
           fontWeight: FontWeight.bold,
         ),
       ),
-      dialogTheme: theme.dialogTheme.copyWith(shape: shape),
-      cardTheme: theme.cardTheme.copyWith(shape: shape),
+      dialogTheme: theme.dialogTheme.copyWith(
+        shape: shape,
+        backgroundColor: darkSurface,
+      ),
+      cardTheme: theme.cardTheme.copyWith(
+        color: darkWidget,
+        shape: shape,
+        elevation: 0,
+      ),
+      dividerTheme: DividerThemeData(
+        color: Colors.white.withValues(alpha: 0.16),
+        thickness: 1,
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -412,22 +503,24 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
-          side: BorderSide(color: AppColors.primary),
+          side: BorderSide(color: AppColors.primary, width: 1.5),
           shape: shape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: darkWidget,
         labelStyle: TextStyle(color: darkTextSecondary),
         floatingLabelStyle: TextStyle(color: darkTextPrimary),
         hintStyle: TextStyle(color: darkTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.darkBorder),
+          borderSide: BorderSide(color: darkBorderStrong),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.darkBorder),
+          borderSide: BorderSide(color: darkBorderStrong),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
@@ -444,9 +537,10 @@ class DdtTheme {
         disabledBorder: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(
-            color: AppColors.darkBorder.withValues(alpha: 0.55),
+            color: darkBorderStrong.withValues(alpha: 0.45),
           ),
         ),
+      ),
       ),
     );
   }
