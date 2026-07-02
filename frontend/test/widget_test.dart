@@ -1,16 +1,19 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 
+import 'package:ddt_frontend/blocs/theme/theme_bloc.dart';
 import 'package:ddt_frontend/theme/ddt_theme.dart';
-import 'package:ddt_frontend/controllers/theme_controller.dart';
 import 'package:ddt_frontend/screens/kanban_board_page.dart';
 
 void main() {
-  setUp(() {
+  setUp(() async {
     Get.reset();
+    await GetStorage.init('test_storage');
     AppColors.initialize(
       primary: const Color(0xFF1976D2),
       accent: const Color(0xFF64B5F6),
@@ -19,26 +22,30 @@ void main() {
       primary: const Color(0xFF1976D2),
       accent: const Color(0xFF64B5F6),
     );
-    Get.put(ThemeController());
   });
 
-  testWidgets('Kanban board renders columns', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ScreenUtilInit(
+  Widget _buildTestApp(Widget child) {
+    return BlocProvider(
+      create: (_) => ThemeBloc(storage: GetStorage('test_storage')),
+      child: ScreenUtilInit(
         designSize: const Size(1440, 900),
-        builder: (_, child) => GetMaterialApp(
+        builder: (_, wrappedChild) => GetMaterialApp(
           theme: DdtTheme.light(),
-          builder: (context, child) {
+          builder: (context, appChild) {
             return DefaultTextStyle(
               style: DdtTheme.style(),
-              child: child ?? const SizedBox.shrink(),
+              child: appChild ?? const SizedBox.shrink(),
             );
           },
-          home: child,
+          home: wrappedChild,
         ),
-        child: const KanbanBoardPage(),
+        child: child,
       ),
     );
+  }
+
+  testWidgets('Kanban board renders columns', (WidgetTester tester) async {
+    await tester.pumpWidget(_buildTestApp(const KanbanBoardPage()));
     await tester.pumpAndSettle();
 
     expect(find.text('Запланировано'), findsOneWidget);
@@ -49,22 +56,7 @@ void main() {
   });
 
   testWidgets('Create task side panel opens without errors', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ScreenUtilInit(
-        designSize: const Size(1440, 900),
-        builder: (_, child) => GetMaterialApp(
-          theme: DdtTheme.light(),
-          builder: (context, child) {
-            return DefaultTextStyle(
-              style: DdtTheme.style(),
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
-          home: child,
-        ),
-        child: const KanbanBoardPage(),
-      ),
-    );
+    await tester.pumpWidget(_buildTestApp(const KanbanBoardPage()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Добавить задачу').first);

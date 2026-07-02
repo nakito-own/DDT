@@ -186,7 +186,9 @@ class SessionService:
 
     def get_session(self, token: str) -> SessionContext | None:
         token_hash = crypto_service.hash_token(token)
+        return self.get_session_by_hash(token_hash)
 
+    def get_session_by_hash(self, token_hash: str) -> SessionContext | None:
         with self._lock:
             context = self._memory_sessions.get(token_hash)
 
@@ -229,6 +231,9 @@ class SessionService:
         return user
 
     def delete_session(self, token_hash: str) -> None:
+        from app.services.ews_notification_service import ews_notification_service
+
+        ews_notification_service.stop_for_session(token_hash)
         with self._lock:
             self._memory_sessions.pop(token_hash, None)
             self._account_cache.pop(token_hash, None)

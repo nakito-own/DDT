@@ -99,6 +99,39 @@ class DdtTheme {
 
   static Color taskCardIconMuted(BuildContext context) => textMuted(context);
 
+  static GlassContainer contextMenuGlass({
+    required BuildContext context,
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    double blurIntensity = 6,
+    double? cornerRadius,
+  }) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+    final radius = cornerRadius ?? borderRadius.r;
+
+    return GlassContainer(
+      type: GlassType.custom,
+      shape: GlassShape.roundedRectangle,
+      radius: radius,
+      padding: padding ?? EdgeInsets.all(8.w),
+      blurIntensity: blurIntensity,
+      backgroundColor: isDark
+          ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
+          : Colors.white.withValues(alpha: 0.3),
+      backgroundOpacity: isDark ? 0.2 : 0.16,
+      borderColor: glassBorderColor(brightness),
+      borderOpacity: glassBorderOpacity(brightness) * 0.55,
+      borderWidth: 1,
+      addShadow: true,
+      shadowBlurRadius: 24,
+      shadowSpreadRadius: -4,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.34 : 0.14),
+      shadowOffset: const Offset(0, 8),
+      child: child,
+    );
+  }
+
   static GlassContainer taskCardGlass({
     required BuildContext context,
     required Widget child,

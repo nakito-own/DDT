@@ -1,9 +1,11 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 
-import '../controllers/ews_auth_controller.dart';
+import '../blocs/auth/auth_bloc.dart';
+import '../blocs/theme/theme_bloc.dart';
 import '../theme/ddt_theme.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -11,8 +13,6 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Get.find<EwsAuthController>();
-
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 520.w),
@@ -24,7 +24,7 @@ class SettingsPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Профиль',
+                'Настройки',
                 style: DdtTheme.style(
                   fontSize: 22.sp,
                   fontWeight: FontWeight.w700,
@@ -32,55 +32,135 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 20.h),
-              Obx(() {
-                if (!auth.isAuthenticated) {
-                  return Text(
-                    'Войдите через Exchange, чтобы увидеть профиль',
-                    style: DdtTheme.style(fontSize: 14.sp),
-                  );
-                }
-
-                final profile = auth.user.value;
-                if (profile == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _ProfileRow(label: 'Имя', value: profile.label),
-                    _ProfileRow(label: 'Email', value: profile.email),
-                    if (profile.jobTitle != null)
-                      _ProfileRow(label: 'Должность', value: profile.jobTitle!),
-                    if (profile.department != null)
-                      _ProfileRow(label: 'Отдел', value: profile.department!),
-                    if (profile.phone != null)
-                      _ProfileRow(label: 'Телефон', value: profile.phone!),
-                    if (profile.officeLocation != null)
-                      _ProfileRow(
-                        label: 'Офис',
-                        value: profile.officeLocation!,
+              BlocBuilder<ThemeBloc, ThemeState>(
+                buildWhen: (previous, current) =>
+                    previous.isDarkMode != current.isDarkMode,
+                builder: (context, themeState) {
+                  final isDark = themeState.isDarkMode;
+                  return _SettingsRow(
+                    label: 'Тема оформления',
+                    value: isDark ? 'Тёмная' : 'Светлая',
+                    trailing: IconButton(
+                      tooltip: isDark ? 'Светлая тема' : 'Тёмная тема',
+                      icon: Icon(
+                        isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon,
+                        color: AppColors.primary,
+                        size: 22.sp,
                       ),
-                    _ProfileRow(
-                      label: 'Exchange',
-                      value: auth.connected.value ? 'Подключён' : 'Нет связи',
+                      onPressed: () =>
+                          context.read<ThemeBloc>().add(const ThemeToggleRequested()),
                     ),
-                    SizedBox(height: 16.h),
-                    Button(
-                      text: auth.isLoading.value
-                          ? 'Выход...'
-                          : 'Выйти',
-                      onPressed: auth.isLoading.value ? null : auth.logout,
-                      type: ButtonType.outlined,
-                      borderRadius: DdtTheme.radius,
-                    ),
-                  ],
-                );
-              }),
+                  );
+                },
+              ),
+              SizedBox(height: 24.h),
+              Text(
+                'Профиль',
+                style: DdtTheme.style(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(height: 16.h),
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, authState) {
+                  if (authState is! AuthAuthenticated) {
+                    return Text(
+                      'Войдите через Exchange, чтобы увидеть профиль',
+                      style: DdtTheme.style(fontSize: 14.sp),
+                    );
+                  }
+
+                  final profile = authState.user;
+                  final isLoggingOut = authState is AuthLoading;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ProfileRow(label: 'Имя', value: profile.label),
+                      _ProfileRow(label: 'Email', value: profile.email),
+                      if (profile.jobTitle != null)
+                        _ProfileRow(
+                          label: 'Должность',
+                          value: profile.jobTitle!,
+                        ),
+                      if (profile.department != null)
+                        _ProfileRow(label: 'Отдел', value: profile.department!),
+                      if (profile.phone != null)
+                        _ProfileRow(label: 'Телефон', value: profile.phone!),
+                      if (profile.officeLocation != null)
+                        _ProfileRow(
+                          label: 'Офис',
+                          value: profile.officeLocation!,
+                        ),
+                      _ProfileRow(
+                        label: 'Exchange',
+                        value:
+                            authState.connected ? 'Подключён' : 'Нет связи',
+                      ),
+                      SizedBox(height: 16.h),
+                      Button(
+                        text: isLoggingOut ? 'Выход...' : 'Выйти',
+                        onPressed: isLoggingOut
+                            ? null
+                            : () => context
+                                .read<AuthBloc>()
+                                .add(const AuthLogoutRequested()),
+                        type: ButtonType.outlined,
+                        borderRadius: DdtTheme.radius,
+                      ),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.label,
+    required this.value,
+    required this.trailing,
+  });
+
+  final String label;
+  final String value;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: DdtTheme.style(
+                  fontSize: 12.sp,
+                  color: AppColors.primary.withValues(alpha: 0.6),
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                value,
+                style: DdtTheme.style(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing,
+      ],
     );
   }
 }

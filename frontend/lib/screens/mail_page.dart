@@ -1,75 +1,86 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import '../controllers/mail_controller.dart';
+import '../blocs/mail/mail_bloc.dart';
 import '../models/mail_message.dart';
 import '../theme/ddt_theme.dart';
-import '../widgets/ddt_tappable.dart';
 import '../widgets/compose_mail_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
 
-class MailPage extends StatelessWidget {
+class MailPage extends StatefulWidget {
   const MailPage({super.key});
 
   @override
+  State<MailPage> createState() => _MailPageState();
+}
+
+class _MailPageState extends State<MailPage> {
+  @override
+  void initState() {
+    super.initState();
+    // MailBloc уже создан в main.dart; запрашиваем загрузку входящих.
+    context.read<MailBloc>().add(const MailInboxLoadRequested());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = Get.put(MailController());
-
     return Stack(
-      children: [
-        Obx(() {
-          if (controller.isLoading.value && controller.messages.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          children: [
+            BlocBuilder<MailBloc, MailState>(
+              buildWhen: (previous, current) =>
+                  previous.isLoading != current.isLoading ||
+                  previous.errorMessage != current.errorMessage ||
+                  previous.messages.isEmpty != current.messages.isEmpty,
+              builder: (context, state) {
+                if (state.isLoading && state.messages.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (controller.errorMessage.value != null &&
-              controller.messages.isEmpty) {
-            return _ErrorState(
-              message: controller.errorMessage.value!,
-              onRetry: controller.loadInbox,
-            );
-          }
+                if (state.errorMessage != null && state.messages.isEmpty) {
+                  return _ErrorState(
+                    message: state.errorMessage!,
+                    onRetry: () => context
+                        .read<MailBloc>()
+                        .add(const MailInboxLoadRequested()),
+                  );
+                }
 
-          return RefreshIndicator(
-            onRefresh: controller.loadInbox,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: _MailList(controller: controller),
-                ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  flex: 7,
-                  child: _MailDetail(controller: controller),
-                ),
-              ],
+                return RefreshIndicator(
+                  onRefresh: () async => context
+                      .read<MailBloc>()
+                      .add(const MailInboxRefreshRequested()),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 5, child: const _MailList()),
+                      SizedBox(width: 16.w),
+                      Expanded(flex: 7, child: const _MailDetail()),
+                    ],
+                  ),
+                );
+              },
             ),
-          );
-        }),
-        Positioned(
-          right: 24.w,
-          bottom: 24.h,
-          child: DdtGlassFab(
-            onPressed: () => showComposeMailPanel(context),
-            icon: Icons.edit_outlined,
-            label: 'Написать',
-          ),
-        ),
-      ],
-    );
+            Positioned(
+              right: 24.w,
+              bottom: 24.h,
+              child: DdtGlassFab(
+                onPressed: () => showComposeMailPanel(context),
+                icon: Icons.edit_outlined,
+                label: 'Написать',
+              ),
+            ),
+          ],
+        );
   }
 }
 
 class _MailList extends StatelessWidget {
-  const _MailList({required this.controller});
-
-  final MailController controller;
+  const _MailList();
 
   @override
   Widget build(BuildContext context) {
@@ -79,49 +90,61 @@ class _MailList extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Obx(() {
-            final folders = controller.folders.value;
-            final subtitle = folders == null
-                ? 'Загрузка...'
-                : 'Входящие: ${folders.inbox} · Отправленные: ${folders.sent}';
-            return Text(
-              subtitle,
-              style: DdtTheme.style(
-                fontSize: 13.sp,
-                color: DdtTheme.taskCardTextSecondary(context),
-              ),
-            );
-          }),
+          BlocBuilder<MailBloc, MailState>(
+            buildWhen: (previous, current) =>
+                previous.folders != current.folders,
+            builder: (context, state) {
+              final folders = state.folders;
+              final subtitle = folders == null
+                  ? 'Загрузка...'
+                  : 'Входящие: ${folders.inbox} · Отправленные: ${folders.sent}';
+              return Text(
+                subtitle,
+                style: DdtTheme.style(
+                  fontSize: 13.sp,
+                  color: DdtTheme.taskCardTextSecondary(context),
+                ),
+              );
+            },
+          ),
           SizedBox(height: 12.h),
           Expanded(
-            child: Obx(() {
-              final messages = controller.messages;
-              final selectedId = controller.selectedMessageId.value;
+            child: BlocBuilder<MailBloc, MailState>(
+              buildWhen: (previous, current) =>
+                  previous.messages != current.messages ||
+                  previous.selectedMessage?.id !=
+                      current.selectedMessage?.id,
+              builder: (context, state) {
+                final messages = state.messages;
+                final selectedId = state.selectedMessage?.id;
 
-              if (messages.isEmpty) {
-                return Center(
-                  child: Text(
-                    'Входящие пусты',
-                    style: DdtTheme.style(fontSize: 14.sp),
-                  ),
-                );
-              }
-
-              return ListView.separated(
-                cacheExtent: 480,
-                itemCount: messages.length,
-                separatorBuilder: (_, __) => SizedBox(height: 8.h),
-                itemBuilder: (context, index) {
-                  final message = messages[index];
-                  return MailListItem(
-                    key: ValueKey(message.id),
-                    message: message,
-                    selected: message.id == selectedId,
-                    onTap: () => controller.selectMessage(message),
+                if (messages.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Входящие пусты',
+                      style: DdtTheme.style(fontSize: 14.sp),
+                    ),
                   );
-                },
-              );
-            }),
+                }
+
+                return ListView.separated(
+                  cacheExtent: 480,
+                  itemCount: messages.length,
+                  separatorBuilder: (_, __) => SizedBox(height: 8.h),
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    return MailListItem(
+                      key: ValueKey(message.id),
+                      message: message,
+                      selected: message.id == selectedId,
+                      onTap: () => context
+                          .read<MailBloc>()
+                          .add(MailMessageSelected(message)),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -130,63 +153,63 @@ class _MailList extends StatelessWidget {
 }
 
 class _MailDetail extends StatelessWidget {
-  const _MailDetail({required this.controller});
-
-  final MailController controller;
+  const _MailDetail();
 
   @override
   Widget build(BuildContext context) {
     return DdtTheme.glass(
       context: context,
       padding: EdgeInsets.all(20.w),
-      child: Obx(() {
-        final messageId = controller.selectedMessageId.value;
-        if (messageId == null) {
-          return Center(
-            child: Text(
-              'Выберите письмо',
-              style: DdtTheme.style(fontSize: 15.sp),
-            ),
+      child: BlocBuilder<MailBloc, MailState>(
+        buildWhen: (previous, current) =>
+            previous.selectedMessage != current.selectedMessage ||
+            previous.isLoadingDetail != current.isLoadingDetail,
+        builder: (context, state) {
+          final message = state.selectedMessage;
+          if (message == null) {
+            return Center(
+              child: Text(
+                'Выберите письмо',
+                style: DdtTheme.style(fontSize: 15.sp),
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MailDetailHeader(message: message),
+              SizedBox(height: 20.h),
+              Expanded(
+                child: Builder(
+                  builder: (context) {
+                    final body = message.body ?? '';
+                    final bodyType = message.bodyType;
+
+                    if (state.isLoadingDetail && body.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final bodyView = MailBodyView(
+                      key: ValueKey(message.id),
+                      messageId: message.id,
+                      body: body,
+                      bodyType: bodyType,
+                      fallback: message.preview,
+                    );
+
+                    if (bodyType == 'html') {
+                      return bodyView;
+                    }
+
+                    return SingleChildScrollView(child: bodyView);
+                  },
+                ),
+              ),
+            ],
           );
-        }
-
-        final message = controller.selectedMessage.value;
-        if (message == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _MailDetailHeader(message: message),
-            SizedBox(height: 20.h),
-            Expanded(
-              child: Obx(() {
-                final body = message.body ?? '';
-                final bodyType = message.bodyType;
-
-                if (controller.isLoadingDetail.value && body.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final bodyView = MailBodyView(
-                  key: ValueKey(messageId),
-                  messageId: messageId,
-                  body: body,
-                  bodyType: bodyType,
-                  fallback: message.preview,
-                );
-
-                if (bodyType == 'html') {
-                  return bodyView;
-                }
-
-                return SingleChildScrollView(child: bodyView);
-              }),
-            ),
-          ],
-        );
-      }),
+        },
+      ),
     );
   }
 }
@@ -233,7 +256,7 @@ class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
-  final Future<void> Function() onRetry;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -280,11 +303,13 @@ class MailListItem extends StatelessWidget {
     final double borderWidth;
 
     if (selected) {
-      backgroundColor = AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.14);
+      backgroundColor =
+          AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.14);
       borderColor = AppColors.primary;
       borderWidth = 2;
     } else if (isUnread) {
-      backgroundColor = AppColors.primary.withValues(alpha: isDark ? 0.1 : 0.06);
+      backgroundColor =
+          AppColors.primary.withValues(alpha: isDark ? 0.1 : 0.06);
       borderColor = AppColors.primary.withValues(alpha: 0.55);
       borderWidth = 1.5;
     } else {
@@ -364,17 +389,14 @@ class MailListItem extends StatelessWidget {
                       ),
                       if (message.datetimeReceived != null)
                         Text(
-                          _dateFormat.format(
-                            message.datetimeReceived!.toLocal(),
-                          ),
+                          _dateFormat
+                              .format(message.datetimeReceived!.toLocal()),
                           style: DdtTheme.style(
                             fontSize: 12.sp,
                             fontWeight: isUnread
                                 ? FontWeight.w600
                                 : FontWeight.w400,
-                            color: DdtTheme.taskCardTextSecondary(
-                              context,
-                            ),
+                            color: DdtTheme.taskCardTextSecondary(context),
                           ),
                         ),
                     ],
@@ -386,9 +408,8 @@ class MailListItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: DdtTheme.style(
                       fontSize: 12.sp,
-                      fontWeight: isUnread
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      fontWeight:
+                          isUnread ? FontWeight.w600 : FontWeight.w400,
                       color: DdtTheme.taskCardTextSecondary(context),
                     ),
                   ),

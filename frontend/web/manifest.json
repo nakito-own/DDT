@@ -1,11 +1,11 @@
 {
-    "name": "ddt_frontend",
-    "short_name": "ddt_frontend",
+    "name": "DDT",
+    "short_name": "DDT",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "DDT",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

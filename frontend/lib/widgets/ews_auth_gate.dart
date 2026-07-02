@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../controllers/ews_auth_controller.dart';
+import '../blocs/auth/auth_bloc.dart';
 import '../screens/ews_login_screen.dart';
 
 class EwsAuthGate extends StatelessWidget {
@@ -11,14 +11,15 @@ class EwsAuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Get.find<EwsAuthController>();
-
-    return Obx(() {
-      if (auth.isAuthenticated) {
-        return child;
-      }
-
-      return const EwsLoginScreen();
-    });
+    return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (previous, current) =>
+          (previous is AuthAuthenticated) != (current is AuthAuthenticated),
+      builder: (context, state) {
+        if (state is AuthAuthenticated) {
+          return child;
+        }
+        return const EwsLoginScreen();
+      },
+    );
   }
 }

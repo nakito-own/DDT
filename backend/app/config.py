@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +18,11 @@ class Settings(BaseSettings):
     ews_session_ttl_hours: int = 24
     ews_remember_ttl_days: int = 30
     ews_timezone: str = "Europe/Moscow"
+
+    ews_notification_mode: Literal["streaming", "pull"] = "pull"
+    ews_notification_stream_timeout: int = 1
+    ews_notification_poll_interval: int = 15
+    ews_notification_pull_timeout: int = 10
 
 
 settings = Settings()

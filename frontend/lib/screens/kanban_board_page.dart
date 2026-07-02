@@ -3,13 +3,14 @@ import 'dart:ui' as ui;
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 
-import '../controllers/ews_auth_controller.dart';
-import '../controllers/tasks_controller.dart';
+import '../blocs/auth/auth_bloc.dart';
+import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
+import '../models/task_type.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/task_card.dart';
@@ -27,7 +28,10 @@ class KanbanBoardPage extends StatefulWidget {
 
 class _KanbanBoardPageState extends State<KanbanBoardPage>
     with TickerProviderStateMixin {
-  TasksController get _tasks => Get.find<TasksController>();
+  // Локальная мутируемая копия колонок для drag-drop анимаций.
+  // BlocListener синхронизирует её с TasksBloc.state.columns.
+  late Map<TaskStatus, List<Task>> _localColumns;
+  late List<TaskType> _taskTypes;
 
   final Map<int, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
@@ -41,13 +45,22 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tasks.loadBoard();
-    });
+    final state = context.read<TasksBloc>().state;
+    _localColumns = {
+      for (final e in state.columns.entries) e.key: List.of(e.value),
+    };
+    _taskTypes = List.of(state.taskTypes);
+  }
+
+  void _syncFromBlocState(TasksState state) {
+    _localColumns = {
+      for (final e in state.columns.entries) e.key: List.of(e.value),
+    };
+    _taskTypes = List.of(state.taskTypes);
   }
 
   List<Task> _columnTasks(TaskStatus status) =>
-      _tasks.columns[status] ?? const [];
+      _localColumns[status] ?? const [];
 
   GlobalKey _taskCardKey(int taskId) =>
       _taskCardKeys.putIfAbsent(taskId, () => GlobalKey());
@@ -68,13 +81,12 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   }
 
   void _applyMove(Task task, TaskStatus from, TaskStatus to) {
-    final fromColumn = _tasks.columns[from];
-    final toColumn = _tasks.columns[to];
+    final fromColumn = _localColumns[from];
+    final toColumn = _localColumns[to];
     if (fromColumn == null || toColumn == null) return;
 
     fromColumn.removeWhere((item) => item.id == task.id);
     toColumn.add(_updatedTaskForColumn(task, to));
-    _tasks.columns.refresh();
   }
 
   void _registerTaskDrop(Task task, TaskStatus to) {
@@ -123,12 +135,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (cardSize == null) {
       setState(() => _applyMove(task, from, to));
-      final updated = _updatedTaskForColumn(task, to);
-      final saved = await _tasks.persistMove(task, from, to, updated);
-      if (!mounted) return;
-      if (saved == null) {
-        setState(() => _applyMove(updated, to, from));
-      }
+      context.read<TasksBloc>().add(TaskMoveRequested(
+            task: task,
+            from: from,
+            to: to,
+          ));
       _showMoveToast(task, to);
       return;
     }
@@ -143,12 +154,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (!mounted) return;
 
-    final updated = _updatedTaskForColumn(task, to);
-    final saved = await _tasks.persistMove(task, from, to, updated);
-    if (!mounted) return;
-    if (saved == null) {
-      setState(() => _applyMove(updated, to, from));
-    }
+    context.read<TasksBloc>().add(TaskMoveRequested(
+          task: task,
+          from: from,
+          to: to,
+        ));
     _showMoveToast(task, to);
   }
 
@@ -179,8 +189,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     required Size cardSize,
   }) async {
     final updated = _updatedTaskForColumn(task, to);
-    final fromColumn = _tasks.columns[from];
-    final toColumn = _tasks.columns[to];
+    final fromColumn = _localColumns[from];
+    final toColumn = _localColumns[to];
     if (fromColumn == null || toColumn == null) return;
 
     final fromIndex = fromColumn.indexWhere((item) => item.id == task.id);
@@ -194,7 +204,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       toColumn.add(updated);
       _animatingTaskId = task.id;
     });
-    _tasks.columns.refresh();
 
     _taskListKeys[from]!.currentState?.removeTaskAt(
       fromIndex,
@@ -298,13 +307,15 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   }
 
   Future<void> _addTask(TaskStatus status) async {
-    final auth = Get.find<EwsAuthController>();
+    final authState = context.read<AuthBloc>().state;
+    final currentUserId =
+        authState is AuthAuthenticated ? authState.user.id : null;
     final created = await showTaskSidePanel(
       context,
       mode: TaskSidePanelMode.create,
       initialStatus: status,
-      taskTypes: _tasks.taskTypes.toList(),
-      defaultAuthorId: auth.currentUserId,
+      taskTypes: _taskTypes,
+      defaultAuthorId: currentUserId,
     );
 
     if (created == null || !mounted) return;
@@ -317,7 +328,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       typeId: created.typeId,
       type: created.type,
       description: created.description,
-      authorId: auth.currentUserId ?? created.authorId,
+      authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
       timeSet: created.timeSet,
@@ -331,18 +342,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       comments: created.comments,
     );
 
-    final task = await _tasks.createTask(draft);
-    if (task == null || !mounted) return;
-
-    setState(() {});
-
-    _taskListKeys[task.status]?.currentState?.insertTaskAt(
-      _columnTasks(task.status).length - 1,
-    );
-
+    context.read<TasksBloc>().add(TaskCreateRequested(draft));
+    // BlocListener синхронизирует _localColumns после ответа сервера.
     Toast.show(
-      message: 'Задача добавлена в «${task.status.label}»',
-      type: ToastType.success,
+      message: 'Задача создаётся...',
+      type: ToastType.info,
     );
   }
 
@@ -354,10 +358,10 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     final cardSize = _taskCardSizes[task.id];
     final gap = index < column.length - 1 ? DdtTheme.spacing.h : 0.0;
 
-    final deleted = await _tasks.deleteTask(task, status);
-    if (!deleted || !mounted) return;
-
-    setState(() {});
+    // Оптимистично убираем из локальных колонок для быстрой реакции.
+    setState(() {
+      _localColumns[status]?.removeAt(index);
+    });
 
     if (cardSize != null) {
       _taskListKeys[status]?.currentState?.removeTaskAt(
@@ -366,6 +370,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       );
     }
 
+    context.read<TasksBloc>().add(TaskDeleteRequested(task: task, status: status));
+    // BlocListener синхронизирует при успехе или откатит при ошибке.
     Toast.show(
       message: '«${task.title}» удалена',
       type: ToastType.success,
@@ -377,92 +383,26 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       context,
       mode: TaskSidePanelMode.view,
       task: task,
-      taskTypes: _tasks.taskTypes.toList(),
+      taskTypes: _taskTypes,
     );
 
     if (updated == null || !mounted) return;
 
-    await _applyTaskUpdate(task, updated);
-  }
-
-  Future<void> _applyTaskUpdate(Task original, Task updated) async {
-    final oldStatus = original.status;
-    final newStatus = updated.status;
-
-    if (oldStatus == newStatus) {
-      final saved = await _tasks.updateTask(original, updated);
-      if (saved == null || !mounted) return;
-      setState(() {});
-      return;
-    }
-
-    final oldIndex =
-        _columnTasks(oldStatus).indexWhere((item) => item.id == original.id);
-    if (oldIndex < 0) return;
-
-    final cardSize = _taskCardSizes[original.id];
-    final gap =
-        oldIndex < _columnTasks(oldStatus).length - 1 ? DdtTheme.spacing.h : 0.0;
-
-    final saved = await _tasks.updateTask(original, updated);
-    if (saved == null || !mounted) return;
-
-    setState(() {});
-
-    if (cardSize != null) {
-      _taskListKeys[oldStatus]?.currentState?.removeTaskAt(
-        oldIndex,
-        slotHeight: cardSize.height + gap,
-      );
-    }
-
-    _taskListKeys[newStatus]?.currentState?.insertTaskAt(
-      _columnTasks(newStatus).length - 1,
-    );
-
-    Toast.show(
-      message: 'Задача перемещена в «${newStatus.label}»',
-      type: ToastType.success,
-    );
+    context
+        .read<TasksBloc>()
+        .add(TaskUpdateRequested(original: task, updated: updated));
+    // BlocListener синхронизирует _localColumns после ответа сервера.
   }
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      if (_tasks.isLoading.value && _tasks.allTasks.isEmpty) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      final error = _tasks.errorMessage.value;
-      if (error != null && _tasks.allTasks.isEmpty) {
-        return Center(
-          child: Padding(
-            padding: EdgeInsets.all(24.w),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Не удалось загрузить задачи',
-                  style: DdtTheme.style(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8.h),
-                Text(error, textAlign: TextAlign.center),
-                SizedBox(height: 16.h),
-                Button(
-                  text: 'Повторить',
-                  onPressed: _tasks.loadBoard,
-                  borderRadius: DdtTheme.radius,
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      return LayoutBuilder(
+    return BlocListener<TasksBloc, TasksState>(
+      listenWhen: (previous, current) => previous.columns != current.columns ||
+          previous.taskTypes != current.taskTypes,
+      listener: (context, state) {
+        setState(() => _syncFromBlocState(state));
+      },
+      child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
 
@@ -525,8 +465,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
             ),
           );
         },
-      );
-    });
+      ),
+    );
   }
 }
 

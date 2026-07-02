@@ -62,15 +62,18 @@ class _LoginBackgroundState extends State<LoginBackground> {
           _AssetBackgroundImage(path: assetPath)
         else
           _GradientFallback(isDark: isDark),
-        ColoredBox(
-          color: isDark
-              ? Colors.black.withValues(
-                  alpha: LoginBackgroundConfig.darkOverlayOpacity,
-                )
-              : Colors.white.withValues(
-                  alpha: LoginBackgroundConfig.lightOverlayOpacity,
-                ),
-        ),
+        if (isDark)
+          ColoredBox(
+            color: Colors.black.withValues(
+              alpha: LoginBackgroundConfig.darkOverlayOpacity,
+            ),
+          )
+        else
+          ColoredBox(
+            color: Colors.white.withValues(
+              alpha: LoginBackgroundConfig.lightOverlayOpacity,
+            ),
+          ),
       ],
     );
   }

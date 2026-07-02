@@ -1,11 +1,11 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import '../controllers/calendar_controller.dart';
+import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_side_panel.dart';
@@ -39,25 +39,14 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
   }
 
   Future<void> _respond(CalendarEventResponseAction action) async {
-    final controller = Get.find<CalendarController>();
-    final success = await controller.respondToEvent(_event, action);
-    if (!mounted) {
-      return;
-    }
+    context
+        .read<CalendarBloc>()
+        .add(CalendarEventRespondRequested(event: _event, action: action));
 
-    if (success) {
-      final index = controller.events.indexWhere((item) => item.id == _event.id);
-      if (index >= 0) {
-        setState(() => _event = controller.events[index]);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_responseSuccessMessage(action))),
-      );
-    } else if (controller.errorMessage.value != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(controller.errorMessage.value!)),
-      );
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_responseSuccessMessage(action))),
+    );
   }
 
   String _responseSuccessMessage(CalendarEventResponseAction action) {
@@ -72,22 +61,22 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<CalendarController>();
     final textPrimary = DdtTheme.sidePanelTextPrimary(context);
     final textSecondary = DdtTheme.sidePanelTextSecondary(context);
     final pending = _event.needsResponse;
 
-    return DdtSidePanelShell(
-      title: 'Событие',
-      footer: _event.isMeeting
-          ? Obx(
-              () => _ResponseActions(
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) =>
+          previous.isResponding != current.isResponding,
+      builder: (context, state) => DdtSidePanelShell(
+        title: 'Событие',
+        footer: _event.isMeeting
+            ? _ResponseActions(
                 event: _event,
-                isLoading: controller.isResponding.value,
+                isLoading: state.isResponding,
                 onRespond: _respond,
-              ),
-            )
-          : null,
+              )
+            : null,
       child: SingleChildScrollView(
         padding: EdgeInsets.only(top: 16.h, bottom: 24.h),
         child: Column(
@@ -146,6 +135,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
           ],
         ),
       ),
+    ),
     );
   }
 }

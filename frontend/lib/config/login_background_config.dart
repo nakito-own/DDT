@@ -21,5 +21,5 @@ class LoginBackgroundConfig {
 
   static const double darkOverlayOpacity = 0.58;
 
-  static const double lightOverlayOpacity = 0.42;
+  static const double lightOverlayOpacity = 0.62;
 }

@@ -1,10 +1,10 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import '../controllers/calendar_controller.dart';
+import '../blocs/calendar/calendar_bloc.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_side_panel.dart';
 import 'ddt_tappable.dart';
@@ -101,25 +101,19 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
       return;
     }
 
-    final controller = Get.find<CalendarController>();
-    final success = await controller.createEvent(
-      subject: _subjectController.text.trim(),
-      start: _start,
-      end: _end,
-      location: _locationController.text.trim(),
-      body: _bodyController.text.trim(),
+    context.read<CalendarBloc>().add(CalendarEventCreateRequested(
+          subject: _subjectController.text.trim(),
+          start: _start,
+          end: _end,
+          location: _locationController.text.trim(),
+          body: _bodyController.text.trim(),
+        ));
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Событие создаётся...')),
     );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (success) {
-      Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Событие создано')),
-      );
-    }
   }
 
   Widget _dateTile({
@@ -151,32 +145,31 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<CalendarController>();
-
-    return DdtSidePanelShell(
-      title: 'Новое событие',
-      footer: Row(
-        children: [
-          Expanded(
-            child: Button(
-              text: 'Отмена',
-              type: ButtonType.outlined,
-              borderRadius: DdtTheme.radius,
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Obx(
-              () => Button(
-                text: controller.isCreating.value ? 'Создание...' : 'Создать',
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) =>
+          previous.isCreating != current.isCreating,
+      builder: (context, state) => DdtSidePanelShell(
+        title: 'Новое событие',
+        footer: Row(
+          children: [
+            Expanded(
+              child: Button(
+                text: 'Отмена',
+                type: ButtonType.outlined,
                 borderRadius: DdtTheme.radius,
-                onPressed: controller.isCreating.value ? null : _submit,
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ),
-          ),
-        ],
-      ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Button(
+                text: state.isCreating ? 'Создание...' : 'Создать',
+                borderRadius: DdtTheme.radius,
+                onPressed: state.isCreating ? null : _submit,
+              ),
+            ),
+          ],
+        ),
       child: Form(
         key: _formKey,
         child: ListView(
@@ -222,25 +215,22 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
               minLines: 4,
               maxLines: 10,
             ),
-            Obx(() {
-              final error = controller.errorMessage.value;
-              if (error == null || error.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return Padding(
+            if (state.errorMessage != null &&
+                state.errorMessage!.isNotEmpty)
+              Padding(
                 padding: EdgeInsets.only(top: 12.h),
                 child: Text(
-                  error,
+                  state.errorMessage!,
                   style: DdtTheme.style(
                     fontSize: 13.sp,
                     color: Colors.redAccent,
                   ),
                 ),
-              );
-            }),
+              ),
           ],
         ),
       ),
+    ),
     );
   }
 }

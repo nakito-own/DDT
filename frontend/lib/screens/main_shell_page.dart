@@ -7,9 +7,9 @@ import '../theme/ddt_theme.dart';
 import '../widgets/ddt_shell_layout.dart';
 import 'calendar_page.dart';
 import 'contacts_page.dart';
-import 'kanban_board_page.dart';
 import 'mail_page.dart';
 import 'settings_page.dart';
+import 'tasks_shell_page.dart';
 
 class MainShellPage extends StatefulWidget {
   const MainShellPage({super.key});
@@ -34,7 +34,7 @@ class _MainShellPageState extends State<MainShellPage> {
   Widget _buildSectionContent() {
     switch (_selectedSection) {
       case AppSection.tasks:
-        return const KanbanBoardPage();
+        return const TasksShellPage();
       case AppSection.mail:
         return const MailPage();
       case AppSection.calendar:

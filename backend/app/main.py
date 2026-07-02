@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,16 +12,27 @@ from app.routers import (
     ews_calendar,
     ews_contacts,
     ews_mail,
+    ews_notifications,
     health,
     static_assets,
     task_types,
     tasks,
     users,
 )
+from app.services.ews_notification_service import ews_notification_service
+from app.services.notification_hub import notification_hub
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="DDT API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    notification_hub.set_loop(asyncio.get_running_loop())
+    yield
+    ews_notification_service.shutdown_all()
+
+
+app = FastAPI(title="DDT API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,4 +75,9 @@ app.include_router(
 )
 app.include_router(
     ews_contacts.router, prefix="/api/ews/contacts", tags=["ews-contacts"]
+)
+app.include_router(
+    ews_notifications.router,
+    prefix="/api/ews/notifications",
+    tags=["ews-notifications"],
 )
