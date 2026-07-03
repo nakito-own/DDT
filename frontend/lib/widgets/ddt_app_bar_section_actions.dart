@@ -3,10 +3,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../blocs/mail/mail_bloc.dart';
-import '../blocs/tasks/tasks_bloc.dart';
 import '../models/app_section.dart';
 import '../models/tasks_view_mode.dart';
 import '../theme/ddt_theme.dart';
@@ -34,33 +34,32 @@ class _TasksAppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
+    // Активный вид определяется из URL — GoRouter является источником истины.
+    // Это гарантирует корректное отображение при прямом открытии URL
+    // (например, /tasks/list) и при навигации через кнопки браузера.
+    final location = GoRouterState.of(context).matchedLocation;
+    final activeMode = TasksViewMode.fromRoute(location);
 
-    return BlocBuilder<TasksBloc, TasksState>(
-      buildWhen: (previous, current) =>
-          previous.viewMode != current.viewMode,
-      builder: (context, state) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _AppBarSegmentedControl<TasksViewMode>(
-            segments: const [
-              _AppBarSegment(value: TasksViewMode.kanban, label: 'Канбан'),
-              _AppBarSegment(value: TasksViewMode.list, label: 'Список'),
-              _AppBarSegment(value: TasksViewMode.gantt, label: 'Гант'),
-            ],
-            selected: state.viewMode,
-            onChanged: (mode) => context
-                .read<TasksBloc>()
-                .add(TasksViewModeChanged(mode)),
-            textSecondary: textSecondary,
-          ),
-          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-          _AppBarIconAction(
-            tooltip: 'Архив',
-            icon: CupertinoIcons.archivebox,
-            onPressed: () {},
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _AppBarSegmentedControl<TasksViewMode>(
+          segments: const [
+            _AppBarSegment(value: TasksViewMode.kanban, label: 'Канбан'),
+            _AppBarSegment(value: TasksViewMode.list, label: 'Список'),
+            _AppBarSegment(value: TasksViewMode.gantt, label: 'Гант'),
+          ],
+          selected: activeMode,
+          onChanged: (mode) => context.go(mode.routePath),
+          textSecondary: textSecondary,
+        ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+        _AppBarIconAction(
+          tooltip: 'Архив',
+          icon: CupertinoIcons.archivebox,
+          onPressed: () {},
+        ),
+      ],
     );
   }
 }

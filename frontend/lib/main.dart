@@ -2,6 +2,7 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:go_router/go_router.dart';
 
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/calendar/calendar_bloc.dart';
@@ -10,10 +11,9 @@ import 'blocs/notifications/notifications_bloc.dart';
 import 'blocs/tasks/tasks_bloc.dart';
 import 'blocs/theme/theme_bloc.dart';
 import 'models/app_notification.dart';
+import 'router/app_router.dart';
 import 'services/session_token_storage.dart';
-import 'screens/main_shell_page.dart';
 import 'theme/ddt_theme.dart';
-import 'widgets/ews_auth_gate.dart';
 
 const _themeStorageBox = 'ddt_storage';
 
@@ -31,8 +31,34 @@ Future<void> main() async {
   runApp(const DdtApp());
 }
 
-class DdtApp extends StatelessWidget {
+class DdtApp extends StatefulWidget {
   const DdtApp({super.key});
+
+  @override
+  State<DdtApp> createState() => _DdtAppState();
+}
+
+class _DdtAppState extends State<DdtApp> {
+  // AuthBloc создаётся здесь, чтобы один и тот же экземпляр мог быть
+  // передан одновременно в GoRouter (для redirect) и в BlocProvider
+  // (для доступа из виджетного дерева). Это исключает рассинхронизацию
+  // состояния между роутером и UI.
+  late final AuthBloc _authBloc;
+  late final GoRouterHolder _routerHolder;
+
+  @override
+  void initState() {
+    super.initState();
+    _authBloc = AuthBloc()..add(const AuthSessionRestoreRequested());
+    _routerHolder = GoRouterHolder(createAppRouter(_authBloc));
+  }
+
+  @override
+  void dispose() {
+    _authBloc.close();
+    _routerHolder.router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,10 +69,9 @@ class DdtApp extends StatelessWidget {
             ..add(const ThemeLoadRequested()),
         ),
         BlocProvider(create: (_) => NotificationsBloc()),
-        BlocProvider(
-          create: (_) => AuthBloc()
-            ..add(const AuthSessionRestoreRequested()),
-        ),
+        // BlocProvider.value — не создаём новый блок, используем _authBloc
+        // из initState, который уже передан в GoRouter.
+        BlocProvider.value(value: _authBloc),
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
         BlocProvider(
@@ -116,7 +141,8 @@ class DdtApp extends StatelessWidget {
           builder: () => BlocBuilder<ThemeBloc, ThemeState>(
             buildWhen: (previous, current) =>
                 previous.mode != current.mode,
-            builder: (context, themeState) => MaterialApp(
+            builder: (context, themeState) => MaterialApp.router(
+              routerConfig: _routerHolder.router,
               title: 'DDT',
               theme: DdtTheme.light(),
               darkTheme: DdtTheme.dark(),
@@ -131,7 +157,6 @@ class DdtApp extends StatelessWidget {
                   ),
                 );
               },
-              home: const EwsAuthGate(child: MainShellPage()),
               debugShowCheckedModeBanner: false,
             ),
           ),
@@ -139,4 +164,10 @@ class DdtApp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Простой контейнер для [GoRouter], чтобы явно управлять его временем жизни.
+class GoRouterHolder {
+  const GoRouterHolder(this.router);
+  final GoRouter router;
 }

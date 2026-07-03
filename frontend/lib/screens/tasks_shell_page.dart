@@ -4,14 +4,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
-import '../models/tasks_view_mode.dart';
 import '../theme/ddt_theme.dart';
-import 'kanban_board_page.dart';
-import 'tasks_gantt_page.dart';
-import 'tasks_list_page.dart';
 
+/// Оболочка раздела задач: управляет загрузкой и ошибками.
+///
+/// Является shell-виджетом для внутреннего [ShellRoute] маршрутов задач.
+/// Сохраняется живым при переключении между /tasks/kanban, /tasks/list
+/// и /tasks/gantt — [initState] не срабатывает повторно, загрузка
+/// происходит один раз при входе в раздел задач.
+///
+/// Конкретный вид (KanbanBoardPage, TasksListPage, TasksGanttPage)
+/// определяется GoRouter и передаётся через [child].
 class TasksShellPage extends StatefulWidget {
-  const TasksShellPage({super.key});
+  const TasksShellPage({super.key, required this.child});
+
+  final Widget child;
 
   @override
   State<TasksShellPage> createState() => _TasksShellPageState();
@@ -32,7 +39,6 @@ class _TasksShellPageState extends State<TasksShellPage> {
       buildWhen: (previous, current) =>
           previous.isLoading != current.isLoading ||
           previous.errorMessage != current.errorMessage ||
-          previous.viewMode != current.viewMode ||
           previous.allTasks.isEmpty != current.allTasks.isEmpty,
       builder: (context, state) {
         if (state.isLoading && state.allTasks.isEmpty) {
@@ -70,11 +76,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
           );
         }
 
-        return switch (state.viewMode) {
-          TasksViewMode.kanban => const KanbanBoardPage(),
-          TasksViewMode.list => const TasksListPage(),
-          TasksViewMode.gantt => const TasksGanttPage(),
-        };
+        return widget.child;
       },
     );
   }

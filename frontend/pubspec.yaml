@@ -28,6 +28,7 @@ dependencies:
   infinite_calendar_view: ^2.11.5
   flutter_gantt: ^1.2.2
   web_socket_channel: ^3.0.3
+  go_router: ^14.8.1
 
 dependency_overrides:
   get_storage:
