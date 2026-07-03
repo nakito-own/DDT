@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_date_time_picker.dart';
 import 'ddt_side_panel.dart';
 import 'ddt_tappable.dart';
 
@@ -52,32 +53,15 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
     required bool isStart,
   }) async {
     final initial = isStart ? _start : _end;
-    final date = await showDatePicker(
+    final value = await showDdtDateTimePicker(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDateTime: initial,
     );
-    if (date == null || !mounted) {
-      return;
-    }
-
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null) {
+    if (value == null || !mounted) {
       return;
     }
 
     setState(() {
-      final value = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
       if (isStart) {
         _start = value;
         if (!_end.isAfter(_start)) {
@@ -177,10 +161,7 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
           children: [
             TextFormField(
               controller: _subjectController,
-              decoration: const InputDecoration(
-                labelText: 'Название',
-                border: OutlineInputBorder(),
-              ),
+              decoration: DdtTheme.inputDecoration(labelText: 'Название'),
               validator: (value) => value == null || value.trim().isEmpty
                   ? 'Укажите название события'
                   : null,
@@ -199,17 +180,13 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
             SizedBox(height: 12.h),
             TextFormField(
               controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'Место',
-                border: OutlineInputBorder(),
-              ),
+              decoration: DdtTheme.inputDecoration(labelText: 'Место'),
             ),
             SizedBox(height: 12.h),
             TextFormField(
               controller: _bodyController,
-              decoration: const InputDecoration(
+              decoration: DdtTheme.inputDecoration(
                 labelText: 'Описание',
-                border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
               minLines: 4,

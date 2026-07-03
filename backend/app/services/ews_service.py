@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from html import unescape
-from typing import Any, Literal, Literal
+from typing import Any, Callable, Literal
 from zoneinfo import ZoneInfo
 
 import pytz
@@ -17,8 +17,10 @@ from exchangelib import (
     HTMLBody,
     Mailbox,
     Message,
+    Q,
 )
 from exchangelib.errors import ErrorItemNotFound
+from exchangelib.extended_properties import ExtendedProperty
 
 from app.config import settings
 
@@ -216,6 +218,133 @@ def _to_iso(value: datetime | None) -> datetime | None:
     return value
 
 
+MailFilter = Literal["all", "to_me", "flagged", "mentions"]
+MailSort = Literal[
+    "date_asc",
+    "date_desc",
+    "from",
+    "to",
+    "subject",
+    "attachments",
+    "importance",
+]
+
+_INBOX_ONLY_FIELDS = (
+    "id",
+    "subject",
+    "sender",
+    "author",
+    "display_to",
+    "datetime_received",
+    "is_read",
+    "text_body",
+    "has_attachments",
+    "importance",
+    "to_recipients",
+    "cc_recipients",
+)
+
+_SORT_ORDER: dict[MailSort, str] = {
+    "date_asc": "datetime_received",
+    "date_desc": "-datetime_received",
+    "from": "author",
+    "to": "display_to",
+    "subject": "subject",
+    "attachments": "-has_attachments",
+    "importance": "-importance",
+}
+
+
+class FollowupFlag(ExtendedProperty):
+    property_tag = 0x1090
+    property_type = "Integer"
+
+
+Message.register("followup_flag", FollowupFlag)
+
+
+def _mailbox_email(value: Any) -> str | None:
+    if value is None:
+        return None
+    email = getattr(value, "email_address", None)
+    if email:
+        return str(email).lower()
+    return str(value).lower()
+
+
+def _is_to_me(item: Any, user_email: str) -> bool:
+    email = user_email.lower()
+    to_recipients = item.to_recipients or []
+    return any(_mailbox_email(recipient) == email for recipient in to_recipients)
+
+
+def _is_flagged(item: Any) -> bool:
+    flag_value = getattr(item, "followup_flag", None)
+    return flag_value == 2
+
+
+def _is_mention(item: Any, user_email: str) -> bool:
+    local_part = user_email.split("@", 1)[0].lower()
+    haystack = " ".join(
+        part
+        for part in (
+            item.subject or "",
+            getattr(item, "text_body", None) or "",
+        )
+        if part
+    ).lower()
+
+    if f"@{local_part}" in haystack:
+        return True
+
+    return f"@{user_email.lower()}" in haystack
+
+
+def _message_predicate(
+    mail_filter: MailFilter,
+    user_email: str | None,
+) -> Callable[[Any], bool] | None:
+    if mail_filter in ("all", "flagged"):
+        return None
+    if mail_filter == "to_me":
+        if not user_email:
+            return lambda _item: False
+        email = user_email.lower()
+        return lambda item: _is_to_me(item, email)
+    if mail_filter == "flagged":
+        return _is_flagged
+    if mail_filter == "mentions":
+        if not user_email:
+            return lambda _item: False
+        email = user_email.lower()
+        return lambda item: _is_mention(item, email)
+    return None
+
+
+def _collect_inbox_page(
+    queryset: Any,
+    *,
+    limit: int,
+    offset: int,
+    predicate: Callable[[Any], bool] | None,
+) -> list[Any]:
+    if predicate is None:
+        return list(queryset[offset : offset + limit])
+
+    matched: list[Any] = []
+    skipped = 0
+    for item in queryset:
+        if not predicate(item):
+            continue
+        if skipped < offset:
+            skipped += 1
+            continue
+        matched.append(item)
+        if len(matched) >= limit:
+            break
+    return matched
+
+
 class EwsService:
     def create_account(self, username: str, password: str, email: str) -> Account:
         credentials = Credentials(username=username, password=password)
@@ -287,21 +416,28 @@ class EwsService:
         }
 
     def list_inbox_messages(
-        self, account: Account, limit: int = 50, offset: int = 0
+        self,
+        account: Account,
+        limit: int = 50,
+        offset: int = 0,
+        *,
+        mail_filter: MailFilter = "all",
+        sort: MailSort = "date_desc",
+        user_email: str | None = None,
     ) -> list[MailSummary]:
-        queryset = (
-            account.inbox.all()
-            .only(
-                "id",
-                "subject",
-                "sender",
-                "datetime_received",
-                "is_read",
-                "text_body",
-            )
-            .order_by("-datetime_received")
+        order_by = _SORT_ORDER.get(sort, "-datetime_received")
+        queryset = account.inbox.all().only(*_INBOX_ONLY_FIELDS).order_by(order_by)
+
+        if mail_filter == "flagged":
+            queryset = queryset.filter(Q(followup_flag=2))
+
+        predicate = _message_predicate(mail_filter, user_email)
+        items = _collect_inbox_page(
+            queryset,
+            limit=limit,
+            offset=offset,
+            predicate=predicate,
         )
-        items = list(queryset[offset : offset + limit])
         result: list[MailSummary] = []
 
         for item in items:

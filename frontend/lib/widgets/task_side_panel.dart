@@ -11,7 +11,9 @@ import '../models/task_priority.dart';
 import '../models/task_status.dart';
 import '../models/task_type.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_date_time_picker.dart';
 import '../utils/task_formatters.dart';
+import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
 
 enum TaskSidePanelMode { view, create }
@@ -272,14 +274,14 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppInput(
+            DdtAppInput(
               label: 'Название',
               hint: 'Введите название задачи',
               controller: _titleController,
               borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
-            AppInput(
+            DdtAppInput(
               label: 'Описание',
               hint: 'Описание задачи',
               controller: _descriptionController,
@@ -288,119 +290,134 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
-            _DropdownField<TaskStatus>(
-              label: 'Статус',
-              value: _status,
-              items: [
-                for (final status in TaskStatus.values)
-                  DropdownMenuItem(
-                    value: status,
-                    child: Text(status.label),
+            _TaskFormTableSections(
+              sections: [
+                [
+                  _TaskFormTableRow(
+                    label: 'Статус',
+                    child: _DropdownControl<TaskStatus>(
+                      value: _status,
+                      items: [
+                        for (final status in TaskStatus.values)
+                          DropdownMenuItem(
+                            value: status,
+                            child: Text(status.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => _status = value);
+                      },
+                    ),
                   ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _status = value);
-              },
-            ),
-            DdtTheme.verticalGap(),
-            _DropdownField<int?>(
-              label: 'Тип',
-              value: _typeId,
-              items: [
-                const DropdownMenuItem<int?>(
-                  value: null,
-                  child: Text('Не указан'),
-                ),
-                for (final type in widget.taskTypes)
-                  DropdownMenuItem(
-                    value: type.id,
-                    child: Text(type.name),
+                  _TaskFormTableRow(
+                    label: 'Тип',
+                    child: _DropdownControl<int?>(
+                      value: _typeId,
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Не указан'),
+                        ),
+                        for (final type in widget.taskTypes)
+                          DropdownMenuItem(
+                            value: type.id,
+                            child: Text(type.name),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _typeId = value),
+                    ),
                   ),
-              ],
-              onChanged: (value) => setState(() => _typeId = value),
-            ),
-            DdtTheme.verticalGap(),
-            _DropdownField<TaskPriority?>(
-              label: 'Приоритет',
-              value: _priority,
-              items: [
-                const DropdownMenuItem<TaskPriority?>(
-                  value: null,
-                  child: Text('Не указан'),
-                ),
-                for (final priority in TaskPriority.values)
-                  DropdownMenuItem(
-                    value: priority,
-                    child: Text(priority.label),
+                  _TaskFormTableRow(
+                    label: 'Приоритет',
+                    child: _DropdownControl<TaskPriority?>(
+                      value: _priority,
+                      items: [
+                        const DropdownMenuItem<TaskPriority?>(
+                          value: null,
+                          child: Text('Не указан'),
+                        ),
+                        for (final priority in TaskPriority.values)
+                          DropdownMenuItem(
+                            value: priority,
+                            child: Text(priority.label),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _priority = value),
+                    ),
                   ),
+                ],
+                [
+                  _TaskFormTableRow(
+                    label: 'Автор',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _authorController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Исполнитель',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _executorController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Ответственный',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _responsibleController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                ],
+                [
+                  _TaskFormTableRow(
+                    label: 'Создание',
+                    child: _FormTableDateTimeControl(
+                      value: _timeSet,
+                      onChanged: (value) {
+                        if (value != null) setState(() => _timeSet = value);
+                      },
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Начало',
+                    child: _FormTableDateTimeControl(
+                      value: _timeStart,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _timeStart = value),
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Окончание',
+                    child: _FormTableDateTimeControl(
+                      value: _timeEnd,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _timeEnd = value),
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Дедлайн',
+                    child: _FormTableDateTimeControl(
+                      value: _deadline,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _deadline = value),
+                    ),
+                  ),
+                ],
               ],
-              onChanged: (value) => setState(() => _priority = value),
-            ),
-            DdtTheme.verticalGap(),
-            _SectionTitle(title: 'Участники'),
-            SizedBox(height: 8.h),
-            AppInput(
-              label: 'Автор (ID)',
-              hint: 'Необязательно',
-              controller: _authorController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            SizedBox(height: 12.h),
-            AppInput(
-              label: 'Исполнитель (ID)',
-              hint: 'Необязательно',
-              controller: _executorController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            SizedBox(height: 12.h),
-            AppInput(
-              label: 'Ответственный (ID)',
-              hint: 'Необязательно',
-              controller: _responsibleController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            DdtTheme.verticalGap(),
-            _SectionTitle(title: 'Время'),
-            SizedBox(height: 8.h),
-            _DateTimeField(
-              label: 'Время создания',
-              value: _timeSet,
-              onChanged: (value) {
-                if (value != null) setState(() => _timeSet = value);
-              },
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Время начала',
-              value: _timeStart,
-              nullable: true,
-              onChanged: (value) => setState(() => _timeStart = value),
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Время окончания',
-              value: _timeEnd,
-              nullable: true,
-              onChanged: (value) => setState(() => _timeEnd = value),
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Дедлайн',
-              value: _deadline,
-              nullable: true,
-              onChanged: (value) => setState(() => _deadline = value),
+              trailingDivider: true,
             ),
             DdtTheme.verticalGap(),
             Row(
               children: [
                 Expanded(child: _SectionTitle(title: 'Ссылки')),
-                TextButton.icon(
+                _CompactIconTextButton(
+                  label: 'Добавить',
+                  icon: CupertinoIcons.add,
                   onPressed: _addLinkDraft,
-                  icon: Icon(CupertinoIcons.add, size: 18.sp),
-                  label: const Text('Добавить'),
                 ),
               ],
             ),
@@ -430,7 +447,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
             DdtTheme.verticalGap(),
             _SectionTitle(title: 'Новый комментарий'),
             SizedBox(height: 8.h),
-            AppInput(
+            DdtAppInput(
               label: 'Комментарий',
               hint: 'Необязательно',
               controller: _commentController,
@@ -619,7 +636,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppInput(
+            DdtAppInput(
               label: 'Название',
               hint: 'Введите название задачи',
               controller: _titleController,
@@ -627,7 +644,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
-            AppInput(
+            DdtAppInput(
               label: 'Описание',
               hint: 'Описание задачи',
               controller: _descriptionController,
@@ -636,119 +653,134 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
-            _DropdownField<TaskStatus>(
-              label: 'Статус',
-              value: _status,
-              items: [
-                for (final status in TaskStatus.values)
-                  DropdownMenuItem(
-                    value: status,
-                    child: Text(status.label),
+            _TaskFormTableSections(
+              sections: [
+                [
+                  _TaskFormTableRow(
+                    label: 'Статус',
+                    child: _DropdownControl<TaskStatus>(
+                      value: _status,
+                      items: [
+                        for (final status in TaskStatus.values)
+                          DropdownMenuItem(
+                            value: status,
+                            child: Text(status.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => _status = value);
+                      },
+                    ),
                   ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _status = value);
-              },
-            ),
-            DdtTheme.verticalGap(),
-            _DropdownField<int?>(
-              label: 'Тип',
-              value: _typeId,
-              items: [
-                const DropdownMenuItem<int?>(
-                  value: null,
-                  child: Text('Не указан'),
-                ),
-                for (final type in widget.taskTypes)
-                  DropdownMenuItem(
-                    value: type.id,
-                    child: Text(type.name),
+                  _TaskFormTableRow(
+                    label: 'Тип',
+                    child: _DropdownControl<int?>(
+                      value: _typeId,
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Не указан'),
+                        ),
+                        for (final type in widget.taskTypes)
+                          DropdownMenuItem(
+                            value: type.id,
+                            child: Text(type.name),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _typeId = value),
+                    ),
                   ),
-              ],
-              onChanged: (value) => setState(() => _typeId = value),
-            ),
-            DdtTheme.verticalGap(),
-            _DropdownField<TaskPriority?>(
-              label: 'Приоритет',
-              value: _priority,
-              items: [
-                const DropdownMenuItem<TaskPriority?>(
-                  value: null,
-                  child: Text('Не указан'),
-                ),
-                for (final priority in TaskPriority.values)
-                  DropdownMenuItem(
-                    value: priority,
-                    child: Text(priority.label),
+                  _TaskFormTableRow(
+                    label: 'Приоритет',
+                    child: _DropdownControl<TaskPriority?>(
+                      value: _priority,
+                      items: [
+                        const DropdownMenuItem<TaskPriority?>(
+                          value: null,
+                          child: Text('Не указан'),
+                        ),
+                        for (final priority in TaskPriority.values)
+                          DropdownMenuItem(
+                            value: priority,
+                            child: Text(priority.label),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _priority = value),
+                    ),
                   ),
+                ],
+                [
+                  _TaskFormTableRow(
+                    label: 'Автор',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _authorController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Исполнитель',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _executorController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Ответственный',
+                    child: _FormTableTextInput(
+                      hint: 'ID, необязательно',
+                      controller: _responsibleController,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                ],
+                [
+                  _TaskFormTableRow(
+                    label: 'Создание',
+                    child: _FormTableDateTimeControl(
+                      value: _timeSet,
+                      onChanged: (value) {
+                        if (value != null) setState(() => _timeSet = value);
+                      },
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Начало',
+                    child: _FormTableDateTimeControl(
+                      value: _timeStart,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _timeStart = value),
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Окончание',
+                    child: _FormTableDateTimeControl(
+                      value: _timeEnd,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _timeEnd = value),
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Дедлайн',
+                    child: _FormTableDateTimeControl(
+                      value: _deadline,
+                      nullable: true,
+                      onChanged: (value) => setState(() => _deadline = value),
+                    ),
+                  ),
+                ],
               ],
-              onChanged: (value) => setState(() => _priority = value),
-            ),
-            DdtTheme.verticalGap(),
-            _SectionTitle(title: 'Участники'),
-            SizedBox(height: 8.h),
-            AppInput(
-              label: 'Автор (ID)',
-              hint: 'Необязательно',
-              controller: _authorController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            SizedBox(height: 12.h),
-            AppInput(
-              label: 'Исполнитель (ID)',
-              hint: 'Необязательно',
-              controller: _executorController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            SizedBox(height: 12.h),
-            AppInput(
-              label: 'Ответственный (ID)',
-              hint: 'Необязательно',
-              controller: _responsibleController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              borderRadius: DdtTheme.radius,
-            ),
-            DdtTheme.verticalGap(),
-            _SectionTitle(title: 'Время'),
-            SizedBox(height: 8.h),
-            _DateTimeField(
-              label: 'Время создания',
-              value: _timeSet,
-              onChanged: (value) {
-                if (value != null) setState(() => _timeSet = value);
-              },
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Время начала',
-              value: _timeStart,
-              nullable: true,
-              onChanged: (value) => setState(() => _timeStart = value),
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Время окончания',
-              value: _timeEnd,
-              nullable: true,
-              onChanged: (value) => setState(() => _timeEnd = value),
-            ),
-            SizedBox(height: 12.h),
-            _DateTimeField(
-              label: 'Дедлайн',
-              value: _deadline,
-              nullable: true,
-              onChanged: (value) => setState(() => _deadline = value),
+              trailingDivider: true,
             ),
             DdtTheme.verticalGap(),
             Row(
               children: [
                 Expanded(child: _SectionTitle(title: 'Ссылки')),
-                TextButton.icon(
+                _CompactIconTextButton(
+                  label: 'Добавить',
+                  icon: CupertinoIcons.add,
                   onPressed: _addLinkDraft,
-                  icon: Icon(CupertinoIcons.add, size: 18.sp),
-                  label: const Text('Добавить'),
                 ),
               ],
             ),
@@ -771,7 +803,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
             DdtTheme.verticalGap(),
             _SectionTitle(title: 'Комментарий'),
             SizedBox(height: 8.h),
-            AppInput(
+            DdtAppInput(
               label: 'Первый комментарий',
               hint: 'Необязательно',
               controller: _commentController,
@@ -834,19 +866,25 @@ class _LinkDraftEditor extends StatelessWidget {
               IconButton(
                 tooltip: 'Удалить ссылку',
                 onPressed: onRemove,
-                icon: Icon(CupertinoIcons.trash, size: 18.sp),
+                icon: Icon(CupertinoIcons.trash, size: 14.sp),
+                iconSize: 14.sp,
+                padding: EdgeInsets.all(4.w),
+                constraints: BoxConstraints(
+                  minWidth: 24.w,
+                  minHeight: 24.h,
+                ),
                 visualDensity: VisualDensity.compact,
               ),
             ],
           ),
-          AppInput(
+          DdtAppInput(
             label: 'URL',
             hint: 'https://...',
             controller: draft.urlController,
             borderRadius: DdtTheme.radius,
           ),
           SizedBox(height: 8.h),
-          AppInput(
+          DdtAppInput(
             label: 'Название',
             hint: 'Необязательно',
             controller: draft.titleController,
@@ -858,129 +896,270 @@ class _LinkDraftEditor extends StatelessWidget {
   }
 }
 
-class _DateTimeField extends StatelessWidget {
-  const _DateTimeField({
+class _FormTableControl {
+  _FormTableControl._();
+
+  static const double rowSpacing = 12;
+  static const double labelGap = 12;
+  static const double labelColumnWidth = 128;
+
+  static EdgeInsetsGeometry padding() =>
+      EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h);
+
+  static TextStyle textStyle(BuildContext context) => DdtTheme.style(
+        fontSize: 14.sp,
+        color: DdtTheme.sidePanelTextSecondary(context),
+      );
+
+  static InputDecoration decoration(
+    BuildContext context, {
+    String? hintText,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: DdtTheme.inputHintStyle(context),
+      contentPadding: padding(),
+      isDense: true,
+      suffixIcon: suffixIcon,
+    );
+  }
+}
+
+class _TaskFormTableRow {
+  const _TaskFormTableRow({
     required this.label,
-    required this.value,
-    required this.onChanged,
-    this.nullable = false,
+    required this.child,
   });
 
   final String label;
-  final DateTime? value;
-  final ValueChanged<DateTime?> onChanged;
-  final bool nullable;
+  final Widget child;
+}
 
-  Future<void> _pick(BuildContext context) async {
-    final initial = value ?? DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-    if (date == null || !context.mounted) return;
+class _TaskFormSectionDivider extends StatelessWidget {
+  const _TaskFormSectionDivider();
 
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null || !context.mounted) return;
-
-    onChanged(
-      DateTime(date.year, date.month, date.day, time.hour, time.minute),
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: _FormTableControl.rowSpacing.h),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: DdtTheme.sidePanelDivider(context),
+      ),
     );
   }
+}
+
+class _TaskFormTableSections extends StatelessWidget {
+  const _TaskFormTableSections({
+    required this.sections,
+    this.trailingDivider = false,
+  });
+
+  final List<List<_TaskFormTableRow>> sections;
+  final bool trailingDivider;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: DdtTheme.style(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.sidePanelTextPrimary(context),
-          ),
-        ),
-        SizedBox(height: 6.h),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            shape: DdtTheme.roundedShape,
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-            alignment: Alignment.centerLeft,
-          ),
-          onPressed: () => _pick(context),
-          child: Text(
-            value != null ? formatTaskDateTime(value!) : 'Не указано',
-            style: DdtTheme.style(
-              fontSize: 13.sp,
-              color: DdtTheme.sidePanelTextSecondary(context),
-            ),
-          ),
-        ),
-        if (nullable && value != null)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () => onChanged(null),
-              child: const Text('Очистить'),
-            ),
+        for (var i = 0; i < sections.length; i++) ...[
+          if (i > 0) const _TaskFormSectionDivider(),
+          _TaskFormTable(rows: sections[i]),
+        ],
+        if (trailingDivider) const _TaskFormSectionDivider(),
+      ],
+    );
+  }
+}
+
+class _TaskFormTable extends StatelessWidget {
+  const _TaskFormTable({required this.rows});
+
+  final List<_TaskFormTableRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = DdtTheme.style(
+      fontSize: 13.sp,
+      fontWeight: FontWeight.w600,
+      color: DdtTheme.sidePanelTextPrimary(context),
+    );
+
+    return Table(
+      columnWidths: {
+        0: FixedColumnWidth(_FormTableControl.labelColumnWidth.w),
+        1: const FlexColumnWidth(),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        for (var i = 0; i < rows.length; i++)
+          TableRow(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(
+                  right: _FormTableControl.labelGap.w,
+                  bottom: i < rows.length - 1
+                      ? _FormTableControl.rowSpacing.h
+                      : 0,
+                ),
+                child: Text(
+                  rows[i].label,
+                  style: labelStyle,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: i < rows.length - 1
+                      ? _FormTableControl.rowSpacing.h
+                      : 0,
+                ),
+                child: rows[i].child,
+              ),
+            ],
           ),
       ],
     );
   }
 }
 
-class _DropdownField<T> extends StatelessWidget {
-  const _DropdownField({
+class _CompactIconTextButton extends StatelessWidget {
+  const _CompactIconTextButton({
     required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+      icon: Icon(icon, size: 14.sp),
+      label: Text(
+        label,
+        style: DdtTheme.style(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _FormTableTextInput extends StatelessWidget {
+  const _FormTableTextInput({
+    required this.hint,
+    required this.controller,
+    this.inputFormatters,
+  });
+
+  final String hint;
+  final TextEditingController controller;
+  final List<TextInputFormatter>? inputFormatters;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      inputFormatters: inputFormatters,
+      keyboardType: TextInputType.number,
+      style: _FormTableControl.textStyle(context),
+      decoration: _FormTableControl.decoration(context, hintText: hint),
+    );
+  }
+}
+
+class _FormTableDateTimeControl extends StatelessWidget {
+  const _FormTableDateTimeControl({
+    required this.value,
+    required this.onChanged,
+    this.nullable = false,
+  });
+
+  final DateTime? value;
+  final ValueChanged<DateTime?> onChanged;
+  final bool nullable;
+
+  Future<void> _pick(BuildContext context) async {
+    final initial = value ?? DateTime.now();
+    final picked = await showDdtDateTimePicker(
+      context: context,
+      initialDateTime: initial,
+    );
+    if (picked == null || !context.mounted) return;
+
+    onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _pick(context),
+      borderRadius: DdtTheme.radius,
+      child: InputDecorator(
+        decoration: _FormTableControl.decoration(
+          context,
+          suffixIcon: nullable && value != null
+              ? IconButton(
+                  tooltip: 'Очистить',
+                  onPressed: () => onChanged(null),
+                  icon: Icon(
+                    CupertinoIcons.xmark_circle_fill,
+                    size: 18.sp,
+                    color: DdtTheme.sidePanelTextMuted(context),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                )
+              : null,
+        ),
+        isEmpty: false,
+        child: Text(
+          value != null ? formatTaskDateTime(value!) : 'Не указано',
+          style: _FormTableControl.textStyle(context),
+        ),
+      ),
+    );
+  }
+}
+
+class _DropdownControl<T> extends StatelessWidget {
+  const _DropdownControl({
     required this.value,
     required this.items,
     required this.onChanged,
   });
 
-  final String label;
   final T value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: DdtTheme.style(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.sidePanelTextPrimary(context),
-          ),
-        ),
-        SizedBox(height: 6.h),
-        DropdownButtonFormField<T>(
-          value: value,
-          dropdownColor: Theme.of(context).brightness == Brightness.dark
-              ? const Color(0xFF2A2A2C)
-              : null,
-          style: DdtTheme.style(
-            fontSize: 14.sp,
-            color: DdtTheme.sidePanelTextSecondary(context),
-          ),
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: DdtTheme.radius),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 12.w,
-              vertical: 10.h,
-            ),
-          ),
-          items: items,
-          onChanged: onChanged,
-        ),
-      ],
+    return DropdownButtonFormField<T>(
+      value: value,
+      isExpanded: true,
+      borderRadius: DdtTheme.inputControlBorderRadius,
+      dropdownColor: Theme.of(context).brightness == Brightness.dark
+          ? DdtTheme.darkSurface
+          : DdtTheme.lightSurface,
+      style: _FormTableControl.textStyle(context),
+      decoration: _FormTableControl.decoration(context),
+      items: items,
+      onChanged: onChanged,
     );
   }
 }

@@ -38,11 +38,9 @@ class _ContactsPageState extends State<ContactsPage> {
           Padding(
             padding: EdgeInsets.only(bottom: 12.h),
             child: TextField(
-              decoration: InputDecoration(
+              decoration: DdtTheme.inputDecoration(
                 hintText: 'Поиск контактов',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: DdtTheme.radius),
-              ),
+              ).copyWith(prefixIcon: const Icon(Icons.search)),
               onChanged: (value) => _bloc.add(ContactsSearchQueryChanged(value)),
             ),
           ),

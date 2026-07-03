@@ -709,12 +709,26 @@ class _KanbanTaskList extends StatefulWidget {
 
 class _KanbanTaskListState extends State<_KanbanTaskList> {
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  late int _animatedItemCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _animatedItemCount = widget.tasks.length;
+  }
+
+  @override
+  void didUpdateWidget(covariant _KanbanTaskList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAnimatedItemCount(oldWidget.tasks);
+  }
 
   void insertTaskAt(int index) {
     _listKey.currentState!.insertItem(
       index,
       duration: Duration.zero,
     );
+    _animatedItemCount++;
   }
 
   void removeTaskAt(int index, {required double slotHeight}) {
@@ -726,6 +740,35 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       ),
       duration: _kanbanMotionDuration,
     );
+    _animatedItemCount--;
+  }
+
+  void _syncAnimatedItemCount(List<Task> previousTasks) {
+    final listState = _listKey.currentState;
+    if (listState == null) return;
+
+    while (_animatedItemCount > widget.tasks.length) {
+      _animatedItemCount--;
+      final gap = _animatedItemCount < previousTasks.length - 1
+          ? DdtTheme.spacing.h
+          : 0.0;
+      listState.removeItem(
+        _animatedItemCount,
+        (context, animation) => _KanbanSlotCollapse(
+          animation: animation,
+          height: 120.0 + gap,
+        ),
+        duration: _kanbanMotionDuration,
+      );
+    }
+
+    while (_animatedItemCount < widget.tasks.length) {
+      listState.insertItem(
+        _animatedItemCount,
+        duration: const Duration(milliseconds: 280),
+      );
+      _animatedItemCount++;
+    }
   }
 
   @override

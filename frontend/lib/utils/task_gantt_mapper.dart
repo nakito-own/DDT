@@ -1,3 +1,4 @@
+import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gantt/flutter_gantt.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,6 +6,25 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../models/task.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
+
+const _ganttMonthNames = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь',
+];
+
+String ganttMonthLabel(BuildContext context, DateTime date) {
+  return '${_ganttMonthNames[date.month - 1]} ${date.year}';
+}
 
 DateTime taskGanttStart(Task task) {
   final source = task.timeStart ?? task.timeSet;
@@ -62,6 +82,54 @@ GanttActivity taskToGanttActivity({
   );
 }
 
+Widget buildTaskGanttBar(BuildContext context, GanttActivity activity) {
+  final task = activity.data as Task?;
+  final statusColor =
+      task == null ? AppColors.primary : statusColumnColor(task.status);
+
+  return Tooltip(
+    message: activity.tooltip ?? activity.title ?? '',
+    child: SizedBox(
+      height: double.infinity,
+      child: DdtTheme.taskCardGlass(
+        context: context,
+        cornerRadius: 8.r,
+        padding: EdgeInsets.zero,
+        onTap: () => activity.onCellTap?.call(activity),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8.r),
+          child: Row(
+            children: [
+              Container(
+                width: 4.w,
+                color: statusColor,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      activity.title ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DdtTheme.style(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: DdtTheme.taskCardTextPrimary(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _TaskGanttListTitle extends StatelessWidget {
   const _TaskGanttListTitle({required this.task});
 
@@ -69,13 +137,15 @@ class _TaskGanttListTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = statusColumnColor(task.status);
+
     return Row(
       children: [
         Container(
           width: 8.w,
           height: 8.w,
           decoration: BoxDecoration(
-            color: statusColumnColor(task.status),
+            color: statusColor,
             shape: BoxShape.circle,
           ),
         ),

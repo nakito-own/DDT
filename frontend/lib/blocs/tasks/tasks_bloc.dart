@@ -153,26 +153,45 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     TaskCreateRequested event,
     Emitter<TasksState> emit,
   ) async {
+    final draft = event.draft;
+    final optimisticColumns = _copyColumns(state.columns);
+    optimisticColumns[draft.status] = [
+      ...(optimisticColumns[draft.status] ?? []),
+      draft,
+    ];
+    emit(state.copyWith(
+      columns: optimisticColumns,
+      errorMessage: () => null,
+    ));
+
     try {
       final created = await _api.createTask(
-        title: event.draft.title,
-        status: event.draft.status,
-        typeId: event.draft.typeId,
-        description: event.draft.description,
-        executorId: event.draft.executorId,
-        responsibleId: event.draft.responsibleId,
-        timeSet: event.draft.timeSet,
-        timeStart: event.draft.timeStart,
-        timeEnd: event.draft.timeEnd,
-        deadline: event.draft.deadline,
-        priority: event.draft.priority?.value,
-        links: event.draft.links,
+        title: draft.title,
+        status: draft.status,
+        typeId: draft.typeId,
+        description: draft.description,
+        executorId: draft.executorId,
+        responsibleId: draft.responsibleId,
+        timeSet: draft.timeSet,
+        timeStart: draft.timeStart,
+        timeEnd: draft.timeEnd,
+        deadline: draft.deadline,
+        priority: draft.priority?.value,
+        links: draft.links,
       );
-      final columns = _copyColumns(state.columns);
-      columns[created.status] = [...(columns[created.status] ?? []), created];
+      final columns = _replaceTaskInColumns(
+        state.columns,
+        original: draft,
+        saved: created,
+      );
       emit(state.copyWith(columns: columns));
     } catch (error) {
+      final columns = _copyColumns(state.columns);
+      columns[draft.status]?.removeWhere(
+        (task) => task.id == draft.id && task.title == draft.title,
+      );
       emit(state.copyWith(
+        columns: columns,
         errorMessage: () =>
             error.toString().replaceFirst('Exception: ', ''),
       ));

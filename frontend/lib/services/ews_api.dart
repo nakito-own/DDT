@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/calendar_event.dart';
 import '../models/contact.dart';
+import '../models/mail_inbox_options.dart';
 import '../models/mail_message.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
@@ -101,12 +102,16 @@ class EwsApi {
   Future<List<MailMessage>> fetchInbox({
     int limit = 50,
     int offset = 0,
+    MailInboxFilter filter = MailInboxFilter.all,
+    MailInboxSort sort = MailInboxSort.dateDesc,
   }) async {
     final response = await _client.get(
       '/api/ews/mail/inbox',
       query: {
         'limit': '$limit',
         'offset': '$offset',
+        'filter': filter.apiValue,
+        'sort': sort.apiValue,
       },
     );
     _ensureSuccess(response);

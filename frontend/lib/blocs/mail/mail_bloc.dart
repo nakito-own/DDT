@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../models/mail_inbox_options.dart';
 import '../../models/mail_message.dart';
 import '../../services/ews_api.dart';
 
@@ -13,62 +14,173 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         super(const MailState()) {
     on<MailInboxLoadRequested>(_onInboxLoadRequested);
     on<MailInboxRefreshRequested>(_onInboxRefreshRequested);
+    on<MailInboxLoadMoreRequested>(_onInboxLoadMoreRequested);
+    on<MailInboxQueryChanged>(_onInboxQueryChanged);
     on<MailMessageSelected>(_onMessageSelected);
     on<MailMessageSendRequested>(_onMessageSendRequested);
   }
 
+  static const _pageSize = 50;
+
   final EwsApi _api;
+  int _inboxRequestGeneration = 0;
 
   Future<void> _onInboxLoadRequested(
     MailInboxLoadRequested event,
     Emitter<MailState> emit,
   ) async {
     emit(state.copyWith(isLoading: true, errorMessage: () => null));
-    await _loadInbox(emit);
+    await _reloadInbox(emit);
   }
 
   Future<void> _onInboxRefreshRequested(
     MailInboxRefreshRequested event,
     Emitter<MailState> emit,
   ) async {
-    await _loadInbox(emit);
+    await _reloadInbox(emit);
   }
 
-  Future<void> _loadInbox(Emitter<MailState> emit) async {
-    try {
-      final results = await Future.wait([
-        _api.fetchMailFolders(),
-        _api.fetchInbox(),
-      ]);
-      final folders = results[0] as MailFolders;
-      final messages = results[1] as List<MailMessage>;
+  Future<void> _onInboxLoadMoreRequested(
+    MailInboxLoadMoreRequested event,
+    Emitter<MailState> emit,
+  ) async {
+    if (state.isLoading ||
+        state.isRefreshingInbox ||
+        state.isLoadingMore ||
+        !state.hasMoreMessages ||
+        state.messages.isEmpty) {
+      return;
+    }
 
-      // Если выбранное письмо есть в новом списке — обновить его
-      MailMessage? updatedSelected;
-      final selectedId = state.selectedMessage?.id;
-      if (selectedId != null) {
-        final index = messages.indexWhere((item) => item.id == selectedId);
-        if (index >= 0) {
-          updatedSelected = messages[index];
-        }
+    emit(state.copyWith(
+      isLoadingMore: true,
+      loadMoreErrorMessage: () => null,
+    ));
+
+    try {
+      final batch = await _api.fetchInbox(
+        limit: _pageSize,
+        offset: state.messages.length,
+        filter: state.filter,
+        sort: state.sort,
+      );
+
+      emit(state.copyWith(
+        isLoadingMore: false,
+        messages: [...state.messages, ...batch],
+        hasMoreMessages: batch.length >= _pageSize,
+        loadMoreErrorMessage: () => null,
+      ));
+    } catch (error) {
+      emit(state.copyWith(
+        isLoadingMore: false,
+        loadMoreErrorMessage: () =>
+            error.toString().replaceFirst('Exception: ', ''),
+      ));
+    }
+  }
+
+  Future<void> _onInboxQueryChanged(
+    MailInboxQueryChanged event,
+    Emitter<MailState> emit,
+  ) async {
+    final nextFilter = event.filter ?? state.filter;
+    final nextSort = event.sort ?? state.sort;
+
+    if (nextFilter == state.filter && nextSort == state.sort) {
+      return;
+    }
+
+    emit(state.copyWith(
+      filter: nextFilter,
+      sort: nextSort,
+      inboxQueryErrorMessage: () => null,
+    ));
+
+    await _reloadInbox(emit);
+  }
+
+  Future<void> _reloadInbox(Emitter<MailState> emit) async {
+    final background = state.messages.isNotEmpty;
+    final generation = ++_inboxRequestGeneration;
+    final filter = state.filter;
+    final sort = state.sort;
+    final previousSelected = state.selectedMessage;
+
+    if (background) {
+      emit(state.copyWith(
+        isRefreshingInbox: true,
+        inboxQueryErrorMessage: () => null,
+        errorMessage: () => null,
+      ));
+    }
+
+    try {
+      final foldersFuture = state.folders == null && !background
+          ? _api.fetchMailFolders()
+          : null;
+      final messagesFuture = _api.fetchInbox(
+        limit: _pageSize,
+        filter: filter,
+        sort: sort,
+      );
+
+      final messages = await messagesFuture;
+      if (generation != _inboxRequestGeneration) return;
+
+      final folders = foldersFuture != null
+          ? await foldersFuture
+          : state.folders;
+
+      final updatedSelected = _resolveSelectedMessage(
+        previousSelected,
+        messages,
+      );
+
+      emit(state.copyWith(
+        isLoading: false,
+        isRefreshingInbox: false,
+        folders: folders != null ? () => folders : null,
+        messages: messages,
+        hasMoreMessages: messages.length >= _pageSize,
+        loadMoreErrorMessage: () => null,
+        selectedMessage: () => updatedSelected,
+        errorMessage: () => null,
+        inboxQueryErrorMessage: () => null,
+      ));
+    } catch (error) {
+      if (generation != _inboxRequestGeneration) return;
+
+      final message = error.toString().replaceFirst('Exception: ', '');
+      if (background) {
+        emit(state.copyWith(
+          isRefreshingInbox: false,
+          inboxQueryErrorMessage: () => message,
+        ));
+        return;
       }
 
       emit(state.copyWith(
         isLoading: false,
-        folders: () => folders,
-        messages: messages,
-        selectedMessage: updatedSelected != null
-            ? () => updatedSelected
-            : null,
-        errorMessage: () => null,
-      ));
-    } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
+        isRefreshingInbox: false,
+        errorMessage: () => message,
       ));
     }
+  }
+
+  MailMessage? _resolveSelectedMessage(
+    MailMessage? previousSelected,
+    List<MailMessage> messages,
+  ) {
+    if (previousSelected == null) return null;
+
+    final index =
+        messages.indexWhere((item) => item.id == previousSelected.id);
+    if (index >= 0) {
+      return messages[index];
+    }
+
+    return previousSelected;
   }
 
   Future<void> _onMessageSelected(
@@ -136,8 +248,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         subject: event.subject,
         body: event.body,
       );
-      // После отправки обновляем входящие
-      await _loadInbox(emit);
+      await _reloadInbox(emit);
       emit(state.copyWith(isSending: false));
     } catch (error) {
       emit(state.copyWith(

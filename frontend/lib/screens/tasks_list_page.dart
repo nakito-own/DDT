@@ -85,7 +85,12 @@ class TasksListPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<TasksBloc, TasksState>(
       buildWhen: (previous, current) =>
-          previous.filteredTasks != current.filteredTasks,
+          previous.columns != current.columns ||
+          previous.searchQuery != current.searchQuery ||
+          previous.statusFilters != current.statusFilters ||
+          previous.priorityFilter != current.priorityFilter ||
+          previous.typeFilter != current.typeFilter ||
+          previous.sortOption != current.sortOption,
       builder: (context, state) {
         final tasks = state.filteredTasks;
 

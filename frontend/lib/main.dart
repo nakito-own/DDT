@@ -1,6 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,6 +16,8 @@ import 'models/app_notification.dart';
 import 'router/app_router.dart';
 import 'services/session_token_storage.dart';
 import 'theme/ddt_theme.dart';
+import 'utils/browser_page_zoom.dart';
+import 'utils/ddt_date_time_picker.dart';
 
 const _themeStorageBox = 'ddt_storage';
 
@@ -136,28 +140,43 @@ class _DdtAppState extends State<DdtApp> {
             },
           ),
         ],
-        child: BoltKit.builder(
+        child: ScreenUtilInit(
           designSize: const Size(1440, 900),
-          builder: () => BlocBuilder<ThemeBloc, ThemeState>(
-            buildWhen: (previous, current) =>
-                previous.mode != current.mode,
-            builder: (context, themeState) => MaterialApp.router(
-              routerConfig: _routerHolder.router,
-              title: 'DDT',
-              theme: DdtTheme.light(),
-              darkTheme: DdtTheme.dark(),
-              themeMode: themeState.mode,
-              builder: (context, child) {
-                return Material(
-                  type: MaterialType.transparency,
-                  child: DefaultTextStyle(
-                    style: DdtTheme.style(
-                        color: DdtTheme.textPrimary(context)),
-                    child: child ?? const SizedBox.shrink(),
-                  ),
-                );
-              },
-              debugShowCheckedModeBanner: false,
+          minTextAdapt: true,
+          splitScreenMode: true,
+          rebuildFactor: (old, data) =>
+              old.size != data.size ||
+              old.devicePixelRatio != data.devicePixelRatio ||
+              old.textScaler != data.textScaler,
+          builder: (context, child) => FlutterViewportSyncScope(
+            child: BlocBuilder<ThemeBloc, ThemeState>(
+              buildWhen: (previous, current) =>
+                  previous.mode != current.mode,
+              builder: (context, themeState) => MaterialApp.router(
+                routerConfig: _routerHolder.router,
+                title: 'DDT',
+                locale: ddtPickerLocale,
+                supportedLocales: const [ddtPickerLocale],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: DdtTheme.light(),
+                darkTheme: DdtTheme.dark(),
+                themeMode: themeState.mode,
+                builder: (context, child) {
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: DefaultTextStyle(
+                      style: DdtTheme.style(
+                          color: DdtTheme.textPrimary(context)),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  );
+                },
+                debugShowCheckedModeBanner: false,
+              ),
             ),
           ),
         ),

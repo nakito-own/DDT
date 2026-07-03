@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.dependencies import get_current_session
@@ -13,6 +15,17 @@ from app.services.ews_service import EwsConnectionError, EwsNotFoundError, ews_s
 from app.services.session_service import SessionContext, session_service
 
 router = APIRouter()
+
+MailFilterParam = Literal["all", "to_me", "flagged", "mentions"]
+MailSortParam = Literal[
+    "date_asc",
+    "date_desc",
+    "from",
+    "to",
+    "subject",
+    "attachments",
+    "importance",
+]
 
 
 def _ews_http_error(exc: Exception) -> HTTPException:
@@ -50,11 +63,20 @@ async def mail_folders(context: SessionContext = Depends(get_current_session)):
 async def inbox(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    mail_filter: MailFilterParam = Query(default="all", alias="filter"),
+    sort: MailSortParam = Query(default="date_desc"),
     context: SessionContext = Depends(get_current_session),
 ):
     try:
         account = session_service.get_account(context)
-        messages = ews_service.list_inbox_messages(account, limit=limit, offset=offset)
+        messages = ews_service.list_inbox_messages(
+            account,
+            limit=limit,
+            offset=offset,
+            mail_filter=mail_filter,
+            sort=sort,
+            user_email=context.email,
+        )
     except (EwsConnectionError, EwsNotFoundError) as exc:
         raise _ews_http_error(exc) from exc
     except Exception as exc:

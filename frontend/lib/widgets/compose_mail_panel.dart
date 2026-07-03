@@ -99,10 +99,9 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
             children: [
               TextFormField(
                 controller: _toController,
-                decoration: const InputDecoration(
+                decoration: DdtTheme.inputDecoration(
                   labelText: 'Кому',
                   hintText: 'email1@example.com, email2@example.com',
-                  border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   final emails = _parseEmails(value ?? '');
@@ -115,18 +114,12 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
               SizedBox(height: 12.h),
               TextFormField(
                 controller: _ccController,
-                decoration: const InputDecoration(
-                  labelText: 'Копия',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: DdtTheme.inputDecoration(labelText: 'Копия'),
               ),
               SizedBox(height: 12.h),
               TextFormField(
                 controller: _subjectController,
-                decoration: const InputDecoration(
-                  labelText: 'Тема',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: DdtTheme.inputDecoration(labelText: 'Тема'),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Укажите тему'
                     : null,
@@ -134,9 +127,8 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
               SizedBox(height: 12.h),
               TextFormField(
                 controller: _bodyController,
-                decoration: const InputDecoration(
+                decoration: DdtTheme.inputDecoration(
                   labelText: 'Сообщение',
-                  border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
                 minLines: 8,

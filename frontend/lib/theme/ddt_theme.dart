@@ -7,6 +7,7 @@ class DdtTheme {
   DdtTheme._();
 
   static const double borderRadius = 16;
+  static const double inputControlRadius = 8;
   static const double spacing = 16;
 
   static const Color lightBackground = Color(0xFFE8ECF2);
@@ -17,6 +18,7 @@ class DdtTheme {
   static const Color darkBackground = Color(0xFF050508);
   static const Color darkSurface = Color(0xFF0C0C10);
   static const Color darkWidget = Color(0xFF121216);
+  static const Color darkInputFill = Color(0xFF0A0A0E);
   static const Color darkBorderStrong = Color(0xFF3F3F48);
 
   static const Color lightTextPrimary = Color(0xFF050A12);
@@ -44,6 +46,68 @@ class DdtTheme {
       : const Color(0xFF0D47A1);
 
   static BorderRadius get radius => BorderRadius.circular(borderRadius.r);
+
+  static BorderRadius get inputControlBorderRadius =>
+      BorderRadius.circular(inputControlRadius.r);
+
+  static const Color darkPickerSurface = Color(0xFF1C1C22);
+  static const Color darkPickerInputFill = Color(0xFF141418);
+
+  static Color inputFillColor(BuildContext context) =>
+      _isDark(context) ? darkInputFill : lightSurface;
+
+  static Color pickerSurfaceColor(BuildContext context) =>
+      _isDark(context) ? darkPickerSurface : lightSurface;
+
+  static Color pickerInputFillColor(BuildContext context) =>
+      _isDark(context) ? darkPickerInputFill : lightSurface;
+
+  static TextStyle inputLabelStyle(BuildContext context) => style(
+        fontSize: 14.sp,
+        color: textSecondary(context),
+      );
+
+  static TextStyle inputFloatingLabelStyle(BuildContext context) => style(
+        fontSize: 12.sp,
+        color: textMuted(context),
+      );
+
+  static TextStyle inputHintStyle(BuildContext context) => style(
+        fontSize: 14.sp,
+        color: textMuted(context),
+      );
+
+  static Color inputBorderColor(BuildContext context) =>
+      _isDark(context) ? darkBorderStrong : lightBorderStrong;
+
+  static MenuThemeData menuThemeData() => MenuThemeData(
+        style: MenuStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+          ),
+        ),
+      );
+
+  static PopupMenuThemeData popupMenuThemeData() => PopupMenuThemeData(
+        shape: RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+      );
+
+  static DropdownMenuThemeData dropdownMenuThemeData(
+    TextTheme typography,
+    Brightness brightness,
+  ) {
+    final textColor =
+        brightness == Brightness.dark ? darkTextPrimary : lightTextPrimary;
+
+    return DropdownMenuThemeData(
+      textStyle: TextStyle(color: textColor),
+      menuStyle: MenuStyle(
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+        ),
+      ),
+    );
+  }
 
   static double shellSize(num value) => value.r;
 
@@ -289,12 +353,13 @@ class DdtTheme {
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
         labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextPrimary),
+        floatingLabelStyle: TextStyle(color: darkTextMuted),
         hintStyle: TextStyle(color: darkTextMuted),
+        fillColor: darkInputFill,
       ),
-      dropdownMenuTheme: theme.dropdownMenuTheme.copyWith(
-        textStyle: TextStyle(color: darkTextPrimary),
-      ),
+      dropdownMenuTheme: dropdownMenuThemeData(theme.textTheme, Brightness.dark),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
@@ -456,7 +521,7 @@ class DdtTheme {
         filled: true,
         fillColor: lightSurface,
         labelStyle: TextStyle(color: lightTextSecondary),
-        floatingLabelStyle: TextStyle(color: lightTextPrimary),
+        floatingLabelStyle: TextStyle(color: lightTextMuted),
         hintStyle: TextStyle(color: lightTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
@@ -485,6 +550,9 @@ class DdtTheme {
           ),
         ),
       ),
+      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }
@@ -543,9 +611,9 @@ class DdtTheme {
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
         filled: true,
-        fillColor: darkWidget,
+        fillColor: darkInputFill,
         labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextPrimary),
+        floatingLabelStyle: TextStyle(color: darkTextMuted),
         hintStyle: TextStyle(color: darkTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
@@ -574,17 +642,24 @@ class DdtTheme {
           ),
         ),
       ),
+      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }
 
   static InputDecoration inputDecoration({
-    required String labelText,
+    String? labelText,
+    String? hintText,
     Widget? suffixIcon,
+    bool alignLabelWithHint = false,
   }) {
     return InputDecoration(
       labelText: labelText,
+      hintText: hintText,
       suffixIcon: suffixIcon,
+      alignLabelWithHint: alignLabelWithHint,
     );
   }
 

@@ -5,6 +5,7 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="DDT — задачи, пространство и автоматизации">
 
   <meta name="mobile-web-app-capable" content="yes">
@@ -39,6 +40,62 @@
 
       document.documentElement.setAttribute('data-theme', resolveTheme());
     })();
+
+    (function () {
+      var syncScheduled = false;
+
+      function applyViewportStyles() {
+        var docEl = document.documentElement;
+        var body = document.body;
+        if (!body) {
+          return;
+        }
+
+        docEl.style.width = '100%';
+        docEl.style.height = '100%';
+        body.style.width = '100%';
+        body.style.height = '100%';
+        body.style.margin = '0';
+        body.style.overflow = 'hidden';
+
+        document.querySelectorAll('flutter-view, flt-glass-pane, #flt-glass-pane').forEach(function (node) {
+          node.style.setProperty('width', '100%', 'important');
+          node.style.setProperty('height', '100%', 'important');
+          node.style.setProperty('display', 'block', 'important');
+        });
+
+        document.querySelectorAll('flutter-view').forEach(function (view) {
+          if (!view.shadowRoot) {
+            return;
+          }
+
+          view.shadowRoot.querySelectorAll('canvas, flt-scene-host, flt-scene').forEach(function (node) {
+            node.style.setProperty('width', '100%', 'important');
+            node.style.setProperty('height', '100%', 'important');
+          });
+        });
+      }
+
+      window.ddtSyncFlutterViewport = function () {
+        if (syncScheduled) {
+          return;
+        }
+
+        syncScheduled = true;
+        window.requestAnimationFrame(function () {
+          syncScheduled = false;
+          applyViewportStyles();
+          window.dispatchEvent(new Event('resize'));
+        });
+      };
+
+      window.addEventListener('resize', window.ddtSyncFlutterViewport);
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', window.ddtSyncFlutterViewport);
+        window.visualViewport.addEventListener('scroll', window.ddtSyncFlutterViewport);
+      }
+    })();
   </script>
 
   <style>
@@ -63,9 +120,19 @@
 
     html,
     body {
+      width: 100%;
       height: 100%;
       margin: 0;
+      overflow: hidden;
       background: var(--ddt-bg);
+    }
+
+    flutter-view,
+    flt-glass-pane,
+    #flt-glass-pane {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
     }
 
     .flutter-loader {

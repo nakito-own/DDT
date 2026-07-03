@@ -1,7 +1,6 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,6 +10,7 @@ import '../models/app_section.dart';
 import '../models/tasks_view_mode.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
+import 'ddt_segmented_control.dart';
 
 class DdtAppBarSectionActions extends StatelessWidget {
   const DdtAppBarSectionActions({super.key, required this.section});
@@ -33,7 +33,6 @@ class _TasksAppBarActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textSecondary = DdtTheme.taskCardTextSecondary(context);
     // Активный вид определяется из URL — GoRouter является источником истины.
     // Это гарантирует корректное отображение при прямом открытии URL
     // (например, /tasks/list) и при навигации через кнопки браузера.
@@ -43,15 +42,23 @@ class _TasksAppBarActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _AppBarSegmentedControl<TasksViewMode>(
+        DdtSegmentedControl<TasksViewMode>(
           segments: const [
-            _AppBarSegment(value: TasksViewMode.kanban, label: 'Канбан'),
-            _AppBarSegment(value: TasksViewMode.list, label: 'Список'),
-            _AppBarSegment(value: TasksViewMode.gantt, label: 'Гант'),
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.kanban,
+              label: 'Канбан',
+            ),
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.list,
+              label: 'Список',
+            ),
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.gantt,
+              label: 'Гант',
+            ),
           ],
           selected: activeMode,
           onChanged: (mode) => context.go(mode.routePath),
-          textSecondary: textSecondary,
         ),
         SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
         _AppBarIconAction(
@@ -145,81 +152,6 @@ class _CalendarAppBarActions extends StatelessWidget {
             contextMenuItems: _addCalendarMenuItems,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AppBarSegment<T> {
-  const _AppBarSegment({
-    required this.value,
-    required this.label,
-    this.icon,
-  });
-
-  final T value;
-  final String label;
-  final IconData? icon;
-}
-
-class _AppBarSegmentedControl<T> extends StatelessWidget {
-  const _AppBarSegmentedControl({
-    required this.segments,
-    required this.selected,
-    required this.onChanged,
-    required this.textSecondary,
-  });
-
-  final List<_AppBarSegment<T>> segments;
-  final T selected;
-  final ValueChanged<T> onChanged;
-  final Color textSecondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return SegmentedButton<T>(
-      segments: [
-        for (final segment in segments)
-          ButtonSegment(
-            value: segment.value,
-            label: Text(segment.label),
-            icon: segment.icon == null
-                ? null
-                : Icon(segment.icon, size: 16.sp),
-          ),
-      ],
-      selected: {selected},
-      onSelectionChanged: (selection) => onChanged(selection.first),
-      showSelectedIcon: false,
-      style: ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-        ),
-        textStyle: WidgetStatePropertyAll(DdtTheme.style(fontSize: 12.sp)),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08);
-          }
-          return Colors.transparent;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withValues(alpha: 0.85);
-          }
-          return textSecondary;
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return BorderSide(
-              color: AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.2),
-            );
-          }
-          return BorderSide.none;
-        }),
       ),
     );
   }

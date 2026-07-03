@@ -17,6 +17,7 @@ class DdtContextMenuItem {
     required this.onTap,
     this.isDestructive = false,
     this.enabled = true,
+    this.isSelected = false,
   });
 
   final IconData icon;
@@ -24,6 +25,7 @@ class DdtContextMenuItem {
   final VoidCallback onTap;
   final bool isDestructive;
   final bool enabled;
+  final bool isSelected;
 }
 
 enum DdtContextMenuPlacement {
@@ -438,12 +440,31 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
   bool _hovered = false;
 
   Color _backgroundColor(BuildContext context) {
-    if (!widget.item.enabled || !_hovered) {
+    if (!widget.item.enabled) {
       return Colors.transparent;
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (widget.item.isSelected) {
+      return AppColors.primary.withValues(
+        alpha: isDark ? (_hovered ? 0.22 : 0.18) : (_hovered ? 0.12 : 0.10),
+      );
+    }
+
+    if (!_hovered) {
+      return Colors.transparent;
+    }
+
     return AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08);
+  }
+
+  Color? _borderColor(BuildContext context) {
+    if (!widget.item.enabled || !widget.item.isSelected) {
+      return null;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AppColors.primary.withValues(alpha: isDark ? 0.45 : 0.32);
   }
 
   Color _foregroundColor(BuildContext context) {
@@ -453,15 +474,27 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
     if (widget.item.isDestructive) {
       return AppColors.error;
     }
+    if (widget.item.isSelected) {
+      return AppColors.primary.withValues(alpha: 0.95);
+    }
     return DdtTheme.taskCardTextPrimary(context);
+  }
+
+  Color _iconColor(BuildContext context) {
+    if (widget.item.isDestructive) {
+      return AppColors.error;
+    }
+    if (widget.item.isSelected) {
+      return AppColors.primary.withValues(alpha: 0.95);
+    }
+    return DdtTheme.taskCardIconMuted(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final foregroundColor = _foregroundColor(context);
-    final iconColor = widget.item.isDestructive
-        ? AppColors.error
-        : DdtTheme.taskCardIconMuted(context);
+    final iconColor = _iconColor(context);
+    final borderColor = _borderColor(context);
 
     return MouseRegion(
       cursor: widget.item.enabled
@@ -489,15 +522,18 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
             color: _backgroundColor(context),
             borderRadius:
                 BorderRadius.circular(DdtContextMenu.itemBorderRadius.r),
+            border: borderColor != null
+                ? Border.all(color: borderColor)
+                : null,
           ),
           child: Row(
             children: [
               Icon(
                 widget.item.icon,
                 size: 18.sp,
-                color: widget.item.enabled ? iconColor : iconColor.withValues(
-                  alpha: 0.45,
-                ),
+                color: widget.item.enabled
+                    ? iconColor
+                    : iconColor.withValues(alpha: 0.45),
               ),
               SizedBox(width: 10.w),
               Flexible(
@@ -507,11 +543,21 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
                   overflow: TextOverflow.ellipsis,
                   style: DdtTheme.style(
                     fontSize: 13.sp,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: widget.item.isSelected
+                        ? FontWeight.w600
+                        : FontWeight.w500,
                     color: foregroundColor,
                   ),
                 ),
               ),
+              if (widget.item.isSelected) ...[
+                SizedBox(width: 8.w),
+                Icon(
+                  Icons.check_rounded,
+                  size: 16.sp,
+                  color: AppColors.primary.withValues(alpha: 0.95),
+                ),
+              ],
             ],
           ),
         ),

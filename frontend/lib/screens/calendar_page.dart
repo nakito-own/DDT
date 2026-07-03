@@ -12,6 +12,7 @@ import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_segmented_control.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -201,7 +202,6 @@ class _CalendarToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
-    final textSecondary = DdtTheme.taskCardTextSecondary(context);
 
     return Row(
       children: [
@@ -241,12 +241,28 @@ class _CalendarToolbar extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        _ViewModeSelector(
-          mode: state.viewMode,
+        DdtSegmentedControl<CalendarViewMode>(
+          segments: const [
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.day,
+              label: 'День',
+              icon: CupertinoIcons.time,
+            ),
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.week,
+              label: 'Неделя',
+              icon: CupertinoIcons.calendar,
+            ),
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.month,
+              label: 'Месяц',
+              icon: CupertinoIcons.calendar_badge_plus,
+            ),
+          ],
+          selected: state.viewMode,
           onChanged: (mode) => context
               .read<CalendarBloc>()
               .add(CalendarViewModeChanged(mode)),
-          textSecondary: textSecondary,
         ),
       ],
     );
@@ -265,72 +281,6 @@ class _NavButton extends StatelessWidget {
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
       icon: Icon(icon, size: 20.sp),
-    );
-  }
-}
-
-class _ViewModeSelector extends StatelessWidget {
-  const _ViewModeSelector({
-    required this.mode,
-    required this.onChanged,
-    required this.textSecondary,
-  });
-
-  final CalendarViewMode mode;
-  final ValueChanged<CalendarViewMode> onChanged;
-  final Color textSecondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return SegmentedButton<CalendarViewMode>(
-      segments: [
-        ButtonSegment(
-          value: CalendarViewMode.day,
-          label: const Text('День'),
-          icon: Icon(CupertinoIcons.time, size: 16.sp),
-        ),
-        ButtonSegment(
-          value: CalendarViewMode.week,
-          label: const Text('Неделя'),
-          icon: Icon(CupertinoIcons.calendar, size: 16.sp),
-        ),
-        ButtonSegment(
-          value: CalendarViewMode.month,
-          label: const Text('Месяц'),
-          icon: Icon(CupertinoIcons.calendar_badge_plus, size: 16.sp),
-        ),
-      ],
-      selected: {mode},
-      onSelectionChanged: (selection) => onChanged(selection.first),
-      showSelectedIcon: false,
-      style: ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        textStyle: WidgetStatePropertyAll(DdtTheme.style(fontSize: 12.sp)),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary
-                .withValues(alpha: isDark ? 0.14 : 0.08);
-          }
-          return Colors.transparent;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withValues(alpha: 0.85);
-          }
-          return textSecondary;
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return BorderSide(
-              color: AppColors.primary
-                  .withValues(alpha: isDark ? 0.28 : 0.2),
-            );
-          }
-          return BorderSide.none;
-        }),
-      ),
     );
   }
 }

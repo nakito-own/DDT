@@ -17,6 +17,22 @@ final class MailInboxRefreshRequested extends MailEvent {
   const MailInboxRefreshRequested();
 }
 
+/// Подгрузить более старые письма (следующая страница).
+final class MailInboxLoadMoreRequested extends MailEvent {
+  const MailInboxLoadMoreRequested();
+}
+
+/// Изменить фильтр или сортировку входящих.
+final class MailInboxQueryChanged extends MailEvent {
+  const MailInboxQueryChanged({this.filter, this.sort});
+
+  final MailInboxFilter? filter;
+  final MailInboxSort? sort;
+
+  @override
+  List<Object?> get props => [filter, sort];
+}
+
 /// Пользователь выбрал письмо из списка.
 final class MailMessageSelected extends MailEvent {
   const MailMessageSelected(this.message);
