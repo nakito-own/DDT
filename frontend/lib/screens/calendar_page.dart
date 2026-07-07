@@ -136,10 +136,6 @@ class _CalendarPageState extends State<CalendarPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _CalendarToolbar(state: state),
-                      if (state.isLoading) ...[
-                        SizedBox(height: 8.h),
-                        const LinearProgressIndicator(minHeight: 2),
-                      ],
                       SizedBox(height: 12.h),
                       Expanded(
                         child: _CalendarBody(

@@ -128,7 +128,6 @@ class _NotificationsPanel extends StatelessWidget {
     return BlocBuilder<NotificationsBloc, NotificationsState>(
       builder: (context, state) {
         final items = state.items;
-        final permission = state.browserPermission ?? 'default';
 
         return DdtTheme.contextMenuGlass(
           context: context,
@@ -160,16 +159,6 @@ class _NotificationsPanel extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (permission != 'granted')
-                  Padding(
-                    padding: EdgeInsets.only(bottom: 12.h),
-                    child: OutlinedButton(
-                      onPressed: () => context
-                          .read<NotificationsBloc>()
-                          .add(const NotificationsBrowserPermissionRequested()),
-                      child: const Text('Разрешить push в браузере'),
-                    ),
-                  ),
                 if (items.isEmpty)
                   Padding(
                     padding: EdgeInsets.symmetric(vertical: 24.h),

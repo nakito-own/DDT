@@ -698,28 +698,30 @@ class MailListItem extends StatelessWidget {
                 ),
               ]
             : null,
-        child: Stack(
-          children: [
-            if (isUnread && !selected)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 4.w,
-                  color: AppColors.primary,
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: Stack(
+            children: [
+              if (isUnread && !selected)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 4.w,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isUnread && !selected ? 16.w : 12.w,
-                12.h,
-                12.w,
-                12.h,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isUnread && !selected ? 16.w : 12.w,
+                  12.h,
+                  12.w,
+                  12.h,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -792,10 +794,11 @@ class MailListItem extends StatelessWidget {
                       ),
                     ),
                   ],
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

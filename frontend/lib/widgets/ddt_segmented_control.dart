@@ -53,8 +53,10 @@ class DdtSegmentedControl<T> extends StatelessWidget {
           : Colors.white,
       backgroundOpacity: isDark ? 0.16 : 0.12,
       borderColor: DdtTheme.glassBorderColor(brightness),
-      borderOpacity: DdtTheme.glassBorderOpacity(brightness) * 0.35,
-      borderWidth: 1,
+      borderOpacity: isDark
+          ? DdtTheme.glassBorderOpacity(brightness) * 0.35
+          : DdtTheme.glassBorderOpacity(brightness),
+      borderWidth: isDark ? 1 : 1.5,
       addShadow: false,
       child: Row(
         mainAxisSize: MainAxisSize.min,
