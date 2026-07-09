@@ -1,4 +1,8 @@
+import 'dart:js_interop';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
+import 'package:web/web.dart' as web;
 
 import '../models/calendar_event.dart';
 import '../models/contact.dart';
@@ -104,6 +108,7 @@ class EwsApi {
     int offset = 0,
     MailInboxFilter filter = MailInboxFilter.all,
     MailInboxSort sort = MailInboxSort.dateDesc,
+    String? folderId,
   }) async {
     final response = await _client.get(
       '/api/ews/mail/inbox',
@@ -112,6 +117,7 @@ class EwsApi {
         'offset': '$offset',
         'filter': filter.apiValue,
         'sort': sort.apiValue,
+        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
       },
     );
     _ensureSuccess(response);
@@ -121,23 +127,26 @@ class EwsApi {
   Future<MailMessage> fetchMessage(
     String messageId, {
     bool markRead = true,
+    String? folderId,
   }) async {
     final encodedId = Uri.encodeComponent(messageId);
     final response = await _client.get(
       '/api/ews/mail/messages/$encodedId',
       query: {
         'mark_read': '$markRead',
+        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
       },
     );
     _ensureSuccess(response);
     return MailMessage.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<void> markMessageRead(String messageId) async {
+  Future<void> markMessageRead(String messageId, {String? folderId}) async {
     final encodedId = Uri.encodeComponent(messageId);
-    final response = await _client.post(
-      '/api/ews/mail/messages/$encodedId/read',
-    );
+    final response = await _client.post('/api/ews/mail/messages/$encodedId/read',
+        query: {
+          if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
+        });
     _ensureSuccess(response);
   }
 
@@ -157,6 +166,44 @@ class EwsApi {
       },
     );
     _ensureSuccess(response);
+  }
+
+  Future<void> downloadAttachment(
+    String messageId, {
+    required String attachmentId,
+    required String filename,
+    required String contentType,
+    String? folderId,
+  }) async {
+    final encodedId = Uri.encodeComponent(messageId);
+    final response = await _client.get(
+      '/api/ews/mail/messages/$encodedId/attachment',
+      query: {
+        'attachment_id': attachmentId,
+        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
+      },
+    );
+    _ensureSuccess(response);
+    _triggerBrowserDownload(
+      bytes: response.bodyBytes,
+      filename: filename,
+      mimeType: contentType,
+    );
+  }
+
+  Future<MailArchiveResult> archiveMessages(
+    List<String> messageIds, {
+    String? folderId,
+  }) async {
+    final response = await _client.post(
+      '/api/ews/mail/archive',
+      body: {
+        'message_ids': messageIds,
+        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
+      },
+    );
+    _ensureSuccess(response);
+    return MailArchiveResult.fromJson(ApiClient.decodeMap(response));
   }
 
   Future<List<CalendarEvent>> fetchCalendarEvents({
@@ -242,6 +289,25 @@ class EwsApi {
       return null;
     }
   }
+}
+
+void _triggerBrowserDownload({
+  required Uint8List bytes,
+  required String filename,
+  required String mimeType,
+}) {
+  final blob = web.Blob(
+    <JSAny>[bytes.buffer.toJS].toJS,
+    web.BlobPropertyBag(type: mimeType),
+  );
+  final url = web.URL.createObjectURL(blob);
+  final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+    ..href = url
+    ..download = filename;
+  web.document.body!.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  web.URL.revokeObjectURL(url);
 }
 
 final ewsApi = EwsApi();

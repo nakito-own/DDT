@@ -24,13 +24,14 @@ final class MailInboxLoadMoreRequested extends MailEvent {
 
 /// Изменить фильтр или сортировку входящих.
 final class MailInboxQueryChanged extends MailEvent {
-  const MailInboxQueryChanged({this.filter, this.sort});
+  const MailInboxQueryChanged({this.filter, this.sort, this.folderId});
 
   final MailInboxFilter? filter;
   final MailInboxSort? sort;
+  final String? folderId;
 
   @override
-  List<Object?> get props => [filter, sort];
+  List<Object?> get props => [filter, sort, folderId];
 }
 
 /// Пользователь выбрал письмо из списка.
@@ -59,4 +60,70 @@ final class MailMessageSendRequested extends MailEvent {
 
   @override
   List<Object?> get props => [to, subject, body, cc];
+}
+
+// ─── Множественный выбор ──────────────────────────────────────────────────────
+
+/// Включить режим множественного выбора (кнопка «Выделить» в аппбаре).
+final class MailSelectionModeEntered extends MailEvent {
+  const MailSelectionModeEntered();
+}
+
+/// Переключить наличие письма в множественном выборе.
+final class MailSelectionToggled extends MailEvent {
+  const MailSelectionToggled(this.messageId);
+
+  final String messageId;
+
+  @override
+  List<Object?> get props => [messageId];
+}
+
+/// Снять весь множественный выбор и выйти из режима выбора.
+final class MailSelectionCleared extends MailEvent {
+  const MailSelectionCleared();
+}
+
+/// Выбрать все письма текущего списка.
+final class MailSelectAllRequested extends MailEvent {
+  const MailSelectAllRequested();
+}
+
+/// Пакетно отметить выбранные письма как прочитанные.
+final class MailBulkMarkReadRequested extends MailEvent {
+  const MailBulkMarkReadRequested();
+}
+
+// ─── Архив ────────────────────────────────────────────────────────────────────
+
+/// Переместить письма в архив Exchange.
+final class MailArchiveRequested extends MailEvent {
+  const MailArchiveRequested({
+    required this.messageIds,
+    required this.folderId,
+  });
+
+  final List<String> messageIds;
+  final String? folderId;
+
+  @override
+  List<Object?> get props => [messageIds, folderId];
+}
+
+// ─── Вложения ─────────────────────────────────────────────────────────────────
+
+/// Скачать вложение текущего письма.
+final class MailAttachmentDownloadRequested extends MailEvent {
+  const MailAttachmentDownloadRequested({
+    required this.messageId,
+    required this.attachment,
+    required this.folderId,
+  });
+
+  final String messageId;
+  final MailAttachment attachment;
+  final String? folderId;
+
+  @override
+  List<Object?> get props => [messageId, attachment.id, folderId];
 }

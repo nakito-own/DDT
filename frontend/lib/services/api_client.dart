@@ -47,9 +47,10 @@ class ApiClient {
   Future<http.Response> post(
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String>? query,
     bool auth = true,
   }) async {
-    final uri = Uri.parse('$apiUrl$path');
+    final uri = Uri.parse('$apiUrl$path').replace(queryParameters: query);
     final response = await http.post(
       uri,
       headers: await _headers(auth: auth),

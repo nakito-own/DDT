@@ -9,6 +9,7 @@ import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
 import '../models/tasks_view_mode.dart';
 import '../theme/ddt_theme.dart';
+import 'compose_mail_panel.dart';
 import 'ddt_context_menu.dart';
 import 'ddt_segmented_control.dart';
 
@@ -78,25 +79,45 @@ class _MailAppBarActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<MailBloc, MailState>(
       buildWhen: (previous, current) =>
-          previous.isLoading != current.isLoading,
-      builder: (context, state) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _AppBarIconAction(
-            tooltip: 'Обновить почту',
-            icon: CupertinoIcons.arrow_clockwise,
-            isLoading: state.isLoading,
-            onPressed: () => context
-                .read<MailBloc>()
-                .add(const MailInboxRefreshRequested()),
-          ),
-          SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
-          const _AppBarIconAction(
-            tooltip: 'Выделить',
-            icon: CupertinoIcons.checkmark_circle,
-          ),
-        ],
-      ),
+          previous.isLoading != current.isLoading ||
+          previous.isSelectionModeActive != current.isSelectionModeActive,
+      builder: (context, state) {
+        final selectionActive = state.isSelectionModeActive;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AppBarIconAction(
+              tooltip: 'Обновить почту',
+              icon: CupertinoIcons.arrow_clockwise,
+              isLoading: state.isLoading,
+              onPressed: () => context
+                  .read<MailBloc>()
+                  .add(const MailInboxRefreshRequested()),
+            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+            _AppBarIconAction(
+              tooltip: selectionActive ? 'Отменить выделение' : 'Выделить',
+              icon: CupertinoIcons.checkmark_circle,
+              isActive: selectionActive,
+              onPressed: () {
+                final bloc = context.read<MailBloc>();
+                if (selectionActive) {
+                  bloc.add(const MailSelectionCleared());
+                } else {
+                  bloc.add(const MailSelectionModeEntered());
+                }
+              },
+            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+            _AppBarTextAction(
+              label: 'Написать',
+              icon: Icons.edit_outlined,
+              filled: true,
+              onPressed: () => showComposeMailPanel(context),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -157,6 +178,57 @@ class _CalendarAppBarActions extends StatelessWidget {
   }
 }
 
+class _AppBarTextAction extends StatelessWidget {
+  const _AppBarTextAction({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.filled = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor = filled
+        ? Colors.white
+        : (isDark ? Colors.white : AppColors.primary);
+
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: foregroundColor,
+        backgroundColor: filled ? AppColors.primary : null,
+        padding: EdgeInsets.symmetric(
+          horizontal: DdtTheme.shellSizeOf(context, 10),
+          vertical: DdtTheme.shellSizeOf(context, 6),
+        ),
+        shape: filled
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  DdtTheme.shellSizeOf(context, 8),
+                ),
+              )
+            : null,
+        visualDensity: VisualDensity.compact,
+      ),
+      icon: Icon(icon, size: DdtTheme.shellSizeOf(context, 16)),
+      label: Text(
+        label,
+        style: DdtTheme.style(
+          fontSize: DdtTheme.shellSizeOf(context, 14),
+          fontWeight: FontWeight.w600,
+          color: foregroundColor,
+        ),
+      ),
+    );
+  }
+}
+
 class _AppBarIconAction extends StatefulWidget {
   const _AppBarIconAction({
     required this.tooltip,
@@ -165,6 +237,7 @@ class _AppBarIconAction extends StatefulWidget {
     this.contextMenuItems,
     this.placement = DdtContextMenuPlacement.belowCenter,
     this.isLoading = false,
+    this.isActive = false,
   });
 
   final String tooltip;
@@ -173,6 +246,7 @@ class _AppBarIconAction extends StatefulWidget {
   final List<DdtContextMenuItem>? contextMenuItems;
   final DdtContextMenuPlacement placement;
   final bool isLoading;
+  final bool isActive;
 
   @override
   State<_AppBarIconAction> createState() => _AppBarIconActionState();
@@ -199,7 +273,9 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final foregroundColor = isDark ? Colors.white : AppColors.primary;
+    final foregroundColor = widget.isActive
+        ? AppColors.primary
+        : (isDark ? Colors.white : AppColors.primary);
     final iconSize = DdtTheme.shellSizeOf(context, 20);
 
     return KeyedSubtree(
@@ -207,6 +283,12 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
       child: IconButton(
         tooltip: widget.tooltip,
         visualDensity: VisualDensity.compact,
+        style: widget.isActive
+            ? IconButton.styleFrom(
+                backgroundColor:
+                    AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
+              )
+            : null,
         onPressed: widget.isLoading ? null : _handlePressed,
         icon: widget.isLoading
             ? SizedBox(
