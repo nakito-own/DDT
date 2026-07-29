@@ -67,14 +67,14 @@ class _MailPageState extends State<MailPage> {
                   message: state.errorMessage!,
                   onRetry: () => context
                       .read<MailBloc>()
-                      .add(const MailInboxLoadRequested()),
+                      .add(const MailInboxLoadRequested(showAnimation: true)),
                 );
               }
 
               return RefreshIndicator(
                 onRefresh: () async => context
                     .read<MailBloc>()
-                    .add(const MailInboxRefreshRequested()),
+                    .add(const MailInboxRefreshRequested(showAnimation: true)),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -579,6 +579,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
 
 class _MailListState extends State<_MailList> {
   final _scrollController = ScrollController();
+  bool _showScrollToTopButton = false;
 
   @override
   void initState() {
@@ -598,9 +599,24 @@ class _MailListState extends State<_MailList> {
     if (!_scrollController.hasClients) return;
 
     final position = _scrollController.position;
+    final showScrollToTopButton = position.pixels > 240;
+    if (showScrollToTopButton != _showScrollToTopButton) {
+      setState(() => _showScrollToTopButton = showScrollToTopButton);
+    }
+
     if (position.pixels < position.maxScrollExtent - 240) return;
 
     _requestLoadMore();
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _requestLoadMore() {
@@ -930,9 +946,42 @@ class _MailListState extends State<_MailList> {
                             },
                           );
 
-                          return _MailListRefreshAnimation(
-                            isRefreshing: state.isRefreshingInbox,
-                            child: listView,
+                          return Stack(
+                            children: [
+                              _MailListRefreshAnimation(
+                                isRefreshing: state.isRefreshingInbox,
+                                child: listView,
+                              ),
+                              Positioned(
+                                right: 12.w,
+                                bottom: 12.h,
+                                child: IgnorePointer(
+                                  ignoring: !_showScrollToTopButton,
+                                  child: AnimatedScale(
+                                    scale:
+                                        _showScrollToTopButton ? 1.0 : 0.72,
+                                    duration:
+                                        DdtTheme.selectionAnimationDuration,
+                                    curve: DdtTheme.selectionAnimationCurve,
+                                    child: AnimatedOpacity(
+                                      opacity:
+                                          _showScrollToTopButton ? 1.0 : 0.0,
+                                      duration:
+                                          DdtTheme.selectionAnimationDuration,
+                                      curve:
+                                          DdtTheme.selectionAnimationCurve,
+                                      child: Tooltip(
+                                        message: 'Наверх',
+                                        child: DdtGlassFab(
+                                          onPressed: _scrollToTop,
+                                          icon: CupertinoIcons.arrow_up,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),

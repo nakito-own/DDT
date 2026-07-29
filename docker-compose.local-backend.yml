@@ -1,0 +1,11 @@
+# Frontend proxies API to a backend running on the host (needed for VPN / Exchange).
+#
+#   docker compose stop backend
+#   docker compose -f docker-compose.yml -f docker-compose.local-backend.yml up -d frontend
+#   ./scripts/run-backend-local.sh
+#
+services:
+  frontend:
+    depends_on: []
+    volumes:
+      - ./frontend/nginx.local-backend.conf:/etc/nginx/conf.d/default.conf:ro

@@ -107,8 +107,7 @@ class SessionService:
         email: str,
         remember_me: bool,
     ) -> tuple[str, SessionContext]:
-        account = ews_service.create_account(username, password, email)
-        ews_service.verify_account(account)
+        account = ews_service.connect_account(username, password, email)
 
         ews_account_id = self._upsert_account(email, username, password)
         user = self._sync_user_profile(account, ews_account_id)
@@ -211,10 +210,9 @@ class SessionService:
             if cached is not None:
                 return cached
 
-        account = ews_service.create_account(
+        account = ews_service.connect_account(
             context.username, context.password, context.email
         )
-        ews_service.verify_account(account)
 
         with self._lock:
             self._account_cache[context.token_hash] = account

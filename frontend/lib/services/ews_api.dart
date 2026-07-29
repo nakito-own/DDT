@@ -61,6 +61,15 @@ class EwsApi {
 
     if (response.statusCode != 200) {
       final detail = _readError(response);
+      if (response.statusCode == 401) {
+        throw Exception(detail ?? 'Неверный логин или пароль');
+      }
+      if (response.statusCode == 502) {
+        throw Exception(
+          detail ??
+              'Exchange временно недоступен. Проверьте VPN и попробуйте снова.',
+        );
+      }
       throw Exception(detail ?? 'Не удалось войти в Exchange');
     }
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from html import unescape
@@ -19,21 +20,40 @@ from exchangelib import (
     Message,
     Q,
 )
-from exchangelib.errors import ErrorItemNotFound
+from exchangelib.errors import (
+    ErrorAccessDenied,
+    ErrorInvalidUserPrincipalName,
+    ErrorItemNotFound,
+    TransportError,
+    UnauthorizedError,
+)
 from exchangelib.extended_properties import ExtendedProperty
 
 from app.config import settings
+from app.services.ews_transport import configure_ews_transport
 
 logger = logging.getLogger(__name__)
+
+configure_ews_transport()
 
 
 class EwsConnectionError(Exception):
     pass
 
 
+class EwsAuthError(Exception):
+    pass
+
+
 class EwsNotFoundError(Exception):
     pass
 
+
+_EWS_AUTH_ERRORS = (
+    UnauthorizedError,
+    ErrorAccessDenied,
+    ErrorInvalidUserPrincipalName,
+)
 
 @dataclass
 class MailAttachment:
@@ -550,24 +570,82 @@ def _fallback_sort_items(items: list[Any], sort: MailSort) -> list[Any]:
 
 
 class EwsService:
-    def create_account(self, username: str, password: str, email: str) -> Account:
+    def _configuration(self, username: str, password: str) -> Configuration:
         credentials = Credentials(username=username, password=password)
-        config = Configuration(
+        auth_type = settings.ews_auth_type.strip() or None
+        endpoint = settings.ews_service_endpoint.strip() or None
+        return Configuration(
             server=settings.ews_server,
             credentials=credentials,
-            auth_type=None,
+            auth_type=auth_type,
+            service_endpoint=endpoint,
         )
-        account = Account(
+
+    def create_account(self, username: str, password: str, email: str) -> Account:
+        return Account(
             primary_smtp_address=email,
-            config=config,
+            config=self._configuration(username, password),
             autodiscover=False,
             access_type=DELEGATE,
         )
-        return account
+
+    @staticmethod
+    def _close_account(account: Account) -> None:
+        try:
+            account.protocol.close()
+        except Exception:
+            logger.debug("Failed to close EWS protocol", exc_info=True)
+
+    def connect_account(self, username: str, password: str, email: str) -> Account:
+        max_attempts = max(1, settings.ews_verify_max_attempts)
+        retry_delay = max(0.0, settings.ews_verify_retry_delay_seconds)
+        last_transport_error: TransportError | None = None
+
+        for attempt in range(max_attempts):
+            account = self.create_account(username, password, email)
+            try:
+                self.verify_account(account)
+                return account
+            except EwsAuthError:
+                self._close_account(account)
+                raise
+            except EwsConnectionError as exc:
+                self._close_account(account)
+                cause = exc.__cause__
+                if isinstance(cause, TransportError):
+                    last_transport_error = cause
+                    logger.warning(
+                        "EWS transport error on connect attempt %s/%s: %s",
+                        attempt + 1,
+                        max_attempts,
+                        cause,
+                    )
+                    if attempt + 1 < max_attempts:
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                raise
+            except Exception:
+                self._close_account(account)
+                raise
+
+        if last_transport_error is not None:
+            raise EwsConnectionError(
+                "Failed to connect to Exchange (network or server unavailable)"
+            ) from last_transport_error
+
+        raise EwsConnectionError(
+            "Failed to connect to Exchange (network or server unavailable)"
+        )
 
     def verify_account(self, account: Account) -> None:
         try:
             _ = account.inbox.total_count
+        except _EWS_AUTH_ERRORS as exc:
+            raise EwsAuthError("Invalid Exchange credentials") from exc
+        except TransportError as exc:
+            raise EwsConnectionError(
+                "Failed to connect to Exchange (network or server unavailable)"
+            ) from exc
         except Exception as exc:
             raise EwsConnectionError("Failed to connect to Exchange") from exc
 

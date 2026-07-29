@@ -38,21 +38,21 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailInboxLoadRequested event,
     Emitter<MailState> emit,
   ) async {
-    // If cached messages already exist, skip the full-screen loader and do
-    // a silent background refresh instead, preserving the visible list.
     if (state.messages.isNotEmpty) {
-      await _reloadInbox(emit);
+      await _reloadInbox(emit, showAnimation: event.showAnimation);
       return;
     }
-    emit(state.copyWith(isLoading: true, errorMessage: () => null));
-    await _reloadInbox(emit);
+    if (event.showAnimation) {
+      emit(state.copyWith(isLoading: true, errorMessage: () => null));
+    }
+    await _reloadInbox(emit, showAnimation: false);
   }
 
   Future<void> _onInboxRefreshRequested(
     MailInboxRefreshRequested event,
     Emitter<MailState> emit,
   ) async {
-    await _reloadInbox(emit);
+    await _reloadInbox(emit, showAnimation: event.showAnimation);
   }
 
   Future<void> _onInboxLoadMoreRequested(
@@ -103,6 +103,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     final nextFilter = event.filter ?? state.filter;
     final nextSort = event.sort ?? state.sort;
     final nextFolderId = event.folderId ?? state.selectedFolderId;
+    final showAnimation =
+        nextFilter != state.filter || nextSort != state.sort;
 
     if (nextFilter == state.filter &&
         nextSort == state.sort &&
@@ -120,10 +122,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       isSelectionModeActive: false,
     ));
 
-    await _reloadInbox(emit);
+    await _reloadInbox(emit, showAnimation: showAnimation);
   }
 
-  Future<void> _reloadInbox(Emitter<MailState> emit) async {
+  Future<void> _reloadInbox(
+    Emitter<MailState> emit, {
+    required bool showAnimation,
+  }) async {
     final background = state.messages.isNotEmpty;
     final generation = ++_inboxRequestGeneration;
     final filter = state.filter;
@@ -131,7 +136,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     var folderId = state.selectedFolderId;
     final previousSelected = state.selectedMessage;
 
-    if (background) {
+    if (showAnimation) {
       emit(state.copyWith(
         isRefreshingInbox: true,
         inboxQueryErrorMessage: () => null,
@@ -285,7 +290,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         subject: event.subject,
         body: event.body,
       );
-      await _reloadInbox(emit);
+      await _reloadInbox(emit, showAnimation: false);
       emit(state.copyWith(isSending: false));
     } catch (error) {
       emit(state.copyWith(

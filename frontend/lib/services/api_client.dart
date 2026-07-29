@@ -40,7 +40,9 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$apiUrl$path').replace(queryParameters: query);
     final response = await http.get(uri, headers: await _headers(auth: auth));
-    _handleUnauthorized(response);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
     return response;
   }
 
@@ -56,7 +58,9 @@ class ApiClient {
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
-    _handleUnauthorized(response);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
     return response;
   }
 
@@ -71,7 +75,9 @@ class ApiClient {
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
-    _handleUnauthorized(response);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
     return response;
   }
 
@@ -86,7 +92,9 @@ class ApiClient {
       headers: await _headers(auth: auth),
       body: body == null ? null : jsonEncode(body),
     );
-    _handleUnauthorized(response);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
     return response;
   }
 
@@ -96,7 +104,9 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$apiUrl$path');
     final response = await http.delete(uri, headers: await _headers(auth: auth));
-    _handleUnauthorized(response);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
     return response;
   }
 

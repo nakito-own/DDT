@@ -9,12 +9,23 @@ sealed class MailEvent extends Equatable {
 
 /// Загрузить входящие при открытии почты.
 final class MailInboxLoadRequested extends MailEvent {
-  const MailInboxLoadRequested();
+  const MailInboxLoadRequested({this.showAnimation = false});
+
+  final bool showAnimation;
+
+  @override
+  List<Object?> get props => [showAnimation];
 }
 
-/// Обновить входящие (например, по WS-уведомлению).
+/// Обновить входящие.
 final class MailInboxRefreshRequested extends MailEvent {
-  const MailInboxRefreshRequested();
+  const MailInboxRefreshRequested({this.showAnimation = false});
+
+  /// Показывать анимацию для обновления, инициированного пользователем.
+  final bool showAnimation;
+
+  @override
+  List<Object?> get props => [showAnimation];
 }
 
 /// Подгрузить более старые письма (следующая страница).

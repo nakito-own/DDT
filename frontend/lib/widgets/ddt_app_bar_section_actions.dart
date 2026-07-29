@@ -80,6 +80,7 @@ class _MailAppBarActions extends StatelessWidget {
     return BlocBuilder<MailBloc, MailState>(
       buildWhen: (previous, current) =>
           previous.isLoading != current.isLoading ||
+          previous.isRefreshingInbox != current.isRefreshingInbox ||
           previous.isSelectionModeActive != current.isSelectionModeActive,
       builder: (context, state) {
         final selectionActive = state.isSelectionModeActive;
@@ -89,10 +90,10 @@ class _MailAppBarActions extends StatelessWidget {
             _AppBarIconAction(
               tooltip: 'Обновить почту',
               icon: CupertinoIcons.arrow_clockwise,
-              isLoading: state.isLoading,
+              isLoading: state.isLoading || state.isRefreshingInbox,
               onPressed: () => context
                   .read<MailBloc>()
-                  .add(const MailInboxRefreshRequested()),
+                  .add(const MailInboxRefreshRequested(showAnimation: true)),
             ),
             SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
             _AppBarIconAction(

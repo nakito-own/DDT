@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from app.dependencies import bearer_scheme, get_current_session
 from app.schemas.ews import LoginRequest, LoginResponse, MeResponse, UserProfileResponse
-from app.services.ews_service import EwsConnectionError, ews_service
+from app.services.ews_service import EwsAuthError, EwsConnectionError, ews_service
 from app.services.session_service import SessionContext, session_service, session_user_dict
 
 router = APIRouter()
@@ -28,9 +28,14 @@ async def login(payload: LoginRequest):
             email=str(payload.email),
             remember_me=payload.remember_me,
         )
-    except EwsConnectionError as exc:
+    except EwsAuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+    except EwsConnectionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
     except Exception as exc:
