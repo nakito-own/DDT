@@ -103,9 +103,7 @@ class _NavigationRailItemState extends State<_NavigationRailItem> {
       return Colors.transparent;
     }
 
-    return AppColors.primary.withValues(
-      alpha: widget.isDark ? 0.12 : 0.08,
-    );
+    return AppColors.primary.withValues(alpha: widget.isDark ? 0.12 : 0.08);
   }
 
   @override
@@ -144,8 +142,9 @@ class _NavigationRailItemState extends State<_NavigationRailItem> {
                 final resolvedColor = color ?? foregroundColor;
                 final labelStyle = DdtTheme.style(
                   fontSize: 10.sp,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: widget.isSelected
+                      ? FontWeight.w600
+                      : FontWeight.w500,
                   color: resolvedColor,
                   height: 1.15,
                 );

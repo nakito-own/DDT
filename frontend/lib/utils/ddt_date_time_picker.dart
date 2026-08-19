@@ -24,9 +24,9 @@ Future<DateTime?> showDdtDateTimePicker({
     context: context,
     builder: (dialogContext) {
       return MediaQuery(
-        data: MediaQuery.of(dialogContext).copyWith(
-          alwaysUse24HourFormat: true,
-        ),
+        data: MediaQuery.of(
+          dialogContext,
+        ).copyWith(alwaysUse24HourFormat: true),
         child: _DdtDateTimePickerDialog(
           initialDateTime: initial,
           firstDate: first,
@@ -252,10 +252,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text('Отмена'),
                   ),
-                  TextButton(
-                    onPressed: _confirm,
-                    child: const Text('ОК'),
-                  ),
+                  TextButton(onPressed: _confirm, child: const Text('ОК')),
                 ],
               ),
             ],
@@ -267,10 +264,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
 }
 
 class _TimeField extends StatelessWidget {
-  const _TimeField({
-    required this.controller,
-    required this.fillColor,
-  });
+  const _TimeField({required this.controller, required this.fillColor});
 
   final TextEditingController controller;
   final Color fillColor;
@@ -285,9 +279,9 @@ class _TimeField extends StatelessWidget {
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(2),
       ],
-      decoration: DdtTheme.inputDecoration(hintText: '00').copyWith(
-        fillColor: fillColor,
-      ),
+      decoration: DdtTheme.inputDecoration(
+        hintText: '00',
+      ).copyWith(fillColor: fillColor),
     );
   }
 }

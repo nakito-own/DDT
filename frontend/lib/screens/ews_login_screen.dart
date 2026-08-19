@@ -34,12 +34,14 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    context.read<AuthBloc>().add(AuthLoginRequested(
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
-      email: _emailController.text.trim(),
-      rememberMe: _rememberMe,
-    ));
+    context.read<AuthBloc>().add(
+      AuthLoginRequested(
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+        email: _emailController.text.trim(),
+        rememberMe: _rememberMe,
+      ),
+    );
   }
 
   @override
@@ -60,8 +62,9 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                       final isInitializing = state is AuthInitial;
                       final isLoading = state is AuthLoading;
                       final isBusy = isInitializing || isLoading;
-                      final errorMessage =
-                          state is AuthFailure ? state.message : null;
+                      final errorMessage = state is AuthFailure
+                          ? state.message
+                          : null;
 
                       return DdtTheme.glass(
                         context: context,
@@ -98,8 +101,8 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                 ),
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
-                                        ? 'Введите логин'
-                                        : null,
+                                    ? 'Введите логин'
+                                    : null,
                               ),
                               SizedBox(height: 12.h),
                               TextFormField(
@@ -111,8 +114,8 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
-                                        ? 'Введите email'
-                                        : null,
+                                    ? 'Введите email'
+                                    : null,
                               ),
                               SizedBox(height: 12.h),
                               TextFormField(
@@ -129,24 +132,24 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                     onPressed: isBusy
                                         ? null
                                         : () => setState(
-                                              () => _obscurePassword =
-                                                  !_obscurePassword,
-                                            ),
+                                            () => _obscurePassword =
+                                                !_obscurePassword,
+                                          ),
                                   ),
                                 ),
                                 obscureText: _obscurePassword,
                                 validator: (value) =>
                                     value == null || value.isEmpty
-                                        ? 'Введите пароль'
-                                        : null,
+                                    ? 'Введите пароль'
+                                    : null,
                               ),
                               SizedBox(height: 4.h),
                               InkWell(
                                 onTap: isBusy
                                     ? null
                                     : () => setState(
-                                          () => _rememberMe = !_rememberMe,
-                                        ),
+                                        () => _rememberMe = !_rememberMe,
+                                      ),
                                 borderRadius: DdtTheme.radius,
                                 child: Padding(
                                   padding: EdgeInsets.symmetric(vertical: 4.h),
@@ -157,9 +160,9 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                         onChanged: isBusy
                                             ? null
                                             : (value) => setState(
-                                                  () => _rememberMe =
-                                                      value ?? true,
-                                                ),
+                                                () =>
+                                                    _rememberMe = value ?? true,
+                                              ),
                                         materialTapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                         visualDensity: VisualDensity.compact,
@@ -171,8 +174,9 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                           style: DdtTheme.style(
                                             fontSize: 14.sp,
                                             fontWeight: FontWeight.w500,
-                                            color:
-                                                DdtTheme.textPrimary(context),
+                                            color: DdtTheme.textPrimary(
+                                              context,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -193,9 +197,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                   ),
                                 ),
                               Button(
-                                text: isBusy
-                                    ? 'Подключение...'
-                                    : 'Войти',
+                                text: isBusy ? 'Подключение...' : 'Войти',
                                 onPressed: isBusy ? null : _submit,
                                 borderRadius: DdtTheme.radius,
                               ),

@@ -12,11 +12,7 @@ import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
 
 class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const DdtGlassAppBar({
-    super.key,
-    required this.title,
-    this.actions,
-  });
+  const DdtGlassAppBar({super.key, required this.title, this.actions});
 
   final String title;
   final Widget? actions;
@@ -152,9 +148,9 @@ class _NotificationsPanel extends StatelessWidget {
                     ),
                     if (items.isNotEmpty)
                       TextButton(
-                        onPressed: () => context
-                            .read<NotificationsBloc>()
-                            .add(const NotificationsMarkAllReadRequested()),
+                        onPressed: () => context.read<NotificationsBloc>().add(
+                          const NotificationsMarkAllReadRequested(),
+                        ),
                         child: const Text('Прочитать все'),
                       ),
                   ],
@@ -185,9 +181,9 @@ class _NotificationsPanel extends StatelessWidget {
                         final item = items[index];
                         return _NotificationTile(
                           item: item,
-                          onTap: () => context
-                              .read<NotificationsBloc>()
-                              .add(NotificationsMarkReadRequested(item.id)),
+                          onTap: () => context.read<NotificationsBloc>().add(
+                            NotificationsMarkReadRequested(item.id),
+                          ),
                         );
                       },
                     ),
@@ -202,10 +198,7 @@ class _NotificationsPanel extends StatelessWidget {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({
-    required this.item,
-    required this.onTap,
-  });
+  const _NotificationTile({required this.item, required this.onTap});
 
   final AppNotification item;
   final VoidCallback onTap;
@@ -290,9 +283,7 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
       anchorContext: anchorContext,
       placement: DdtContextMenuPlacement.belowEnd,
       offset: Offset(0, 2.h),
-      childBuilder: (dismiss) => _UserProfileContextPanel(
-        onDismiss: dismiss,
-      ),
+      childBuilder: (dismiss) => _UserProfileContextPanel(onDismiss: dismiss),
     );
   }
 
@@ -314,74 +305,72 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
             : null;
         final isAuthenticated = authState is AuthAuthenticated;
 
-      return Builder(
-        builder: (anchorContext) {
-          return MouseRegion(
-            cursor: isAuthenticated
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            onEnter: isAuthenticated
-                ? (_) => setState(() => _hovered = true)
-                : null,
-            onExit: isAuthenticated
-                ? (_) => setState(() => _hovered = false)
-                : null,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: isAuthenticated
-                  ? () => _openProfilePanel(anchorContext)
+        return Builder(
+          builder: (anchorContext) {
+            return MouseRegion(
+              cursor: isAuthenticated
+                  ? SystemMouseCursors.click
+                  : SystemMouseCursors.basic,
+              onEnter: isAuthenticated
+                  ? (_) => setState(() => _hovered = true)
                   : null,
-              child: AnimatedOpacity(
-                duration: DdtTheme.selectionAnimationDuration,
-                opacity: _hovered && isAuthenticated ? 0.88 : 1,
-                child: DdtTheme.taskCardGlass(
-                  context: context,
-                  cornerRadius: _cornerRadius.r,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: DdtTheme.shellSizeOf(context, 14),
-                    vertical: DdtTheme.shellSizeOf(context, 8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CupertinoIcons.person_crop_circle,
-                        size: DdtTheme.shellSizeOf(context, 18),
-                        color: email != null ? AppColors.primary : mutedColor,
-                      ),
-                      SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: DdtTheme.shellSizeOf(context, 220),
+              onExit: isAuthenticated
+                  ? (_) => setState(() => _hovered = false)
+                  : null,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: isAuthenticated
+                    ? () => _openProfilePanel(anchorContext)
+                    : null,
+                child: AnimatedOpacity(
+                  duration: DdtTheme.selectionAnimationDuration,
+                  opacity: _hovered && isAuthenticated ? 0.88 : 1,
+                  child: DdtTheme.taskCardGlass(
+                    context: context,
+                    cornerRadius: _cornerRadius.r,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: DdtTheme.shellSizeOf(context, 14),
+                      vertical: DdtTheme.shellSizeOf(context, 8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CupertinoIcons.person_crop_circle,
+                          size: DdtTheme.shellSizeOf(context, 18),
+                          color: email != null ? AppColors.primary : mutedColor,
                         ),
-                        child: Text(
-                          email ?? 'Не авторизован',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: DdtTheme.style(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w500,
-                            color: email != null ? textColor : mutedColor,
+                        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: DdtTheme.shellSizeOf(context, 220),
+                          ),
+                          child: Text(
+                            email ?? 'Не авторизован',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DdtTheme.style(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w500,
+                              color: email != null ? textColor : mutedColor,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
-      );
+            );
+          },
+        );
       },
     );
   }
 }
 
 class _UserProfileContextPanel extends StatelessWidget {
-  const _UserProfileContextPanel({
-    required this.onDismiss,
-  });
+  const _UserProfileContextPanel({required this.onDismiss});
 
   final Future<void> Function() onDismiss;
 
@@ -392,8 +381,9 @@ class _UserProfileContextPanel extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         final profile = authState is AuthAuthenticated ? authState.user : null;
-        final connected =
-            authState is AuthAuthenticated ? authState.connected : false;
+        final connected = authState is AuthAuthenticated
+            ? authState.connected
+            : false;
         final isLoading = authState is AuthLoading;
 
         return DdtTheme.contextMenuGlass(
@@ -425,10 +415,7 @@ class _UserProfileContextPanel extends StatelessWidget {
                       value: profile.department!,
                     ),
                   if (profile.phone != null)
-                    _ProfilePanelField(
-                      label: 'Телефон',
-                      value: profile.phone!,
-                    ),
+                    _ProfilePanelField(label: 'Телефон', value: profile.phone!),
                   if (profile.officeLocation != null)
                     _ProfilePanelField(
                       label: 'Офис',
@@ -447,9 +434,9 @@ class _UserProfileContextPanel extends StatelessWidget {
                       : () async {
                           await onDismiss();
                           if (!context.mounted) return;
-                          context
-                              .read<AuthBloc>()
-                              .add(const AuthLogoutRequested());
+                          context.read<AuthBloc>().add(
+                            const AuthLogoutRequested(),
+                          );
                         },
                 ),
               ],
@@ -494,10 +481,7 @@ class _ProfilePanelHeader extends StatelessWidget {
 }
 
 class _ProfilePanelField extends StatelessWidget {
-  const _ProfilePanelField({
-    required this.label,
-    required this.value,
-  });
+  const _ProfilePanelField({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -569,7 +553,9 @@ class _ProfileLogoutButtonState extends State<_ProfileLogoutButton> {
             color: enabled && _hovered
                 ? AppColors.error.withValues(alpha: isDark ? 0.18 : 0.1)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(DdtContextMenu.itemBorderRadius.r),
+            borderRadius: BorderRadius.circular(
+              DdtContextMenu.itemBorderRadius.r,
+            ),
           ),
           child: Center(
             child: widget.isLoading

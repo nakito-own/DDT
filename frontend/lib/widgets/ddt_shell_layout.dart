@@ -26,7 +26,9 @@ class DdtShellLayout extends StatelessWidget {
       extendBodyBehindAppBar: true,
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(DdtTheme.shellSizeOf(context, DdtTheme.spacing)),
+          padding: EdgeInsets.all(
+            DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -45,10 +47,10 @@ class DdtShellLayout extends StatelessWidget {
                         section: selectedSection,
                       ),
                     ),
-                    SizedBox(height: DdtTheme.shellSizeOf(context, DdtTheme.spacing)),
-                    Expanded(
-                      child: RepaintBoundary(child: child),
+                    SizedBox(
+                      height: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
                     ),
+                    Expanded(child: RepaintBoundary(child: child)),
                   ],
                 ),
               ),

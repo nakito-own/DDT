@@ -33,10 +33,7 @@ class MailAttachment {
 }
 
 class MailArchiveResult {
-  const MailArchiveResult({
-    required this.archivedIds,
-    required this.errors,
-  });
+  const MailArchiveResult({required this.archivedIds, required this.errors});
 
   final List<String> archivedIds;
   final Map<String, String> errors;
@@ -46,8 +43,9 @@ class MailArchiveResult {
       archivedIds: (json['archived_ids'] as List<dynamic>? ?? const [])
           .whereType<String>()
           .toList(),
-      errors: (json['errors'] as Map<String, dynamic>? ?? const {})
-          .map((k, v) => MapEntry(k, v.toString())),
+      errors: (json['errors'] as Map<String, dynamic>? ?? const {}).map(
+        (k, v) => MapEntry(k, v.toString()),
+      ),
     );
   }
 }

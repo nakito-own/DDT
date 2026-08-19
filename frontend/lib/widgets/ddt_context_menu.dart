@@ -121,9 +121,9 @@ Rect? ddtContextMenuAnchorRect({
   final anchorBox = anchorContext.findRenderObject() as RenderBox?;
   if (anchorBox == null || !anchorBox.hasSize) return null;
 
-  final overlayBox = Overlay.of(context, rootOverlay: true)
-      .context
-      .findRenderObject() as RenderBox?;
+  final overlayBox =
+      Overlay.of(context, rootOverlay: true).context.findRenderObject()
+          as RenderBox?;
   if (overlayBox == null || !overlayBox.hasSize) return null;
 
   final globalTopLeft = anchorBox.localToGlobal(Offset.zero);
@@ -173,11 +173,7 @@ class DdtContextMenuTrigger extends StatelessWidget {
 }
 
 class DdtContextMenu extends StatelessWidget {
-  const DdtContextMenu({
-    super.key,
-    required this.items,
-    this.onItemSelected,
-  });
+  const DdtContextMenu({super.key, required this.items, this.onItemSelected});
 
   final List<DdtContextMenuItem> items;
   final VoidCallback? onItemSelected;
@@ -308,11 +304,9 @@ class _DdtContextMenuOverlayState extends State<_DdtContextMenuOverlay>
         child: ScaleTransition(
           scale: _scaleAnimation,
           alignment: _scaleAlignment(widget.placement),
-            child: Material(
+          child: Material(
             type: MaterialType.transparency,
-            child: IntrinsicWidth(
-              child: widget.childBuilder(_dismiss),
-            ),
+            child: IntrinsicWidth(child: widget.childBuilder(_dismiss)),
           ),
         ),
       ),
@@ -372,9 +366,9 @@ class _DdtContextMenuLayoutDelegate extends SingleChildLayoutDelegate {
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
-    return BoxConstraints.loose(constraints.biggest).deflate(
-      padding + const EdgeInsets.all(_screenPadding),
-    );
+    return BoxConstraints.loose(
+      constraints.biggest,
+    ).deflate(padding + const EdgeInsets.all(_screenPadding));
   }
 
   @override
@@ -423,10 +417,7 @@ class _DdtContextMenuLayoutDelegate extends SingleChildLayoutDelegate {
 }
 
 class _DdtContextMenuItemTile extends StatefulWidget {
-  const _DdtContextMenuItemTile({
-    required this.item,
-    this.onSelected,
-  });
+  const _DdtContextMenuItemTile({required this.item, this.onSelected});
 
   final DdtContextMenuItem item;
   final VoidCallback? onSelected;
@@ -520,11 +511,10 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
           padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 9.h),
           decoration: BoxDecoration(
             color: _backgroundColor(context),
-            borderRadius:
-                BorderRadius.circular(DdtContextMenu.itemBorderRadius.r),
-            border: borderColor != null
-                ? Border.all(color: borderColor)
-                : null,
+            borderRadius: BorderRadius.circular(
+              DdtContextMenu.itemBorderRadius.r,
+            ),
+            border: borderColor != null ? Border.all(color: borderColor) : null,
           ),
           child: Row(
             children: [

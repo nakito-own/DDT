@@ -9,8 +9,9 @@ part 'calendar_state.dart';
 
 class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   CalendarBloc({EwsApi? api})
-      : _api = api ?? ewsApi,
-        super(CalendarState(focusedDate: DateTime.now())) {
+    : _api = api ?? ewsApi,
+      super(CalendarState(focusedDate: DateTime.now())) {
+    on<CalendarSessionCleared>(_onSessionCleared);
     on<CalendarEventsLoadRequested>(_onEventsLoadRequested);
     on<CalendarEventsRefreshRequested>(_onEventsRefreshRequested);
     on<CalendarViewModeChanged>(_onViewModeChanged);
@@ -27,8 +28,21 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
 
   DateTime? _loadedStart;
   DateTime? _loadedEnd;
+  int _requestGeneration = 0;
+  int _sessionGeneration = 0;
 
   // ─── Load / Refresh ───────────────────────────────────────────────────────
+
+  void _onSessionCleared(
+    CalendarSessionCleared event,
+    Emitter<CalendarState> emit,
+  ) {
+    _requestGeneration++;
+    _sessionGeneration++;
+    _loadedStart = null;
+    _loadedEnd = null;
+    emit(CalendarState(focusedDate: DateTime.now()));
+  }
 
   Future<void> _onEventsLoadRequested(
     CalendarEventsLoadRequested event,
@@ -46,12 +60,14 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   }
 
   Future<void> _fetchEvents(Emitter<CalendarState> emit) async {
+    final generation = ++_requestGeneration;
     try {
       final range = _fetchRangeFor(state.effectiveFocusedDate, state.viewMode);
       final result = await _api.fetchCalendarEvents(
         start: range.start,
         end: range.end,
       );
+      if (generation != _requestGeneration) return;
       final sorted = List<CalendarEvent>.of(result)
         ..sort((a, b) {
           final aStart = a.start ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -60,17 +76,21 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
         });
       _loadedStart = range.start;
       _loadedEnd = range.end;
-      emit(state.copyWith(
-        isLoading: false,
-        events: sorted,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          events: sorted,
+          errorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (generation != _requestGeneration) return;
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -99,12 +119,17 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   ) {
     final current = state.effectiveFocusedDate;
     final next = switch (state.viewMode) {
-      CalendarViewMode.day =>
-        DateTime(current.year, current.month, current.day - 1),
-      CalendarViewMode.week =>
-        DateTime(current.year, current.month, current.day - 7),
-      CalendarViewMode.month =>
-        DateTime(current.year, current.month - 1, 1),
+      CalendarViewMode.day => DateTime(
+        current.year,
+        current.month,
+        current.day - 1,
+      ),
+      CalendarViewMode.week => DateTime(
+        current.year,
+        current.month,
+        current.day - 7,
+      ),
+      CalendarViewMode.month => DateTime(current.year, current.month - 1, 1),
     };
     emit(state.copyWith(focusedDate: () => next));
     add(const CalendarEventsLoadRequested());
@@ -116,12 +141,17 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   ) {
     final current = state.effectiveFocusedDate;
     final next = switch (state.viewMode) {
-      CalendarViewMode.day =>
-        DateTime(current.year, current.month, current.day + 1),
-      CalendarViewMode.week =>
-        DateTime(current.year, current.month, current.day + 7),
-      CalendarViewMode.month =>
-        DateTime(current.year, current.month + 1, 1),
+      CalendarViewMode.day => DateTime(
+        current.year,
+        current.month,
+        current.day + 1,
+      ),
+      CalendarViewMode.week => DateTime(
+        current.year,
+        current.month,
+        current.day + 7,
+      ),
+      CalendarViewMode.month => DateTime(current.year, current.month + 1, 1),
     };
     emit(state.copyWith(focusedDate: () => next));
     add(const CalendarEventsLoadRequested());
@@ -161,6 +191,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     CalendarEventCreateRequested event,
     Emitter<CalendarState> emit,
   ) async {
+    final sessionGeneration = _sessionGeneration;
     emit(state.copyWith(isCreating: true, errorMessage: () => null));
     try {
       final created = await _api.createCalendarEvent(
@@ -170,23 +201,28 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
         location: event.location,
         body: event.body,
       );
+      if (sessionGeneration != _sessionGeneration) return;
       final sorted = [...state.events, created]
         ..sort((a, b) {
           final aStart = a.start ?? DateTime.fromMillisecondsSinceEpoch(0);
           final bStart = b.start ?? DateTime.fromMillisecondsSinceEpoch(0);
           return aStart.compareTo(bStart);
         });
-      emit(state.copyWith(
-        isCreating: false,
-        events: sorted,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isCreating: false,
+          events: sorted,
+          errorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isCreating: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          isCreating: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -194,24 +230,32 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     CalendarEventRespondRequested event,
     Emitter<CalendarState> emit,
   ) async {
+    final sessionGeneration = _sessionGeneration;
     emit(state.copyWith(isResponding: true, errorMessage: () => null));
     try {
-      final updated =
-          await _api.respondToCalendarEvent(event.event.id, event.action);
+      final updated = await _api.respondToCalendarEvent(
+        event.event.id,
+        event.action,
+      );
+      if (sessionGeneration != _sessionGeneration) return;
       final events = state.events.map((e) {
         return e.id == updated.id ? updated : e;
       }).toList();
-      emit(state.copyWith(
-        isResponding: false,
-        events: events,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isResponding: false,
+          events: events,
+          errorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isResponding: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          isResponding: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -223,17 +267,23 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   ) {
     return switch (mode) {
       CalendarViewMode.day => (
-          start: DateTime(anchor.year, anchor.month, anchor.day)
-              .subtract(const Duration(days: 14)),
-          end: DateTime(anchor.year, anchor.month, anchor.day)
-              .add(const Duration(days: 15)),
-        ),
+        start: DateTime(
+          anchor.year,
+          anchor.month,
+          anchor.day,
+        ).subtract(const Duration(days: 14)),
+        end: DateTime(
+          anchor.year,
+          anchor.month,
+          anchor.day,
+        ).add(const Duration(days: 15)),
+      ),
       CalendarViewMode.week => (
-          start: CalendarState.startOfWeek(anchor)
-              .subtract(const Duration(days: 21)),
-          end: CalendarState.startOfWeek(anchor)
-              .add(const Duration(days: 28)),
-        ),
+        start: CalendarState.startOfWeek(
+          anchor,
+        ).subtract(const Duration(days: 21)),
+        end: CalendarState.startOfWeek(anchor).add(const Duration(days: 28)),
+      ),
       CalendarViewMode.month => _monthFetchRange(anchor),
     };
   }

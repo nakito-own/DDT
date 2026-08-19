@@ -63,6 +63,12 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
         listenWhen: (previous, current) =>
             previous.searchQuery != current.searchQuery,
         listener: (context, state) => _syncSearchFromBloc(state.searchQuery),
+        buildWhen: (previous, current) =>
+            previous.searchQuery != current.searchQuery ||
+            previous.statusFilters != current.statusFilters ||
+            previous.priorityFilter != current.priorityFilter ||
+            previous.typeFilter != current.typeFilter ||
+            previous.sortOption != current.sortOption,
         builder: (context, state) {
           return ListView(
             children: [
@@ -107,9 +113,9 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                         label: status.label,
                         selected: state.statusFilters.contains(status),
                         accentColor: statusColumnColor(status),
-                        onTap: () => context
-                            .read<TasksBloc>()
-                            .add(TasksStatusFilterToggled(status)),
+                        onTap: () => context.read<TasksBloc>().add(
+                          TasksStatusFilterToggled(status),
+                        ),
                       ),
                   ],
                 ),
@@ -124,18 +130,18 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                     _FilterChip(
                       label: 'Все',
                       selected: state.priorityFilter == null,
-                      onTap: () => context
-                          .read<TasksBloc>()
-                          .add(const TasksPriorityFilterChanged(null)),
+                      onTap: () => context.read<TasksBloc>().add(
+                        const TasksPriorityFilterChanged(null),
+                      ),
                     ),
                     for (final priority in TaskPriority.values)
                       _FilterChip(
                         label: priority.label,
                         selected: state.priorityFilter == priority,
                         accentColor: priorityColor(priority),
-                        onTap: () => context
-                            .read<TasksBloc>()
-                            .add(TasksPriorityFilterChanged(priority)),
+                        onTap: () => context.read<TasksBloc>().add(
+                          TasksPriorityFilterChanged(priority),
+                        ),
                       ),
                   ],
                 ),
@@ -151,17 +157,17 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                       _FilterChip(
                         label: 'Все',
                         selected: state.typeFilter == null,
-                        onTap: () => context
-                            .read<TasksBloc>()
-                            .add(const TasksTypeFilterChanged(null)),
+                        onTap: () => context.read<TasksBloc>().add(
+                          const TasksTypeFilterChanged(null),
+                        ),
                       ),
                       for (final type in state.taskTypes)
                         _FilterChip(
                           label: type.name,
                           selected: state.typeFilter == type.id,
-                          onTap: () => context
-                              .read<TasksBloc>()
-                              .add(TasksTypeFilterChanged(type.id)),
+                          onTap: () => context.read<TasksBloc>().add(
+                            TasksTypeFilterChanged(type.id),
+                          ),
                         ),
                     ],
                   ),
@@ -178,9 +184,9 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                       _FilterChip(
                         label: option.label,
                         selected: state.sortOption == option,
-                        onTap: () => context
-                            .read<TasksBloc>()
-                            .add(TasksSortOptionChanged(option)),
+                        onTap: () => context.read<TasksBloc>().add(
+                          TasksSortOptionChanged(option),
+                        ),
                       ),
                   ],
                 ),
@@ -233,10 +239,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
 }
 
 class _FilterSection extends StatelessWidget {
-  const _FilterSection({
-    required this.title,
-    required this.child,
-  });
+  const _FilterSection({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -293,8 +296,8 @@ class _FilterChip extends StatelessWidget {
           color: selected
               ? accent.withValues(alpha: isDark ? 0.18 : 0.10)
               : (isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : AppColors.primary.withValues(alpha: 0.04)),
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : AppColors.primary.withValues(alpha: 0.04)),
           borderRadius: DdtTheme.radius,
           border: Border.all(
             color: selected
@@ -354,17 +357,10 @@ class _AnimatedCheckmark extends StatelessWidget {
       builder: (context, value, child) {
         return Transform.scale(
           scale: value,
-          child: Opacity(
-            opacity: value,
-            child: child,
-          ),
+          child: Opacity(opacity: value, child: child),
         );
       },
-      child: Icon(
-        CupertinoIcons.checkmark,
-        size: 12.sp,
-        color: color,
-      ),
+      child: Icon(CupertinoIcons.checkmark, size: 12.sp, color: color),
     );
   }
 }

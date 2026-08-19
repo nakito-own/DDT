@@ -26,16 +26,16 @@ final class CalendarState extends Equatable {
   static const startOfWeekDay = DateTime.monday;
 
   int get plannerDaysShowed => switch (viewMode) {
-        CalendarViewMode.day => 1,
-        CalendarViewMode.week => 7,
-        CalendarViewMode.month => 1,
-      };
+    CalendarViewMode.day => 1,
+    CalendarViewMode.week => 7,
+    CalendarViewMode.month => 1,
+  };
 
   int get plannerMaxNextDays => switch (viewMode) {
-        CalendarViewMode.day => 1,
-        CalendarViewMode.week => 7,
-        CalendarViewMode.month => 0,
-      };
+    CalendarViewMode.day => 1,
+    CalendarViewMode.week => 7,
+    CalendarViewMode.month => 0,
+  };
 
   String get titleLabel {
     final date = effectiveFocusedDate;
@@ -61,11 +61,9 @@ final class CalendarState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       isCreating: isCreating ?? this.isCreating,
       isResponding: isResponding ?? this.isResponding,
-      errorMessage:
-          errorMessage != null ? errorMessage() : this.errorMessage,
+      errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       viewMode: viewMode ?? this.viewMode,
-      focusedDate:
-          focusedDate != null ? focusedDate() : this.focusedDate,
+      focusedDate: focusedDate != null ? focusedDate() : this.focusedDate,
     );
   }
 
@@ -81,8 +79,18 @@ final class CalendarState extends Equatable {
 
   String _monthLabel(DateTime date) {
     const months = [
-      'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+      'Январь',
+      'Февраль',
+      'Март',
+      'Апрель',
+      'Май',
+      'Июнь',
+      'Июль',
+      'Август',
+      'Сентябрь',
+      'Октябрь',
+      'Ноябрь',
+      'Декабрь',
     ];
     return '${months[date.month - 1]} ${date.year}';
   }
@@ -90,18 +98,21 @@ final class CalendarState extends Equatable {
   static DateTime startOfWeek(DateTime date) {
     final weekday = date.weekday;
     final diff = (weekday - startOfWeekDay + 7) % 7;
-    return DateTime(date.year, date.month, date.day)
-        .subtract(Duration(days: diff));
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).subtract(Duration(days: diff));
   }
 
   @override
   List<Object?> get props => [
-        events,
-        isLoading,
-        isCreating,
-        isResponding,
-        errorMessage,
-        viewMode,
-        focusedDate,
-      ];
+    events,
+    isLoading,
+    isCreating,
+    isResponding,
+    errorMessage,
+    viewMode,
+    focusedDate,
+  ];
 }

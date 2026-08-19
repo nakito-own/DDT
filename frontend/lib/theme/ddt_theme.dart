@@ -46,9 +46,8 @@ class DdtTheme {
   static Color textMuted(BuildContext context) =>
       _isDark(context) ? darkTextMuted : lightTextMuted;
 
-  static Color loginTitleColor(BuildContext context) => _isDark(context)
-      ? darkTextPrimary
-      : const Color(0xFF0D47A1);
+  static Color loginTitleColor(BuildContext context) =>
+      _isDark(context) ? darkTextPrimary : const Color(0xFF0D47A1);
 
   static BorderRadius get radius => BorderRadius.circular(borderRadius.r);
 
@@ -67,42 +66,37 @@ class DdtTheme {
   static Color pickerInputFillColor(BuildContext context) =>
       _isDark(context) ? darkPickerInputFill : lightInputFill;
 
-  static TextStyle inputLabelStyle(BuildContext context) => style(
-        fontSize: 14.sp,
-        color: textSecondary(context),
-      );
+  static TextStyle inputLabelStyle(BuildContext context) =>
+      style(fontSize: 14.sp, color: textSecondary(context));
 
-  static TextStyle inputFloatingLabelStyle(BuildContext context) => style(
-        fontSize: 12.sp,
-        color: textMuted(context),
-      );
+  static TextStyle inputFloatingLabelStyle(BuildContext context) =>
+      style(fontSize: 12.sp, color: textMuted(context));
 
-  static TextStyle inputHintStyle(BuildContext context) => style(
-        fontSize: 14.sp,
-        color: textMuted(context),
-      );
+  static TextStyle inputHintStyle(BuildContext context) =>
+      style(fontSize: 14.sp, color: textMuted(context));
 
   static Color inputBorderColor(BuildContext context) =>
       _isDark(context) ? darkBorderStrong : lightBorderStrong;
 
   static MenuThemeData menuThemeData() => MenuThemeData(
-        style: MenuStyle(
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
-          ),
-        ),
-      );
+    style: MenuStyle(
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+      ),
+    ),
+  );
 
   static PopupMenuThemeData popupMenuThemeData() => PopupMenuThemeData(
-        shape: RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
-      );
+    shape: RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+  );
 
   static DropdownMenuThemeData dropdownMenuThemeData(
     TextTheme typography,
     Brightness brightness,
   ) {
-    final textColor =
-        brightness == Brightness.dark ? darkTextPrimary : lightTextPrimary;
+    final textColor = brightness == Brightness.dark
+        ? darkTextPrimary
+        : lightTextPrimary;
 
     return DropdownMenuThemeData(
       textStyle: TextStyle(color: textColor),
@@ -127,9 +121,7 @@ class DdtTheme {
   static SizedBox verticalGap() => SizedBox(height: shellSize(spacing));
 
   static Color glassBorderColor(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? Colors.white
-        : AppColors.primary;
+    return brightness == Brightness.dark ? Colors.white : AppColors.primary;
   }
 
   static double glassBorderOpacity(Brightness brightness) {
@@ -252,8 +244,8 @@ class DdtTheme {
       backgroundOpacity: isDark
           ? (isDragging ? 0.26 : 0.2)
           : (isDragging
-              ? lightGlassBackgroundOpacityActive
-              : lightGlassBackgroundOpacity),
+                ? lightGlassBackgroundOpacityActive
+                : lightGlassBackgroundOpacity),
       borderColor: glassBorderColor(brightness),
       borderOpacity: glassBorderOpacity(brightness) * 0.65,
       borderWidth: 1,
@@ -276,8 +268,9 @@ class DdtTheme {
     final isDark = brightness == Brightness.dark;
     final radius = cornerRadius ?? 5.r;
     final baseNeutral = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-    final blueMix =
-        highlighted ? (isDark ? 0.26 : 0.14) : (isDark ? 0.08 : 0.04);
+    final blueMix = highlighted
+        ? (isDark ? 0.26 : 0.14)
+        : (isDark ? 0.08 : 0.04);
 
     return GlassContainer(
       type: GlassType.custom,
@@ -287,13 +280,18 @@ class DdtTheme {
       blurIntensity: blurIntensity,
       backgroundColor: highlighted
           ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08)
-          : Color.lerp(baseNeutral, AppColors.primary, blueMix)!
-              .withValues(alpha: isDark ? 0.32 : 0.3),
-      backgroundOpacity: highlighted ? (isDark ? 0.22 : 0.18) : (isDark ? 0.2 : 0.16),
-      borderColor: highlighted ? AppColors.primary : glassBorderColor(brightness),
-      borderOpacity: highlighted
-          ? 0.5
-          : glassBorderOpacity(brightness) * 0.55,
+          : Color.lerp(
+              baseNeutral,
+              AppColors.primary,
+              blueMix,
+            )!.withValues(alpha: isDark ? 0.32 : 0.3),
+      backgroundOpacity: highlighted
+          ? (isDark ? 0.22 : 0.18)
+          : (isDark ? 0.2 : 0.16),
+      borderColor: highlighted
+          ? AppColors.primary
+          : glassBorderColor(brightness),
+      borderOpacity: highlighted ? 0.5 : glassBorderOpacity(brightness) * 0.55,
       borderWidth: highlighted ? 1.5 : 1,
       addShadow: false,
       onTap: onTap,
@@ -390,7 +388,10 @@ class DdtTheme {
         hintStyle: TextStyle(color: darkTextMuted),
         fillColor: darkInputFill,
       ),
-      dropdownMenuTheme: dropdownMenuThemeData(theme.textTheme, Brightness.dark),
+      dropdownMenuTheme: dropdownMenuThemeData(
+        theme.textTheme,
+        Brightness.dark,
+      ),
       menuTheme: menuThemeData(),
       popupMenuTheme: popupMenuThemeData(),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -452,7 +453,9 @@ class DdtTheme {
     return theme;
   }
 
-  static const Duration selectionAnimationDuration = Duration(milliseconds: 220);
+  static const Duration selectionAnimationDuration = Duration(
+    milliseconds: 220,
+  );
   static const Curve selectionAnimationCurve = Curves.easeOutCubic;
 
   static const WidgetStateProperty<Color> _transparentOverlay =
@@ -473,14 +476,10 @@ class DdtTheme {
       hoverColor: Colors.transparent,
       iconButtonTheme: IconButtonThemeData(
         style: _withoutMaterialOverlay(
-          IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+          IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
-        enableFeedback: false,
-      ),
+      listTileTheme: const ListTileThemeData(enableFeedback: false),
       checkboxTheme: theme.checkboxTheme.copyWith(
         splashRadius: 0,
         overlayColor: _transparentOverlay,
@@ -504,88 +503,94 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
-      textTheme: typography,
-      primaryTextTheme: typography,
-      scaffoldBackgroundColor: lightBackground,
-      colorScheme: theme.colorScheme.copyWith(
-        surface: lightSurface,
-        onSurface: lightTextPrimary,
-        onSurfaceVariant: lightTextSecondary,
-        outline: lightBorderStrong,
-      ),
-      appBarTheme: theme.appBarTheme.copyWith(
-        titleTextStyle: GoogleFonts.nunitoSans(
-          textStyle: typography.titleLarge,
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+        textTheme: typography,
+        primaryTextTheme: typography,
+        scaffoldBackgroundColor: lightBackground,
+        colorScheme: theme.colorScheme.copyWith(
+          surface: lightSurface,
+          onSurface: lightTextPrimary,
+          onSurfaceVariant: lightTextSecondary,
+          outline: lightBorderStrong,
         ),
-      ),
-      dialogTheme: theme.dialogTheme.copyWith(
-        shape: shape,
-        backgroundColor: lightSurface,
-      ),
-      cardTheme: theme.cardTheme.copyWith(
-        color: lightSurface,
-        shape: shape,
-        elevation: 2,
-        shadowColor: Colors.black.withValues(alpha: 0.10),
-      ),
-      dividerTheme: DividerThemeData(
-        color: lightBorderStrong.withValues(alpha: 0.55),
-        thickness: 1,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: shape,
-          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: lightTextPrimary,
-          side: BorderSide(color: AppColors.primary, width: 1.5),
-          shape: shape,
-          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
-        ),
-      ),
-      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-        filled: true,
-        fillColor: lightInputFill,
-        labelStyle: TextStyle(color: lightTextSecondary),
-        floatingLabelStyle: TextStyle(color: lightTextMuted),
-        hintStyle: TextStyle(color: lightTextMuted),
-        border: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.error, width: 2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.error, width: 2),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(
-            color: lightBorderStrong.withValues(alpha: 0.55),
+        appBarTheme: theme.appBarTheme.copyWith(
+          titleTextStyle: GoogleFonts.nunitoSans(
+            textStyle: typography.titleLarge,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
         ),
-      ),
-      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
-      menuTheme: menuThemeData(),
-      popupMenuTheme: popupMenuThemeData(),
+        dialogTheme: theme.dialogTheme.copyWith(
+          shape: shape,
+          backgroundColor: lightSurface,
+        ),
+        cardTheme: theme.cardTheme.copyWith(
+          color: lightSurface,
+          shape: shape,
+          elevation: 2,
+          shadowColor: Colors.black.withValues(alpha: 0.10),
+        ),
+        dividerTheme: DividerThemeData(
+          color: lightBorderStrong.withValues(alpha: 0.55),
+          thickness: 1,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            shape: shape,
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing.w,
+              vertical: 12.h,
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: lightTextPrimary,
+            side: BorderSide(color: AppColors.primary, width: 1.5),
+            shape: shape,
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing.w,
+              vertical: 12.h,
+            ),
+          ),
+        ),
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          filled: true,
+          fillColor: lightInputFill,
+          labelStyle: TextStyle(color: lightTextSecondary),
+          floatingLabelStyle: TextStyle(color: lightTextMuted),
+          hintStyle: TextStyle(color: lightTextMuted),
+          border: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.primary, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.error, width: 2),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.error, width: 2),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(
+              color: lightBorderStrong.withValues(alpha: 0.55),
+            ),
+          ),
+        ),
+        dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
+        menuTheme: menuThemeData(),
+        popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }
@@ -597,87 +602,93 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
-      textTheme: typography,
-      primaryTextTheme: typography,
-      scaffoldBackgroundColor: darkBackground,
-      colorScheme: theme.colorScheme.copyWith(
-        surface: darkSurface,
-        onSurface: darkTextPrimary,
-        onSurfaceVariant: darkTextSecondary,
-        outline: darkBorderStrong,
-      ),
-      appBarTheme: theme.appBarTheme.copyWith(
-        titleTextStyle: GoogleFonts.nunitoSans(
-          textStyle: typography.titleLarge,
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+        textTheme: typography,
+        primaryTextTheme: typography,
+        scaffoldBackgroundColor: darkBackground,
+        colorScheme: theme.colorScheme.copyWith(
+          surface: darkSurface,
+          onSurface: darkTextPrimary,
+          onSurfaceVariant: darkTextSecondary,
+          outline: darkBorderStrong,
         ),
-      ),
-      dialogTheme: theme.dialogTheme.copyWith(
-        shape: shape,
-        backgroundColor: darkSurface,
-      ),
-      cardTheme: theme.cardTheme.copyWith(
-        color: darkWidget,
-        shape: shape,
-        elevation: 0,
-      ),
-      dividerTheme: DividerThemeData(
-        color: Colors.white.withValues(alpha: 0.16),
-        thickness: 1,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: shape,
-          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: darkTextPrimary,
-          side: BorderSide(color: AppColors.primary, width: 1.5),
-          shape: shape,
-          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
-        ),
-      ),
-      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-        filled: true,
-        fillColor: darkInputFill,
-        labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextMuted),
-        hintStyle: TextStyle(color: darkTextMuted),
-        border: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: darkBorderStrong),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: darkBorderStrong),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.error, width: 2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.error, width: 2),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: BorderSide(
-            color: darkBorderStrong.withValues(alpha: 0.45),
+        appBarTheme: theme.appBarTheme.copyWith(
+          titleTextStyle: GoogleFonts.nunitoSans(
+            textStyle: typography.titleLarge,
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
           ),
         ),
-      ),
-      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
-      menuTheme: menuThemeData(),
-      popupMenuTheme: popupMenuThemeData(),
+        dialogTheme: theme.dialogTheme.copyWith(
+          shape: shape,
+          backgroundColor: darkSurface,
+        ),
+        cardTheme: theme.cardTheme.copyWith(
+          color: darkWidget,
+          shape: shape,
+          elevation: 0,
+        ),
+        dividerTheme: DividerThemeData(
+          color: Colors.white.withValues(alpha: 0.16),
+          thickness: 1,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            shape: shape,
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing.w,
+              vertical: 12.h,
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: darkTextPrimary,
+            side: BorderSide(color: AppColors.primary, width: 1.5),
+            shape: shape,
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing.w,
+              vertical: 12.h,
+            ),
+          ),
+        ),
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          filled: true,
+          fillColor: darkInputFill,
+          labelStyle: TextStyle(color: darkTextSecondary),
+          floatingLabelStyle: TextStyle(color: darkTextMuted),
+          hintStyle: TextStyle(color: darkTextMuted),
+          border: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: darkBorderStrong),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: darkBorderStrong),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.primary, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.error, width: 2),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(color: AppColors.error, width: 2),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: radius,
+            borderSide: BorderSide(
+              color: darkBorderStrong.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+        dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
+        menuTheme: menuThemeData(),
+        popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }

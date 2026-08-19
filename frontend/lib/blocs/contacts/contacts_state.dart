@@ -22,8 +22,7 @@ final class ContactsState extends Equatable {
     return ContactsState(
       contacts: contacts ?? this.contacts,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage:
-          errorMessage != null ? errorMessage() : this.errorMessage,
+      errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       searchQuery: searchQuery ?? this.searchQuery,
     );
   }
