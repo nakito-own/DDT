@@ -28,7 +28,6 @@ class DdtSegmentedControl<T> extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const double _trackRadius = DdtTheme.borderRadius;
   static const double _segmentRadius = DdtTheme.borderRadius + 12;
   static const double _segmentPaddingHorizontal = 16;
   static const double _segmentPaddingVertical = 4;
@@ -39,25 +38,13 @@ class DdtSegmentedControl<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-
-    return GlassContainer(
-      type: GlassType.custom,
-      shape: GlassShape.roundedRectangle,
-      radius: 30.r,
+    return Container(
       padding: EdgeInsets.all(3.w),
-      blurIntensity: 4,
-      backgroundColor: isDark
-          ? const Color(0xFF1C1C1E)
-          : Colors.white,
-      backgroundOpacity: isDark ? 0.16 : 0.12,
-      borderColor: DdtTheme.glassBorderColor(brightness),
-      borderOpacity: isDark
-          ? DdtTheme.glassBorderOpacity(brightness) * 0.35
-          : DdtTheme.glassBorderOpacity(brightness),
-      borderWidth: isDark ? 1 : 1.5,
-      addShadow: false,
+      decoration: DdtTheme.shellSurfaceDecoration(
+        context,
+        addShadow: false,
+        radius: 30.r,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

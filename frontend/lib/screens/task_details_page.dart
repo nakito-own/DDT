@@ -185,6 +185,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                       _TaskParametersPanel(task: task, pinned: false),
                       SizedBox(height: 24.h),
                       TaskCommentsSection(
+                        key: ValueKey('task-comments-${task.id}'),
                         task: task,
                         inputAtTop: true,
                         onTaskChanged: (updated) {
@@ -241,6 +242,7 @@ class _TaskMainContent extends StatelessWidget {
         ),
         Expanded(
           child: TaskCommentsSection(
+            key: ValueKey('task-comments-${task.id}'),
             task: task,
             inputAtTop: true,
             expand: true,

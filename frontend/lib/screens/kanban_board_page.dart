@@ -33,7 +33,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   late Map<TaskStatus, List<Task>> _localColumns;
   late List<TaskType> _taskTypes;
 
-  final Map<int, GlobalKey> _taskCardKeys = {};
+  final Map<String, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
   final Map<int, Offset> _dragOriginByTaskId = {};
   final Map<TaskStatus, GlobalKey<_KanbanTaskListState>> _taskListKeys = {
@@ -62,8 +62,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   List<Task> _columnTasks(TaskStatus status) =>
       _localColumns[status] ?? const [];
 
-  GlobalKey _taskCardKey(int taskId) =>
-      _taskCardKeys.putIfAbsent(taskId, () => GlobalKey());
+  GlobalKey _taskCardKey(TaskStatus status, int taskId) =>
+      _taskCardKeys.putIfAbsent('${status.name}_$taskId', () => GlobalKey());
 
   void _registerTaskCardSize(int taskId, Size size) {
     _taskCardSizes[taskId] = size;
@@ -93,8 +93,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     _pendingDrop = _PendingTaskDrop(task: task, to: to);
   }
 
-  void _onTaskDragStarted(int taskId) {
-    final cardContext = _taskCardKey(taskId).currentContext;
+  void _onTaskDragStarted(TaskStatus status, int taskId) {
+    final cardContext = _taskCardKey(status, taskId).currentContext;
     if (cardContext == null) return;
 
     final box = cardContext.findRenderObject()! as RenderBox;
@@ -209,7 +209,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     await _runCardFlightAnimation(
       task: task,
       startGlobalTopLeft: feedbackTopLeft,
-      endGlobalTopLeft: _measureTaskCardTopLeft(task.id),
+      endGlobalTopLeft: _measureTaskCardTopLeft(to, task.id),
       cardSize: cardSize,
       displayTask: updated,
     );
@@ -218,11 +218,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     setState(() => _animatingTaskId = null);
   }
 
-  Future<Offset?> _measureTaskCardTopLeft(int taskId) async {
+  Future<Offset?> _measureTaskCardTopLeft(TaskStatus status, int taskId) async {
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return null;
 
-    final targetContext = _taskCardKey(taskId).currentContext;
+    final targetContext = _taskCardKey(status, taskId).currentContext;
     if (targetContext == null || !targetContext.mounted) return null;
 
     final targetBox = targetContext.findRenderObject()! as RenderBox;
@@ -489,10 +489,10 @@ class _KanbanColumn extends StatefulWidget {
   final List<Task> tasks;
   final GlobalKey<_KanbanTaskListState> taskListKey;
   final int? animatingTaskId;
-  final GlobalKey Function(int taskId) taskCardKey;
+  final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
   final void Function(Task task, TaskStatus to) onRegisterDrop;
-  final void Function(int taskId) onDragStarted;
+  final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(TaskStatus status) onAddTask;
   final Future<void> Function(Task task, TaskStatus status) onDeleteTask;
@@ -689,9 +689,9 @@ class _KanbanTaskList extends StatefulWidget {
   final TaskStatus status;
   final List<Task> tasks;
   final int? animatingTaskId;
-  final GlobalKey Function(int taskId) taskCardKey;
+  final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
-  final void Function(int taskId) onDragStarted;
+  final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(Task task, TaskStatus status) onDeleteTask;
   final void Function(Task task) onOpenTask;
@@ -794,11 +794,11 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
   }) {
     final card = _DraggableTaskCard(
       key: ValueKey(task.id),
-      cardKey: widget.taskCardKey(task.id),
+      cardKey: widget.taskCardKey(widget.status, task.id),
       isHidden: widget.animatingTaskId == task.id,
       task: task,
       onSizeChanged: (size) => widget.onRegisterCardSize(task.id, size),
-      onDragStarted: () => widget.onDragStarted(task.id),
+      onDragStarted: () => widget.onDragStarted(widget.status, task.id),
       onDragEnd: (details) => widget.onDragEnd(task, details),
       onDelete: () => widget.onDeleteTask(task, widget.status),
       onTap: () => widget.onOpenTask(task),

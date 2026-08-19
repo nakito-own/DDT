@@ -136,7 +136,40 @@ class DdtTheme {
     return brightness == Brightness.dark ? 0.34 : 0.58;
   }
 
-  static GlassContainer glass({
+  static Color shellSurfaceColor(BuildContext context) =>
+      _isDark(context) ? darkWidget : lightSurface;
+
+  static Color shellSurfaceBorderColor(BuildContext context) {
+    return _isDark(context)
+        ? Colors.white.withValues(alpha: 0.14)
+        : lightBorderStrong.withValues(alpha: 0.32);
+  }
+
+  static BoxDecoration shellSurfaceDecoration(
+    BuildContext context, {
+    bool addShadow = true,
+    double? radius,
+  }) {
+    final isDark = _isDark(context);
+
+    return BoxDecoration(
+      color: shellSurfaceColor(context),
+      borderRadius: BorderRadius.circular(radius ?? borderRadius.r),
+      border: Border.all(color: shellSurfaceBorderColor(context)),
+      boxShadow: addShadow
+          ? [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ]
+          : null,
+    );
+  }
+
+  /// Shell panels (app bar, navigation rail, page sections) use a solid fill.
+  static Widget glass({
     required BuildContext context,
     required Widget child,
     double? width,
@@ -144,25 +177,11 @@ class DdtTheme {
     EdgeInsetsGeometry? padding,
     bool addShadow = true,
   }) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-
-    return GlassContainer(
-      type: GlassType.frosted,
-      shape: GlassShape.roundedRectangle,
-      radius: borderRadius.r,
+    return Container(
       width: width,
       height: height,
       padding: padding,
-      addShadow: addShadow,
-      blurIntensity: 10,
-      backgroundColor: isDark ? null : Colors.white,
-      backgroundOpacity:
-          isDark ? 0.2 : lightShellGlassBackgroundOpacity,
-      borderColor: glassBorderColor(brightness),
-      borderOpacity: isDark
-          ? glassBorderOpacity(brightness)
-          : glassBorderOpacity(brightness) * 0.72,
+      decoration: shellSurfaceDecoration(context, addShadow: addShadow),
       child: child,
     );
   }
