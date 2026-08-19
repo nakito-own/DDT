@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/task.dart';
 import '../models/task_comment.dart';
@@ -10,11 +11,13 @@ import '../models/task_link.dart';
 import '../models/task_priority.dart';
 import '../models/task_status.dart';
 import '../models/task_type.dart';
+import '../router/route_paths.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_date_time_picker.dart';
 import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
+import 'task_comments_section.dart';
 
 enum TaskSidePanelMode { view, create }
 
@@ -64,10 +67,7 @@ class TaskSidePanel extends StatelessWidget {
       );
     }
 
-    return TaskSidePanelDetails(
-      task: task!,
-      taskTypes: taskTypes,
-    );
+    return TaskSidePanelDetails(task: task!, taskTypes: taskTypes);
   }
 }
 
@@ -91,7 +91,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   late final TextEditingController _authorController;
   late final TextEditingController _executorController;
   late final TextEditingController _responsibleController;
-  late final TextEditingController _commentController;
+  late Task _currentTask;
 
   late TaskStatus _status;
   late int? _typeId;
@@ -100,13 +100,13 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   late DateTime? _timeStart;
   late DateTime? _timeEnd;
   late DateTime? _deadline;
-  late final List<TaskComment> _existingComments;
   final List<_LinkDraft> _links = [];
 
   @override
   void initState() {
     super.initState();
     final task = widget.task;
+    _currentTask = task;
 
     _titleController = TextEditingController(text: task.title);
     _descriptionController = TextEditingController(text: task.description);
@@ -119,7 +119,6 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     _responsibleController = TextEditingController(
       text: task.responsibleId?.toString() ?? '',
     );
-    _commentController = TextEditingController();
 
     _status = task.status;
     _typeId = task.typeId;
@@ -128,7 +127,6 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     _timeStart = task.timeStart;
     _timeEnd = task.timeEnd;
     _deadline = task.deadline;
-    _existingComments = List<TaskComment>.from(task.comments);
 
     for (final link in task.links ?? const <TaskLink>[]) {
       final draft = _LinkDraft();
@@ -148,7 +146,6 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     _authorController.dispose();
     _executorController.dispose();
     _responsibleController.dispose();
-    _commentController.dispose();
     super.dispose();
   }
 
@@ -169,10 +166,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      Toast.show(
-        message: 'Введите название задачи',
-        type: ToastType.warning,
-      );
+      Toast.show(message: 'Введите название задачи', type: ToastType.warning);
       return;
     }
 
@@ -181,34 +175,21 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
         .where((item) => item.urlController.text.trim().isNotEmpty)
         .toList();
 
-    final commentText = _commentController.text.trim();
-    final comments = List<TaskComment>.from(_existingComments);
-    if (commentText.isNotEmpty) {
-      comments.add(
-        TaskComment(
-          id: comments.length + 1,
-          text: commentText,
-          authorId: _parseUserId(_authorController.text),
-          createdAt: DateTime.now(),
-        ),
-      );
-    }
-
     final taskLinks = links.isEmpty
         ? null
         : links
-            .asMap()
-            .entries
-            .map(
-              (entry) => TaskLink(
-                id: entry.key + 1,
-                url: entry.value.urlController.text.trim(),
-                title: entry.value.titleController.text.trim().isEmpty
-                    ? null
-                    : entry.value.titleController.text.trim(),
-              ),
-            )
-            .toList();
+              .asMap()
+              .entries
+              .map(
+                (entry) => TaskLink(
+                  id: entry.key + 1,
+                  url: entry.value.urlController.text.trim(),
+                  title: entry.value.titleController.text.trim().isEmpty
+                      ? null
+                      : entry.value.titleController.text.trim(),
+                ),
+              )
+              .toList();
 
     final task = Task(
       id: widget.task.id,
@@ -226,7 +207,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
       deadline: _deadline,
       priority: _priority,
       links: taskLinks,
-      comments: comments,
+      comments: _currentTask.comments,
       createdAt: widget.task.createdAt,
       updatedAt: DateTime.now(),
     );
@@ -249,6 +230,23 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   Widget build(BuildContext context) {
     return DdtSidePanelShell(
       title: 'Задача',
+      actions: [
+        IconButton(
+          tooltip: 'Открыть задачу',
+          onPressed: () {
+            final router = GoRouter.of(context);
+            Navigator.of(context).pop();
+            final spaceId = widget.task.spaceId;
+            router.go(
+              spaceId == null
+                  ? RoutePaths.task(widget.task.id)
+                  : RoutePaths.spaceTask(spaceId, widget.task.id),
+            );
+          },
+          icon: Icon(CupertinoIcons.link, size: 18.sp),
+          visualDensity: VisualDensity.compact,
+        ),
+      ],
       footer: Row(
         children: [
           Expanded(
@@ -437,23 +435,13 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                   onRemove: () => _removeLinkDraft(draft),
                 ),
               ],
-            if (_existingComments.isNotEmpty) ...[
-              DdtTheme.verticalGap(),
-              _SectionTitle(title: 'Комментарии'),
-              SizedBox(height: 8.h),
-              for (final comment in _existingComments)
-                _CommentTile(comment: comment),
-            ],
             DdtTheme.verticalGap(),
-            _SectionTitle(title: 'Новый комментарий'),
-            SizedBox(height: 8.h),
-            DdtAppInput(
-              label: 'Комментарий',
-              hint: 'Необязательно',
-              controller: _commentController,
-              type: InputType.multiline,
-              maxLines: 3,
-              borderRadius: DdtTheme.radius,
+            TaskCommentsSection(
+              task: _currentTask,
+              compact: true,
+              onTaskChanged: (task) {
+                setState(() => _currentTask = task);
+              },
             ),
           ],
         ),
@@ -475,7 +463,8 @@ class TaskSidePanelCreateForm extends StatefulWidget {
   final int? defaultAuthorId;
 
   @override
-  State<TaskSidePanelCreateForm> createState() => _TaskSidePanelCreateFormState();
+  State<TaskSidePanelCreateForm> createState() =>
+      _TaskSidePanelCreateFormState();
 }
 
 class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
@@ -495,7 +484,9 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   }
 
   late TaskStatus _status = widget.initialStatus;
-  late int? _typeId = widget.taskTypes.isNotEmpty ? widget.taskTypes.first.id : null;
+  late int? _typeId = widget.taskTypes.isNotEmpty
+      ? widget.taskTypes.first.id
+      : null;
   TaskPriority? _priority;
   DateTime _timeSet = DateTime.now();
   DateTime? _timeStart;
@@ -534,10 +525,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      Toast.show(
-        message: 'Введите название задачи',
-        type: ToastType.warning,
-      );
+      Toast.show(message: 'Введите название задачи', type: ToastType.warning);
       return;
     }
 
@@ -561,18 +549,18 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
     final taskLinks = links.isEmpty
         ? null
         : links
-            .asMap()
-            .entries
-            .map(
-              (entry) => TaskLink(
-                id: entry.key + 1,
-                url: entry.value.urlController.text.trim(),
-                title: entry.value.titleController.text.trim().isEmpty
-                    ? null
-                    : entry.value.titleController.text.trim(),
-              ),
-            )
-            .toList();
+              .asMap()
+              .entries
+              .map(
+                (entry) => TaskLink(
+                  id: entry.key + 1,
+                  url: entry.value.urlController.text.trim(),
+                  title: entry.value.titleController.text.trim().isEmpty
+                      ? null
+                      : entry.value.titleController.text.trim(),
+                ),
+              )
+              .toList();
 
     final task = Task(
       id: 0,
@@ -820,8 +808,8 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
 
 class _LinkDraft {
   _LinkDraft()
-      : urlController = TextEditingController(),
-        titleController = TextEditingController();
+    : urlController = TextEditingController(),
+      titleController = TextEditingController();
 
   final TextEditingController urlController;
   final TextEditingController titleController;
@@ -833,10 +821,7 @@ class _LinkDraft {
 }
 
 class _LinkDraftEditor extends StatelessWidget {
-  const _LinkDraftEditor({
-    required this.draft,
-    required this.onRemove,
-  });
+  const _LinkDraftEditor({required this.draft, required this.onRemove});
 
   final _LinkDraft draft;
   final VoidCallback onRemove;
@@ -869,10 +854,7 @@ class _LinkDraftEditor extends StatelessWidget {
                 icon: Icon(CupertinoIcons.trash, size: 14.sp),
                 iconSize: 14.sp,
                 padding: EdgeInsets.all(4.w),
-                constraints: BoxConstraints(
-                  minWidth: 24.w,
-                  minHeight: 24.h,
-                ),
+                constraints: BoxConstraints(minWidth: 24.w, minHeight: 24.h),
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -907,9 +889,9 @@ class _FormTableControl {
       EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h);
 
   static TextStyle textStyle(BuildContext context) => DdtTheme.style(
-        fontSize: 14.sp,
-        color: DdtTheme.sidePanelTextSecondary(context),
-      );
+    fontSize: 14.sp,
+    color: DdtTheme.sidePanelTextSecondary(context),
+  );
 
   static InputDecoration decoration(
     BuildContext context, {
@@ -927,10 +909,7 @@ class _FormTableControl {
 }
 
 class _TaskFormTableRow {
-  const _TaskFormTableRow({
-    required this.label,
-    required this.child,
-  });
+  const _TaskFormTableRow({required this.label, required this.child});
 
   final String label;
   final Widget child;
@@ -1006,10 +985,7 @@ class _TaskFormTable extends StatelessWidget {
                       ? _FormTableControl.rowSpacing.h
                       : 0,
                 ),
-                child: Text(
-                  rows[i].label,
-                  style: labelStyle,
-                ),
+                child: Text(rows[i].label, style: labelStyle),
               ),
               Padding(
                 padding: EdgeInsets.only(
@@ -1150,7 +1126,7 @@ class _DropdownControl<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       borderRadius: DdtTheme.inputControlBorderRadius,
       dropdownColor: Theme.of(context).brightness == Brightness.dark
@@ -1160,67 +1136,6 @@ class _DropdownControl<T> extends StatelessWidget {
       decoration: _FormTableControl.decoration(context),
       items: items,
       onChanged: onChanged,
-    );
-  }
-}
-
-class _CommentTile extends StatelessWidget {
-  const _CommentTile({required this.comment});
-
-  final TaskComment comment;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8.h),
-      child: AppCard(
-        type: CardType.outlined,
-        borderRadius: DdtTheme.radius,
-        padding: EdgeInsets.all(12.w),
-        margin: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  CupertinoIcons.person_crop_circle,
-                  size: 16.sp,
-                  color: DdtTheme.sidePanelTextMuted(context),
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  formatUserRef(comment.authorId, fallback: 'Аноним'),
-                  style: DdtTheme.style(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
-                    color: DdtTheme.sidePanelTextSecondary(context),
-                  ),
-                ),
-                if (comment.createdAt != null) ...[
-                  const Spacer(),
-                  Text(
-                    formatTaskDateTime(comment.createdAt!),
-                    style: DdtTheme.style(
-                      fontSize: 11.sp,
-                      color: DdtTheme.sidePanelTextMuted(context),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              comment.text,
-              style: DdtTheme.style(
-                fontSize: 13.sp,
-                height: 1.4,
-                color: DdtTheme.sidePanelTextSecondary(context),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

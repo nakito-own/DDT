@@ -116,9 +116,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     final cardSize = _taskCardSizes[task.id];
 
     if (!details.wasAccepted || pending == null || pending.task.id != task.id) {
-      if (!details.wasAccepted &&
-          originTopLeft != null &&
-          cardSize != null) {
+      if (!details.wasAccepted && originTopLeft != null && cardSize != null) {
         await _animateTaskReturn(
           task: task,
           feedbackTopLeft: details.offset,
@@ -135,11 +133,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (cardSize == null) {
       setState(() => _applyMove(task, from, to));
-      context.read<TasksBloc>().add(TaskMoveRequested(
-            task: task,
-            from: from,
-            to: to,
-          ));
+      context.read<TasksBloc>().add(
+        TaskMoveRequested(task: task, from: from, to: to),
+      );
       _showMoveToast(task, to);
       return;
     }
@@ -154,11 +150,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (!mounted) return;
 
-    context.read<TasksBloc>().add(TaskMoveRequested(
-          task: task,
-          from: from,
-          to: to,
-        ));
+    context.read<TasksBloc>().add(
+      TaskMoveRequested(task: task, from: from, to: to),
+    );
     _showMoveToast(task, to);
   }
 
@@ -308,8 +302,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
   Future<void> _addTask(TaskStatus status) async {
     final authState = context.read<AuthBloc>().state;
-    final currentUserId =
-        authState is AuthAuthenticated ? authState.user.id : null;
+    final currentUserId = authState is AuthAuthenticated
+        ? authState.user.id
+        : null;
     final created = await showTaskSidePanel(
       context,
       mode: TaskSidePanelMode.create,
@@ -331,8 +326,10 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
+      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
-      timeStart: created.timeStart ??
+      timeStart:
+          created.timeStart ??
           (created.status == TaskStatus.inProgress ? now : null),
       timeEnd:
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
@@ -344,10 +341,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     context.read<TasksBloc>().add(TaskCreateRequested(draft));
     // BlocListener синхронизирует _localColumns после ответа сервера.
-    Toast.show(
-      message: 'Задача создаётся...',
-      type: ToastType.info,
-    );
+    Toast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
   Future<void> _deleteTask(Task task, TaskStatus status) async {
@@ -370,12 +364,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       );
     }
 
-    context.read<TasksBloc>().add(TaskDeleteRequested(task: task, status: status));
-    // BlocListener синхронизирует при успехе или откатит при ошибке.
-    Toast.show(
-      message: '«${task.title}» удалена',
-      type: ToastType.success,
+    context.read<TasksBloc>().add(
+      TaskDeleteRequested(task: task, status: status),
     );
+    // BlocListener синхронизирует при успехе или откатит при ошибке.
+    Toast.show(message: '«${task.title}» удалена', type: ToastType.success);
   }
 
   Future<void> _openTaskDetails(Task task) async {
@@ -388,16 +381,17 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (updated == null || !mounted) return;
 
-    context
-        .read<TasksBloc>()
-        .add(TaskUpdateRequested(original: task, updated: updated));
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
+    );
     // BlocListener синхронизирует _localColumns после ответа сервера.
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<TasksBloc, TasksState>(
-      listenWhen: (previous, current) => previous.columns != current.columns ||
+      listenWhen: (previous, current) =>
+          previous.columns != current.columns ||
           previous.taskTypes != current.taskTypes,
       listener: (context, state) {
         setState(() => _syncFromBlocState(state));
@@ -410,7 +404,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var index = 0; index < TaskStatus.values.length; index++) ...[
+                for (
+                  var index = 0;
+                  index < TaskStatus.values.length;
+                  index++
+                ) ...[
                   if (index > 0) DdtTheme.horizontalGap(),
                   Expanded(
                     child: _KanbanColumn(
@@ -563,8 +561,7 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                       Positioned.fill(
                         child: DragTarget<Task>(
                           onWillAcceptWithDetails: (details) {
-                            final accept =
-                                details.data.status != widget.status;
+                            final accept = details.data.status != widget.status;
                             _setDragOver(accept);
                             return accept;
                           },
@@ -667,11 +664,7 @@ class _KanbanColumnHeader extends StatelessWidget {
         IconButton(
           tooltip: 'Добавить задачу',
           onPressed: () => onAddTask(status),
-          icon: Icon(
-            CupertinoIcons.add,
-            size: 20.sp,
-            color: AppColors.primary,
-          ),
+          icon: Icon(CupertinoIcons.add, size: 20.sp, color: AppColors.primary),
           visualDensity: VisualDensity.compact,
         ),
       ],
@@ -724,20 +717,15 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
   }
 
   void insertTaskAt(int index) {
-    _listKey.currentState!.insertItem(
-      index,
-      duration: Duration.zero,
-    );
+    _listKey.currentState!.insertItem(index, duration: Duration.zero);
     _animatedItemCount++;
   }
 
   void removeTaskAt(int index, {required double slotHeight}) {
     _listKey.currentState!.removeItem(
       index,
-      (context, animation) => _KanbanSlotCollapse(
-        animation: animation,
-        height: slotHeight,
-      ),
+      (context, animation) =>
+          _KanbanSlotCollapse(animation: animation, height: slotHeight),
       duration: _kanbanMotionDuration,
     );
     _animatedItemCount--;
@@ -754,10 +742,8 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
           : 0.0;
       listState.removeItem(
         _animatedItemCount,
-        (context, animation) => _KanbanSlotCollapse(
-          animation: animation,
-          height: 120.0 + gap,
-        ),
+        (context, animation) =>
+            _KanbanSlotCollapse(animation: animation, height: 120.0 + gap),
         duration: _kanbanMotionDuration,
       );
     }
@@ -793,10 +779,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
           Center(
             child: Text(
               'Перетащите задачу сюда',
-              style: DdtTheme.style(
-                fontSize: 13.sp,
-                color: Colors.grey[600],
-              ),
+              style: DdtTheme.style(fontSize: 13.sp, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ),
@@ -828,10 +811,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       ),
       axisAlignment: -1,
       child: FadeTransition(
-        opacity: CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        ),
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
         child: card,
       ),
     );
@@ -955,10 +935,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
 }
 
 class _KanbanSlotCollapse extends StatelessWidget {
-  const _KanbanSlotCollapse({
-    required this.animation,
-    required this.height,
-  });
+  const _KanbanSlotCollapse({required this.animation, required this.height});
 
   final Animation<double> animation;
   final double height;
@@ -968,8 +945,9 @@ class _KanbanSlotCollapse extends StatelessWidget {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
-        final heightFactor =
-            _kanbanMotionCurve.transform(animation.value).clamp(0.0, 1.0);
+        final heightFactor = _kanbanMotionCurve
+            .transform(animation.value)
+            .clamp(0.0, 1.0);
 
         return ClipRect(
           child: Align(
@@ -979,10 +957,7 @@ class _KanbanSlotCollapse extends StatelessWidget {
           ),
         );
       },
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-      ),
+      child: SizedBox(width: double.infinity, height: height),
     );
   }
 }

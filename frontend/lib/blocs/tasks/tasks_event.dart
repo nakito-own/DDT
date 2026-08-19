@@ -103,6 +103,16 @@ final class TaskUpdateRequested extends TasksEvent {
   List<Object?> get props => [original, updated];
 }
 
+/// Синхронизировать задачу с уже сохранённым серверным состоянием.
+final class TaskServerSnapshotReceived extends TasksEvent {
+  const TaskServerSnapshotReceived(this.task);
+
+  final Task task;
+
+  @override
+  List<Object?> get props => [task];
+}
+
 /// Переместить задачу между колонками (optimistic move).
 final class TaskMoveRequested extends TasksEvent {
   const TaskMoveRequested({

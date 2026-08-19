@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS task_types (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS spaces (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -27,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   author_id INT NULL,
   responsible_id INT NULL,
   owner_id INT NULL,
+  space_id INT NULL,
   time_set DATETIME NOT NULL,
   time_start DATETIME NULL,
   time_end DATETIME NULL,
@@ -38,7 +45,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (executor_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (responsible_id) REFERENCES users(id) ON DELETE SET NULL,
-  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE,
+  INDEX idx_tasks_space_id (space_id)
 );
 
 CREATE TABLE IF NOT EXISTS task_links (
@@ -63,6 +72,11 @@ INSERT INTO task_types (name) VALUES
   ('Задача'),
   ('Баг'),
   ('Улучшение');
+
+INSERT INTO spaces (name) VALUES
+  ('TEST'),
+  ('KRRMR')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 CREATE TABLE IF NOT EXISTS ews_accounts (
   id INT AUTO_INCREMENT PRIMARY KEY,

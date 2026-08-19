@@ -69,8 +69,9 @@ class _DdtAppState extends State<DdtApp> {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => ThemeBloc(storage: GetStorage(_themeStorageBox))
-            ..add(const ThemeLoadRequested()),
+          create: (_) =>
+              ThemeBloc(storage: GetStorage(_themeStorageBox))
+                ..add(const ThemeLoadRequested()),
         ),
         BlocProvider(create: (_) => NotificationsBloc()),
         // BlocProvider.value — не создаём новый блок, используем _authBloc
@@ -79,8 +80,8 @@ class _DdtAppState extends State<DdtApp> {
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
         BlocProvider(
-          create: (_) => CalendarBloc()
-            ..add(const CalendarEventsLoadRequested()),
+          create: (_) =>
+              CalendarBloc()..add(const CalendarEventsLoadRequested()),
         ),
       ],
       child: MultiBlocListener(
@@ -91,29 +92,23 @@ class _DdtAppState extends State<DdtApp> {
               final notif = context.read<NotificationsBloc>();
               if (authState is AuthAuthenticated) {
                 notif.add(const NotificationsConnectRequested());
-                context
-                    .read<MailBloc>()
-                    .add(const MailInboxLoadRequested());
-                context
-                    .read<CalendarBloc>()
-                    .add(const CalendarEventsLoadRequested());
+                context.read<MailBloc>().add(const MailInboxLoadRequested());
+                context.read<CalendarBloc>().add(
+                  const CalendarEventsLoadRequested(),
+                );
               } else if (authState is AuthUnauthenticated) {
                 notif.add(const NotificationsDisconnectRequested());
                 notif.add(const NotificationsClearAllRequested());
               }
             },
           ),
-          // Auth → Tasks
+          // При выходе очищаем только персональный TasksBloc. Загрузка
+          // выполняется TasksShellPage при входе в раздел, чтобы не запускать
+          // два параллельных запроса и не затрагивать bloc пространства.
           BlocListener<AuthBloc, AuthState>(
             listener: (context, authState) {
-              if (authState is AuthAuthenticated) {
-                context
-                    .read<TasksBloc>()
-                    .add(const TasksBoardLoadRequested());
-              } else if (authState is AuthUnauthenticated) {
-                context
-                    .read<TasksBloc>()
-                    .add(const TasksBoardCleared());
+              if (authState is AuthUnauthenticated) {
+                context.read<TasksBloc>().add(const TasksBoardCleared());
               }
             },
           ),
@@ -127,13 +122,13 @@ class _DdtAppState extends State<DdtApp> {
               switch (latest.category) {
                 case AppNotificationCategory.newMail:
                 case AppNotificationCategory.mailUpdated:
-                  context
-                      .read<MailBloc>()
-                      .add(const MailInboxRefreshRequested());
+                  context.read<MailBloc>().add(
+                    const MailInboxRefreshRequested(),
+                  );
                 case AppNotificationCategory.calendarUpdated:
-                  context
-                      .read<CalendarBloc>()
-                      .add(const CalendarEventsRefreshRequested());
+                  context.read<CalendarBloc>().add(
+                    const CalendarEventsRefreshRequested(),
+                  );
                 case AppNotificationCategory.system:
                   break;
               }
@@ -150,8 +145,7 @@ class _DdtAppState extends State<DdtApp> {
               old.textScaler != data.textScaler,
           builder: (context, child) => FlutterViewportSyncScope(
             child: BlocBuilder<ThemeBloc, ThemeState>(
-              buildWhen: (previous, current) =>
-                  previous.mode != current.mode,
+              buildWhen: (previous, current) => previous.mode != current.mode,
               builder: (context, themeState) => MaterialApp.router(
                 routerConfig: _routerHolder.router,
                 title: 'DDT',
@@ -170,7 +164,8 @@ class _DdtAppState extends State<DdtApp> {
                     type: MaterialType.transparency,
                     child: DefaultTextStyle(
                       style: DdtTheme.style(
-                          color: DdtTheme.textPrimary(context)),
+                        color: DdtTheme.textPrimary(context),
+                      ),
                       child: child ?? const SizedBox.shrink(),
                     ),
                   );

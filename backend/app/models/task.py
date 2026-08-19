@@ -59,6 +59,7 @@ def map_task_row(row, *, type_=None, links=None, comments=None):
         "author_id": row["author_id"],
         "responsible_id": row["responsible_id"],
         "owner_id": row["owner_id"],
+        "space_id": row.get("space_id"),
         "time_set": row["time_set"],
         "time_start": row["time_start"],
         "time_end": row["time_end"],

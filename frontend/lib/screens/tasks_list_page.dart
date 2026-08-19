@@ -26,13 +26,16 @@ class TasksListPage extends StatelessWidget {
 
     if (updated == null || !context.mounted) return;
 
-    context.read<TasksBloc>().add(TaskUpdateRequested(original: task, updated: updated));
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
+    );
   }
 
   Future<void> _createTask(BuildContext context) async {
     final authState = context.read<AuthBloc>().state;
-    final currentUserId =
-        authState is AuthAuthenticated ? authState.user.id : null;
+    final currentUserId = authState is AuthAuthenticated
+        ? authState.user.id
+        : null;
     final state = context.read<TasksBloc>().state;
 
     final created = await showTaskSidePanel(
@@ -55,8 +58,10 @@ class TasksListPage extends StatelessWidget {
       authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
+      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
-      timeStart: created.timeStart ??
+      timeStart:
+          created.timeStart ??
           (created.status == TaskStatus.inProgress ? now : null),
       timeEnd:
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
@@ -67,18 +72,14 @@ class TasksListPage extends StatelessWidget {
     );
 
     context.read<TasksBloc>().add(TaskCreateRequested(draft));
-    Toast.show(
-      message: 'Задача создаётся...',
-      type: ToastType.info,
-    );
+    Toast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
   Future<void> _deleteTask(BuildContext context, Task task) async {
-    context.read<TasksBloc>().add(TaskDeleteRequested(task: task, status: task.status));
-    Toast.show(
-      message: '«${task.title}» удалена',
-      type: ToastType.success,
+    context.read<TasksBloc>().add(
+      TaskDeleteRequested(task: task, status: task.status),
     );
+    Toast.show(message: '«${task.title}» удалена', type: ToastType.success);
   }
 
   @override
@@ -152,10 +153,7 @@ class TasksListPage extends StatelessWidget {
               ),
             ),
             SizedBox(width: 16.w),
-            const Expanded(
-              flex: 3,
-              child: TasksFiltersPanel(),
-            ),
+            const Expanded(flex: 3, child: TasksFiltersPanel()),
           ],
         );
       },

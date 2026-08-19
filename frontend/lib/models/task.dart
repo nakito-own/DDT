@@ -17,6 +17,7 @@ class Task {
     this.authorId,
     this.responsibleId,
     this.ownerId,
+    this.spaceId,
     this.timeStart,
     this.timeEnd,
     this.deadline,
@@ -37,6 +38,7 @@ class Task {
   final int? authorId;
   final int? responsibleId;
   final int? ownerId;
+  final int? spaceId;
   final DateTime timeSet;
   final DateTime? timeStart;
   final DateTime? timeEnd;
@@ -64,6 +66,7 @@ class Task {
       authorId: json['author_id'] as int?,
       responsibleId: json['responsible_id'] as int?,
       ownerId: json['owner_id'] as int?,
+      spaceId: json['space_id'] as int?,
       timeSet: DateTime.parse(json['time_set'] as String),
       timeStart: json['time_start'] != null
           ? DateTime.parse(json['time_start'] as String)
@@ -78,8 +81,11 @@ class Task {
       links: rawLinks
           ?.map((item) => TaskLink.fromJson(item as Map<String, dynamic>))
           .toList(),
-      comments: rawComments
-              ?.map((item) => TaskComment.fromJson(item as Map<String, dynamic>))
+      comments:
+          rawComments
+              ?.map(
+                (item) => TaskComment.fromJson(item as Map<String, dynamic>),
+              )
               .toList() ??
           const [],
       createdAt: json['created_at'] != null
@@ -103,6 +109,7 @@ class Task {
       if (authorId != null) 'author_id': authorId,
       if (responsibleId != null) 'responsible_id': responsibleId,
       if (ownerId != null) 'owner_id': ownerId,
+      if (spaceId != null) 'space_id': spaceId,
       'time_set': timeSet.toIso8601String(),
       if (timeStart != null) 'time_start': timeStart!.toIso8601String(),
       if (timeEnd != null) 'time_end': timeEnd!.toIso8601String(),
@@ -116,6 +123,7 @@ class Task {
   }
 
   Task copyWith({
+    int? id,
     String? title,
     TaskStatus? status,
     int? typeId,
@@ -124,6 +132,8 @@ class Task {
     int? executorId,
     int? authorId,
     int? responsibleId,
+    int? ownerId,
+    int? spaceId,
     DateTime? timeSet,
     DateTime? timeStart,
     DateTime? timeEnd,
@@ -133,7 +143,7 @@ class Task {
     List<TaskComment>? comments,
   }) {
     return Task(
-      id: id,
+      id: id ?? this.id,
       title: title ?? this.title,
       status: status ?? this.status,
       typeId: typeId ?? this.typeId,
@@ -142,6 +152,8 @@ class Task {
       executorId: executorId ?? this.executorId,
       authorId: authorId ?? this.authorId,
       responsibleId: responsibleId ?? this.responsibleId,
+      ownerId: ownerId ?? this.ownerId,
+      spaceId: spaceId ?? this.spaceId,
       timeSet: timeSet ?? this.timeSet,
       timeStart: timeStart ?? this.timeStart,
       timeEnd: timeEnd ?? this.timeEnd,

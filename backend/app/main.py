@@ -14,6 +14,7 @@ from app.routers import (
     ews_mail,
     ews_notifications,
     health,
+    spaces,
     static_assets,
     task_types,
     tasks,
@@ -21,12 +22,14 @@ from app.routers import (
 )
 from app.services.ews_notification_service import ews_notification_service
 from app.services.notification_hub import notification_hub
+from app.services.schema_service import ensure_space_schema
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    ensure_space_schema()
     notification_hub.set_loop(asyncio.get_running_loop())
     yield
     ews_notification_service.shutdown_all()
@@ -67,6 +70,7 @@ app.include_router(health.router, prefix="/api/health", tags=["health"])
 app.include_router(static_assets.router, prefix="/api/static", tags=["static"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(spaces.router, prefix="/api/spaces", tags=["spaces"])
 app.include_router(task_types.router, prefix="/api/task-types", tags=["task-types"])
 app.include_router(ews_auth.router, prefix="/api/ews/auth", tags=["ews-auth"])
 app.include_router(ews_mail.router, prefix="/api/ews/mail", tags=["ews-mail"])

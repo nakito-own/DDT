@@ -25,11 +25,13 @@ enum TasksSortOption {
 
 class TasksBloc extends Bloc<TasksEvent, TasksState> {
   TasksBloc({TasksApi? api})
-      : _api = api ?? tasksApi,
-        super(TasksState(
+    : _api = api ?? tasksApi,
+      super(
+        TasksState(
           columns: {for (final s in TaskStatus.values) s: <Task>[]},
           statusFilters: Set.of(TaskStatus.values),
-        )) {
+        ),
+      ) {
     on<TasksBoardLoadRequested>(_onBoardLoadRequested);
     on<TasksBoardCleared>(_onBoardCleared);
     on<TasksViewModeChanged>(_onViewModeChanged);
@@ -41,11 +43,14 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     on<TasksFiltersReset>(_onFiltersReset);
     on<TaskCreateRequested>(_onTaskCreateRequested);
     on<TaskUpdateRequested>(_onTaskUpdateRequested);
+    on<TaskServerSnapshotReceived>(_onTaskServerSnapshotReceived);
     on<TaskMoveRequested>(_onTaskMoveRequested);
     on<TaskDeleteRequested>(_onTaskDeleteRequested);
   }
 
   final TasksApi _api;
+  int _nextDraftId = -1;
+  int? get spaceId => _api.spaceId;
 
   // ─── Board load / clear ───────────────────────────────────────────────────
 
@@ -63,27 +68,32 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       for (final task in tasks) {
         columns[task.status]?.add(task);
       }
-      emit(state.copyWith(
-        isLoading: false,
-        taskTypes: types,
-        columns: columns,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          taskTypes: types,
+          columns: columns,
+          errorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
   void _onBoardCleared(TasksBoardCleared event, Emitter<TasksState> emit) {
-    emit(state.copyWith(
-      columns: {for (final s in TaskStatus.values) s: <Task>[]},
-      taskTypes: [],
-      errorMessage: () => null,
-    ));
+    emit(
+      state.copyWith(
+        columns: {for (final s in TaskStatus.values) s: <Task>[]},
+        taskTypes: [],
+        errorMessage: () => null,
+      ),
+    );
   }
 
   // ─── View & filters ───────────────────────────────────────────────────────
@@ -138,13 +148,15 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
   }
 
   void _onFiltersReset(TasksFiltersReset event, Emitter<TasksState> emit) {
-    emit(state.copyWith(
-      searchQuery: '',
-      statusFilters: Set.of(TaskStatus.values),
-      priorityFilter: () => null,
-      typeFilter: () => null,
-      sortOption: TasksSortOption.deadlineAsc,
-    ));
+    emit(
+      state.copyWith(
+        searchQuery: '',
+        statusFilters: Set.of(TaskStatus.values),
+        priorityFilter: () => null,
+        typeFilter: () => null,
+        sortOption: TasksSortOption.deadlineAsc,
+      ),
+    );
   }
 
   // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -153,16 +165,13 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     TaskCreateRequested event,
     Emitter<TasksState> emit,
   ) async {
-    final draft = event.draft;
+    final draft = event.draft.copyWith(id: _nextDraftId--);
     final optimisticColumns = _copyColumns(state.columns);
     optimisticColumns[draft.status] = [
       ...(optimisticColumns[draft.status] ?? []),
       draft,
     ];
-    emit(state.copyWith(
-      columns: optimisticColumns,
-      errorMessage: () => null,
-    ));
+    emit(state.copyWith(columns: optimisticColumns, errorMessage: () => null));
 
     try {
       final created = await _api.createTask(
@@ -178,6 +187,9 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         deadline: draft.deadline,
         priority: draft.priority?.value,
         links: draft.links,
+        initialComment: draft.comments.isEmpty
+            ? null
+            : draft.comments.first.text,
       );
       final columns = _replaceTaskInColumns(
         state.columns,
@@ -187,14 +199,13 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       emit(state.copyWith(columns: columns));
     } catch (error) {
       final columns = _copyColumns(state.columns);
-      columns[draft.status]?.removeWhere(
-        (task) => task.id == draft.id && task.title == draft.title,
+      columns[draft.status]?.removeWhere((task) => task.id == draft.id);
+      emit(
+        state.copyWith(
+          columns: columns,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
       );
-      emit(state.copyWith(
-        columns: columns,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
     }
   }
 
@@ -214,11 +225,32 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       );
       emit(state.copyWith(columns: columns));
     } catch (error) {
-      emit(state.copyWith(
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
+  }
+
+  void _onTaskServerSnapshotReceived(
+    TaskServerSnapshotReceived event,
+    Emitter<TasksState> emit,
+  ) {
+    final tasks = state.allTasks;
+    final index = tasks.indexWhere((task) => task.id == event.task.id);
+    if (index < 0) return;
+    final existing = tasks[index];
+
+    emit(
+      state.copyWith(
+        columns: _replaceTaskInColumns(
+          state.columns,
+          original: existing,
+          saved: event.task,
+        ),
+      ),
+    );
   }
 
   Future<void> _onTaskMoveRequested(
@@ -237,17 +269,13 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     emit(state.copyWith(columns: optimisticColumns));
 
     try {
-      final saved = await _api.updateTask(
-        event.task.id,
-        {
-          'status': event.to.value,
-          if (updatedLocal.timeStart != null)
-            'time_start':
-                updatedLocal.timeStart!.toUtc().toIso8601String(),
-          if (updatedLocal.timeEnd != null)
-            'time_end': updatedLocal.timeEnd!.toUtc().toIso8601String(),
-        },
-      );
+      final saved = await _api.updateTask(event.task.id, {
+        'status': event.to.value,
+        if (updatedLocal.timeStart != null)
+          'time_start': updatedLocal.timeStart!.toUtc().toIso8601String(),
+        if (updatedLocal.timeEnd != null)
+          'time_end': updatedLocal.timeEnd!.toUtc().toIso8601String(),
+      });
       final columns = _replaceTaskInColumns(
         state.columns,
         original: updatedLocal,
@@ -263,11 +291,12 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         to: event.from,
         updated: event.task,
       );
-      emit(state.copyWith(
-        columns: reverted,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          columns: reverted,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -293,19 +322,18 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       final reverted = _copyColumns(state.columns);
       reverted[event.status] = [...(reverted[event.status] ?? [])]
         ..insert(index, event.task);
-      emit(state.copyWith(
-        columns: reverted,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          columns: reverted,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  Map<TaskStatus, List<Task>> _copyColumns(
-    Map<TaskStatus, List<Task>> source,
-  ) {
+  Map<TaskStatus, List<Task>> _copyColumns(Map<TaskStatus, List<Task>> source) {
     return {for (final e in source.entries) e.key: List.of(e.value)};
   }
 
@@ -331,18 +359,22 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     final oldStatus = original.status;
     final newStatus = saved.status;
 
-    columns[oldStatus]?.removeWhere((item) => item.id == original.id);
-
     if (oldStatus == newStatus) {
       final column = columns[newStatus];
       if (column == null) return columns;
-      final index = column.indexWhere((item) => item.id == saved.id);
+      final index = column.indexWhere((item) => item.id == original.id);
       if (index >= 0) {
         column[index] = saved;
       } else {
-        column.add(saved);
+        final savedIndex = column.indexWhere((item) => item.id == saved.id);
+        if (savedIndex >= 0) {
+          column[savedIndex] = saved;
+        } else {
+          column.add(saved);
+        }
       }
     } else {
+      columns[oldStatus]?.removeWhere((item) => item.id == original.id);
       columns[newStatus] = [...(columns[newStatus] ?? []), saved];
     }
     return columns;
@@ -372,7 +404,10 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     putIfChanged('description', updated.description, original.description);
     putIfChanged('executor_id', updated.executorId, original.executorId);
     putIfChanged(
-        'responsible_id', updated.responsibleId, original.responsibleId);
+      'responsible_id',
+      updated.responsibleId,
+      original.responsibleId,
+    );
     putIfChanged(
       'time_set',
       updated.timeSet.toUtc().toIso8601String(),
@@ -393,15 +428,16 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       updated.deadline?.toUtc().toIso8601String(),
       original.deadline?.toUtc().toIso8601String(),
     );
-    putIfChanged(
-        'priority', updated.priority?.value, original.priority?.value);
+    putIfChanged('priority', updated.priority?.value, original.priority?.value);
 
     if (updated.links != null) {
       payload['links'] = updated.links!
-          .map((link) => {
-                'url': link.url,
-                if (link.title != null) 'title': link.title,
-              })
+          .map(
+            (link) => {
+              'url': link.url,
+              if (link.title != null) 'title': link.title,
+            },
+          )
           .toList();
     }
 

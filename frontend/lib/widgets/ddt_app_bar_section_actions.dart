@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../blocs/calendar/calendar_bloc.dart';
 import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
+import '../models/space.dart';
 import '../models/tasks_view_mode.dart';
+import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
 import 'compose_mail_panel.dart';
 import 'ddt_context_menu.dart';
@@ -22,10 +24,101 @@ class DdtAppBarSectionActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (section) {
       AppSection.tasks => const _TasksAppBarActions(),
+      AppSection.space => const _SpaceAppBarActions(),
       AppSection.mail => const _MailAppBarActions(),
       AppSection.calendar => const _CalendarAppBarActions(),
       _ => const SizedBox.shrink(),
     };
+  }
+}
+
+class _SpaceAppBarActions extends StatefulWidget {
+  const _SpaceAppBarActions();
+
+  @override
+  State<_SpaceAppBarActions> createState() => _SpaceAppBarActionsState();
+}
+
+class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
+  late final Future<List<Space>> _spaces = spacesApi.fetchSpaces();
+
+  int? _spaceIdFromLocation(String location) {
+    final match = RegExp(r'^/space/(\d+)').firstMatch(location);
+    return int.tryParse(match?.group(1) ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final selectedSpaceId = _spaceIdFromLocation(location);
+    final activeMode = TasksViewMode.fromRoute(location);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FutureBuilder<List<Space>>(
+          future: _spaces,
+          builder: (context, snapshot) {
+            final spaces = snapshot.data ?? const <Space>[];
+            Space? selectedSpace;
+            for (final space in spaces) {
+              if (space.id == selectedSpaceId) {
+                selectedSpace = space;
+                break;
+              }
+            }
+
+            return _AppBarIconAction(
+              tooltip: 'Выбрать пространство',
+              label: selectedSpace?.name ?? 'ПРОСТРАНСТВО',
+              icon: CupertinoIcons.chevron_down,
+              isLoading: snapshot.connectionState == ConnectionState.waiting,
+              contextMenuItems: spaces.isEmpty
+                  ? null
+                  : [
+                      for (final space in spaces)
+                        DdtContextMenuItem(
+                          icon: CupertinoIcons.square_grid_2x2,
+                          label: space.name,
+                          onTap: () => context.go(
+                            activeMode.routePathForSpace(space.id),
+                          ),
+                        ),
+                    ],
+            );
+          },
+        ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 12)),
+        DdtSegmentedControl<TasksViewMode>(
+          segments: const [
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.kanban,
+              label: 'Канбан',
+            ),
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.list,
+              label: 'Список',
+            ),
+            DdtSegmentedControlSegment(
+              value: TasksViewMode.gantt,
+              label: 'Гант',
+            ),
+          ],
+          selected: activeMode,
+          onChanged: (mode) {
+            if (selectedSpaceId != null) {
+              context.go(mode.routePathForSpace(selectedSpaceId));
+            }
+          },
+        ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+        _AppBarIconAction(
+          tooltip: 'Архив',
+          icon: CupertinoIcons.archivebox,
+          onPressed: () {},
+        ),
+      ],
+    );
   }
 }
 
@@ -91,9 +184,9 @@ class _MailAppBarActions extends StatelessWidget {
               tooltip: 'Обновить почту',
               icon: CupertinoIcons.arrow_clockwise,
               isLoading: state.isLoading || state.isRefreshingInbox,
-              onPressed: () => context
-                  .read<MailBloc>()
-                  .add(const MailInboxRefreshRequested(showAnimation: true)),
+              onPressed: () => context.read<MailBloc>().add(
+                const MailInboxRefreshRequested(showAnimation: true),
+              ),
             ),
             SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
             _AppBarIconAction(
@@ -154,8 +247,7 @@ class _CalendarAppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CalendarBloc, CalendarState>(
-      buildWhen: (previous, current) =>
-          previous.isLoading != current.isLoading,
+      buildWhen: (previous, current) => previous.isLoading != current.isLoading,
       builder: (context, state) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -163,9 +255,9 @@ class _CalendarAppBarActions extends StatelessWidget {
             tooltip: 'Обновить календарь',
             icon: CupertinoIcons.arrow_clockwise,
             isLoading: state.isLoading,
-            onPressed: () => context
-                .read<CalendarBloc>()
-                .add(const CalendarEventsRefreshRequested()),
+            onPressed: () => context.read<CalendarBloc>().add(
+              const CalendarEventsRefreshRequested(),
+            ),
           ),
           SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
           const _AppBarIconAction(
@@ -234,6 +326,7 @@ class _AppBarIconAction extends StatefulWidget {
   const _AppBarIconAction({
     required this.tooltip,
     required this.icon,
+    this.label,
     this.onPressed,
     this.contextMenuItems,
     this.placement = DdtContextMenuPlacement.belowCenter,
@@ -243,6 +336,7 @@ class _AppBarIconAction extends StatefulWidget {
 
   final String tooltip;
   final IconData icon;
+  final String? label;
   final VoidCallback? onPressed;
   final List<DdtContextMenuItem>? contextMenuItems;
   final DdtContextMenuPlacement placement;
@@ -279,29 +373,59 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
         : (isDark ? Colors.white : AppColors.primary);
     final iconSize = DdtTheme.shellSizeOf(context, 20);
 
+    final onPressed = widget.isLoading ? null : _handlePressed;
+    final icon = widget.isLoading
+        ? SizedBox(
+            width: iconSize,
+            height: iconSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: foregroundColor.withValues(alpha: 0.7),
+            ),
+          )
+        : Icon(widget.icon, color: foregroundColor, size: iconSize);
+
     return KeyedSubtree(
       key: _anchorKey,
-      child: IconButton(
-        tooltip: widget.tooltip,
-        visualDensity: VisualDensity.compact,
-        style: widget.isActive
-            ? IconButton.styleFrom(
-                backgroundColor:
-                    AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
-              )
-            : null,
-        onPressed: widget.isLoading ? null : _handlePressed,
-        icon: widget.isLoading
-            ? SizedBox(
-                width: iconSize,
-                height: iconSize,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: foregroundColor.withValues(alpha: 0.7),
+      child: widget.label == null
+          ? IconButton(
+              tooltip: widget.tooltip,
+              visualDensity: VisualDensity.compact,
+              style: widget.isActive
+                  ? IconButton.styleFrom(
+                      backgroundColor: AppColors.primary.withValues(
+                        alpha: isDark ? 0.22 : 0.12,
+                      ),
+                    )
+                  : null,
+              onPressed: onPressed,
+              icon: icon,
+            )
+          : Tooltip(
+              message: widget.tooltip,
+              child: TextButton.icon(
+                onPressed: onPressed,
+                style: TextButton.styleFrom(
+                  foregroundColor: foregroundColor,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: DdtTheme.shellSizeOf(context, 10),
+                    vertical: DdtTheme.shellSizeOf(context, 6),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: DdtTheme.radius),
                 ),
-              )
-            : Icon(widget.icon, color: foregroundColor, size: iconSize),
-      ),
+                iconAlignment: IconAlignment.end,
+                icon: icon,
+                label: Text(
+                  widget.label!,
+                  style: DdtTheme.style(
+                    fontSize: DdtTheme.shellSizeOf(context, 14),
+                    fontWeight: FontWeight.w600,
+                    color: foregroundColor,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

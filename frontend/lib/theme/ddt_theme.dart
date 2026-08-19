@@ -10,10 +10,15 @@ class DdtTheme {
   static const double inputControlRadius = 8;
   static const double spacing = 16;
 
-  static const Color lightBackground = Color(0xFFE8ECF2);
+  static const Color lightBackground = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightWidget = Color(0xFFFFFFFF);
-  static const Color lightBorderStrong = Color(0xFF94A3B8);
+  static const Color lightInputFill = Color(0xFFF1F5F9);
+  static const Color lightBorderStrong = Color(0xFF64748B);
+
+  static const double lightShellGlassBackgroundOpacity = 0.08;
+  static const double lightGlassBackgroundOpacity = 0.16;
+  static const double lightGlassBackgroundOpacityActive = 0.22;
 
   static const Color darkBackground = Color(0xFF050508);
   static const Color darkSurface = Color(0xFF0C0C10);
@@ -21,9 +26,9 @@ class DdtTheme {
   static const Color darkInputFill = Color(0xFF0A0A0E);
   static const Color darkBorderStrong = Color(0xFF3F3F48);
 
-  static const Color lightTextPrimary = Color(0xFF050A12);
-  static const Color lightTextSecondary = Color(0xFF152030);
-  static const Color lightTextMuted = Color(0xFF475569);
+  static const Color lightTextPrimary = Color(0xFF020617);
+  static const Color lightTextSecondary = Color(0xFF1E293B);
+  static const Color lightTextMuted = Color(0xFF334155);
 
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
   static const Color darkTextSecondary = Color(0xFFE2E8F0);
@@ -54,13 +59,13 @@ class DdtTheme {
   static const Color darkPickerInputFill = Color(0xFF141418);
 
   static Color inputFillColor(BuildContext context) =>
-      _isDark(context) ? darkInputFill : lightSurface;
+      _isDark(context) ? darkInputFill : lightInputFill;
 
   static Color pickerSurfaceColor(BuildContext context) =>
       _isDark(context) ? darkPickerSurface : lightSurface;
 
   static Color pickerInputFillColor(BuildContext context) =>
-      _isDark(context) ? darkPickerInputFill : lightSurface;
+      _isDark(context) ? darkPickerInputFill : lightInputFill;
 
   static TextStyle inputLabelStyle(BuildContext context) => style(
         fontSize: 14.sp,
@@ -128,7 +133,7 @@ class DdtTheme {
   }
 
   static double glassBorderOpacity(Brightness brightness) {
-    return brightness == Brightness.dark ? 0.34 : 0.42;
+    return brightness == Brightness.dark ? 0.34 : 0.58;
   }
 
   static GlassContainer glass({
@@ -140,6 +145,7 @@ class DdtTheme {
     bool addShadow = true,
   }) {
     final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
 
     return GlassContainer(
       type: GlassType.frosted,
@@ -149,8 +155,14 @@ class DdtTheme {
       height: height,
       padding: padding,
       addShadow: addShadow,
+      blurIntensity: 10,
+      backgroundColor: isDark ? null : Colors.white,
+      backgroundOpacity:
+          isDark ? 0.2 : lightShellGlassBackgroundOpacity,
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness),
+      borderOpacity: isDark
+          ? glassBorderOpacity(brightness)
+          : glassBorderOpacity(brightness) * 0.72,
       child: child,
     );
   }
@@ -183,14 +195,14 @@ class DdtTheme {
       backgroundColor: isDark
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
           : Colors.white.withValues(alpha: 0.3),
-      backgroundOpacity: isDark ? 0.2 : 0.16,
+      backgroundOpacity: isDark ? 0.2 : lightGlassBackgroundOpacity,
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.55,
+      borderOpacity: glassBorderOpacity(brightness) * 0.65,
       borderWidth: 1,
       addShadow: true,
       shadowBlurRadius: 24,
       shadowSpreadRadius: -4,
-      shadowColor: Colors.black.withValues(alpha: isDark ? 0.34 : 0.14),
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.34 : 0.16),
       shadowOffset: const Offset(0, 8),
       child: child,
     );
@@ -220,9 +232,11 @@ class DdtTheme {
           : Colors.white.withValues(alpha: isDragging ? 0.38 : 0.3),
       backgroundOpacity: isDark
           ? (isDragging ? 0.26 : 0.2)
-          : (isDragging ? 0.22 : 0.16),
+          : (isDragging
+              ? lightGlassBackgroundOpacityActive
+              : lightGlassBackgroundOpacity),
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.55,
+      borderOpacity: glassBorderOpacity(brightness) * 0.65,
       borderWidth: 1,
       addShadow: false,
       onTap: onTap,
@@ -288,12 +302,12 @@ class DdtTheme {
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.9)
           : Colors.white.withValues(alpha: 0.94),
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.45,
+      borderOpacity: glassBorderOpacity(brightness) * 0.55,
       borderWidth: 1,
       addShadow: true,
       shadowBlurRadius: 32,
       shadowSpreadRadius: -6,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.14),
       shadowOffset: const Offset(-6, 0),
       child: child,
     );
@@ -334,7 +348,7 @@ class DdtTheme {
   static Color sidePanelDivider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
         ? Colors.white.withValues(alpha: 0.22)
-        : lightBorderStrong.withValues(alpha: 0.55);
+        : lightBorderStrong.withValues(alpha: 0.72);
   }
 
   static ThemeData sidePanelTheme(BuildContext context) {
@@ -494,11 +508,11 @@ class DdtTheme {
       cardTheme: theme.cardTheme.copyWith(
         color: lightSurface,
         shape: shape,
-        elevation: 1,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.10),
       ),
       dividerTheme: DividerThemeData(
-        color: lightBorderStrong.withValues(alpha: 0.45),
+        color: lightBorderStrong.withValues(alpha: 0.55),
         thickness: 1,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -519,17 +533,17 @@ class DdtTheme {
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
         filled: true,
-        fillColor: lightSurface,
+        fillColor: lightInputFill,
         labelStyle: TextStyle(color: lightTextSecondary),
         floatingLabelStyle: TextStyle(color: lightTextMuted),
         hintStyle: TextStyle(color: lightTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: lightBorderStrong),
+          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: lightBorderStrong),
+          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
@@ -546,7 +560,7 @@ class DdtTheme {
         disabledBorder: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(
-            color: lightBorderStrong.withValues(alpha: 0.45),
+            color: lightBorderStrong.withValues(alpha: 0.55),
           ),
         ),
       ),

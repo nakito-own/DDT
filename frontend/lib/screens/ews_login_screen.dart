@@ -141,24 +141,44 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                         : null,
                               ),
                               SizedBox(height: 4.h),
-                              CheckboxListTile(
-                                contentPadding: EdgeInsets.zero,
-                                value: _rememberMe,
-                                onChanged: isBusy
+                              InkWell(
+                                onTap: isBusy
                                     ? null
-                                    : (value) => setState(
-                                          () => _rememberMe = value ?? true,
+                                    : () => setState(
+                                          () => _rememberMe = !_rememberMe,
                                         ),
-                                title: Text(
-                                  'Запомнить меня',
-                                  style: DdtTheme.style(
-                                    fontSize: 14.sp,
-                                    fontWeight: FontWeight.w500,
-                                    color: DdtTheme.textPrimary(context),
+                                borderRadius: DdtTheme.radius,
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 4.h),
+                                  child: Row(
+                                    children: [
+                                      Checkbox(
+                                        value: _rememberMe,
+                                        onChanged: isBusy
+                                            ? null
+                                            : (value) => setState(
+                                                  () => _rememberMe =
+                                                      value ?? true,
+                                                ),
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      SizedBox(width: 4.w),
+                                      Expanded(
+                                        child: Text(
+                                          'Запомнить меня',
+                                          style: DdtTheme.style(
+                                            fontSize: 14.sp,
+                                            fontWeight: FontWeight.w500,
+                                            color:
+                                                DdtTheme.textPrimary(context),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
                               ),
                               if (errorMessage != null &&
                                   errorMessage.isNotEmpty)
