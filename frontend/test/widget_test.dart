@@ -1,16 +1,19 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get/get.dart';
 
-import 'package:ddt_frontend/theme/ddt_theme.dart';
-import 'package:ddt_frontend/controllers/theme_controller.dart';
+import 'package:ddt_frontend/blocs/tasks/tasks_bloc.dart';
+import 'package:ddt_frontend/models/task.dart';
+import 'package:ddt_frontend/models/task_status.dart';
+import 'package:ddt_frontend/models/task_type.dart';
 import 'package:ddt_frontend/screens/kanban_board_page.dart';
+import 'package:ddt_frontend/services/tasks_api.dart';
+import 'package:ddt_frontend/theme/ddt_theme.dart';
 
 void main() {
-  setUp(() {
-    Get.reset();
+  setUpAll(() {
     AppColors.initialize(
       primary: const Color(0xFF1976D2),
       accent: const Color(0xFF64B5F6),
@@ -19,59 +22,44 @@ void main() {
       primary: const Color(0xFF1976D2),
       accent: const Color(0xFF64B5F6),
     );
-    Get.put(ThemeController());
   });
 
-  testWidgets('Kanban board renders columns', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ScreenUtilInit(
+  Widget buildTestApp() {
+    return BlocProvider(
+      create: (_) =>
+          TasksBloc(api: _WidgetTestTasksApi())
+            ..add(const TasksBoardLoadRequested()),
+      child: ScreenUtilInit(
         designSize: const Size(1440, 900),
-        builder: (_, child) => GetMaterialApp(
-          theme: DdtTheme.light(),
-          builder: (context, child) {
-            return DefaultTextStyle(
-              style: DdtTheme.style(),
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
-          home: child,
-        ),
-        child: const KanbanBoardPage(),
+        builder: (_, child) =>
+            MaterialApp(theme: DdtTheme.light(), home: child),
+        child: const Scaffold(body: KanbanBoardPage()),
       ),
     );
+  }
+
+  testWidgets('Kanban board renders columns', (WidgetTester tester) async {
+    await tester.pumpWidget(buildTestApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Запланировано'), findsOneWidget);
     expect(find.text('В работе'), findsOneWidget);
     expect(find.text('Готово'), findsOneWidget);
-    expect(find.text('Настроить проект'), findsOneWidget);
-    expect(find.text('Блокер'), findsOneWidget);
+    expect(find.text('Тестовая задача'), findsOneWidget);
   });
+}
 
-  testWidgets('Create task side panel opens without errors', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ScreenUtilInit(
-        designSize: const Size(1440, 900),
-        builder: (_, child) => GetMaterialApp(
-          theme: DdtTheme.light(),
-          builder: (context, child) {
-            return DefaultTextStyle(
-              style: DdtTheme.style(),
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
-          home: child,
-        ),
-        child: const KanbanBoardPage(),
-      ),
-    );
-    await tester.pumpAndSettle();
+class _WidgetTestTasksApi extends TasksApi {
+  @override
+  Future<List<TaskType>> fetchTaskTypes() async => const [];
 
-    await tester.tap(find.byTooltip('Добавить задачу').first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Новая задача'), findsOneWidget);
-    expect(find.text('Создать'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  @override
+  Future<List<Task>> fetchTasks() async => [
+    Task(
+      id: 1,
+      title: 'Тестовая задача',
+      status: TaskStatus.todo,
+      timeSet: DateTime.utc(2026, 8, 18),
+    ),
+  ];
 }

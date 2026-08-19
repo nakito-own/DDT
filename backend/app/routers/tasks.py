@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends
 
 from app.dependencies import get_current_session
 from app.schemas.task import (
+    CreateTaskCommentRequest,
     CreateTaskRequest,
+    TaskCommentResponse,
     TaskResponse,
-    TaskTypeResponse,
     UpdateTaskRequest,
     UpdateTaskStatusRequest,
 )
@@ -38,6 +39,27 @@ async def get_task(
 ):
     try:
         return task_service.get_task(task_id, context.user_id)
+    except TaskNotFoundError as exc:
+        raise task_not_found() from exc
+
+
+@router.post(
+    "/{task_id}/comments",
+    response_model=TaskCommentResponse,
+    status_code=201,
+)
+async def add_task_comment(
+    task_id: int,
+    payload: CreateTaskCommentRequest,
+    context: SessionContext = Depends(get_current_session),
+):
+    try:
+        return task_service.add_comment(
+            task_id=task_id,
+            owner_id=context.user_id,
+            author_id=context.user_id,
+            text=payload.text,
+        )
     except TaskNotFoundError as exc:
         raise task_not_found() from exc
 

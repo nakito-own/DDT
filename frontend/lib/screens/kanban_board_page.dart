@@ -3,13 +3,14 @@ import 'dart:ui' as ui;
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 
-import '../controllers/ews_auth_controller.dart';
-import '../controllers/tasks_controller.dart';
+import '../blocs/auth/auth_bloc.dart';
+import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
+import '../models/task_type.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/task_card.dart';
@@ -27,9 +28,12 @@ class KanbanBoardPage extends StatefulWidget {
 
 class _KanbanBoardPageState extends State<KanbanBoardPage>
     with TickerProviderStateMixin {
-  TasksController get _tasks => Get.find<TasksController>();
+  // Локальная мутируемая копия колонок для drag-drop анимаций.
+  // BlocListener синхронизирует её с TasksBloc.state.columns.
+  late Map<TaskStatus, List<Task>> _localColumns;
+  late List<TaskType> _taskTypes;
 
-  final Map<int, GlobalKey> _taskCardKeys = {};
+  final Map<String, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
   final Map<int, Offset> _dragOriginByTaskId = {};
   final Map<TaskStatus, GlobalKey<_KanbanTaskListState>> _taskListKeys = {
@@ -41,16 +45,25 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tasks.loadBoard();
-    });
+    final state = context.read<TasksBloc>().state;
+    _localColumns = {
+      for (final e in state.columns.entries) e.key: List.of(e.value),
+    };
+    _taskTypes = List.of(state.taskTypes);
+  }
+
+  void _syncFromBlocState(TasksState state) {
+    _localColumns = {
+      for (final e in state.columns.entries) e.key: List.of(e.value),
+    };
+    _taskTypes = List.of(state.taskTypes);
   }
 
   List<Task> _columnTasks(TaskStatus status) =>
-      _tasks.columns[status] ?? const [];
+      _localColumns[status] ?? const [];
 
-  GlobalKey _taskCardKey(int taskId) =>
-      _taskCardKeys.putIfAbsent(taskId, () => GlobalKey());
+  GlobalKey _taskCardKey(TaskStatus status, int taskId) =>
+      _taskCardKeys.putIfAbsent('${status.name}_$taskId', () => GlobalKey());
 
   void _registerTaskCardSize(int taskId, Size size) {
     _taskCardSizes[taskId] = size;
@@ -68,21 +81,20 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   }
 
   void _applyMove(Task task, TaskStatus from, TaskStatus to) {
-    final fromColumn = _tasks.columns[from];
-    final toColumn = _tasks.columns[to];
+    final fromColumn = _localColumns[from];
+    final toColumn = _localColumns[to];
     if (fromColumn == null || toColumn == null) return;
 
     fromColumn.removeWhere((item) => item.id == task.id);
     toColumn.add(_updatedTaskForColumn(task, to));
-    _tasks.columns.refresh();
   }
 
   void _registerTaskDrop(Task task, TaskStatus to) {
     _pendingDrop = _PendingTaskDrop(task: task, to: to);
   }
 
-  void _onTaskDragStarted(int taskId) {
-    final cardContext = _taskCardKey(taskId).currentContext;
+  void _onTaskDragStarted(TaskStatus status, int taskId) {
+    final cardContext = _taskCardKey(status, taskId).currentContext;
     if (cardContext == null) return;
 
     final box = cardContext.findRenderObject()! as RenderBox;
@@ -104,9 +116,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     final cardSize = _taskCardSizes[task.id];
 
     if (!details.wasAccepted || pending == null || pending.task.id != task.id) {
-      if (!details.wasAccepted &&
-          originTopLeft != null &&
-          cardSize != null) {
+      if (!details.wasAccepted && originTopLeft != null && cardSize != null) {
         await _animateTaskReturn(
           task: task,
           feedbackTopLeft: details.offset,
@@ -123,12 +133,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (cardSize == null) {
       setState(() => _applyMove(task, from, to));
-      final updated = _updatedTaskForColumn(task, to);
-      final saved = await _tasks.persistMove(task, from, to, updated);
-      if (!mounted) return;
-      if (saved == null) {
-        setState(() => _applyMove(updated, to, from));
-      }
+      context.read<TasksBloc>().add(
+        TaskMoveRequested(task: task, from: from, to: to),
+      );
       _showMoveToast(task, to);
       return;
     }
@@ -143,12 +150,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     if (!mounted) return;
 
-    final updated = _updatedTaskForColumn(task, to);
-    final saved = await _tasks.persistMove(task, from, to, updated);
-    if (!mounted) return;
-    if (saved == null) {
-      setState(() => _applyMove(updated, to, from));
-    }
+    context.read<TasksBloc>().add(
+      TaskMoveRequested(task: task, from: from, to: to),
+    );
     _showMoveToast(task, to);
   }
 
@@ -179,8 +183,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     required Size cardSize,
   }) async {
     final updated = _updatedTaskForColumn(task, to);
-    final fromColumn = _tasks.columns[from];
-    final toColumn = _tasks.columns[to];
+    final fromColumn = _localColumns[from];
+    final toColumn = _localColumns[to];
     if (fromColumn == null || toColumn == null) return;
 
     final fromIndex = fromColumn.indexWhere((item) => item.id == task.id);
@@ -194,7 +198,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       toColumn.add(updated);
       _animatingTaskId = task.id;
     });
-    _tasks.columns.refresh();
 
     _taskListKeys[from]!.currentState?.removeTaskAt(
       fromIndex,
@@ -206,7 +209,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     await _runCardFlightAnimation(
       task: task,
       startGlobalTopLeft: feedbackTopLeft,
-      endGlobalTopLeft: _measureTaskCardTopLeft(task.id),
+      endGlobalTopLeft: _measureTaskCardTopLeft(to, task.id),
       cardSize: cardSize,
       displayTask: updated,
     );
@@ -215,11 +218,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     setState(() => _animatingTaskId = null);
   }
 
-  Future<Offset?> _measureTaskCardTopLeft(int taskId) async {
+  Future<Offset?> _measureTaskCardTopLeft(TaskStatus status, int taskId) async {
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return null;
 
-    final targetContext = _taskCardKey(taskId).currentContext;
+    final targetContext = _taskCardKey(status, taskId).currentContext;
     if (targetContext == null || !targetContext.mounted) return null;
 
     final targetBox = targetContext.findRenderObject()! as RenderBox;
@@ -298,13 +301,16 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   }
 
   Future<void> _addTask(TaskStatus status) async {
-    final auth = Get.find<EwsAuthController>();
+    final authState = context.read<AuthBloc>().state;
+    final currentUserId = authState is AuthAuthenticated
+        ? authState.user.id
+        : null;
     final created = await showTaskSidePanel(
       context,
       mode: TaskSidePanelMode.create,
       initialStatus: status,
-      taskTypes: _tasks.taskTypes.toList(),
-      defaultAuthorId: auth.currentUserId,
+      taskTypes: _taskTypes,
+      defaultAuthorId: currentUserId,
     );
 
     if (created == null || !mounted) return;
@@ -317,11 +323,13 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       typeId: created.typeId,
       type: created.type,
       description: created.description,
-      authorId: auth.currentUserId ?? created.authorId,
+      authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
+      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
-      timeStart: created.timeStart ??
+      timeStart:
+          created.timeStart ??
           (created.status == TaskStatus.inProgress ? now : null),
       timeEnd:
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
@@ -331,19 +339,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       comments: created.comments,
     );
 
-    final task = await _tasks.createTask(draft);
-    if (task == null || !mounted) return;
-
-    setState(() {});
-
-    _taskListKeys[task.status]?.currentState?.insertTaskAt(
-      _columnTasks(task.status).length - 1,
-    );
-
-    Toast.show(
-      message: 'Задача добавлена в «${task.status.label}»',
-      type: ToastType.success,
-    );
+    context.read<TasksBloc>().add(TaskCreateRequested(draft));
+    // BlocListener синхронизирует _localColumns после ответа сервера.
+    Toast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
   Future<void> _deleteTask(Task task, TaskStatus status) async {
@@ -354,10 +352,10 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     final cardSize = _taskCardSizes[task.id];
     final gap = index < column.length - 1 ? DdtTheme.spacing.h : 0.0;
 
-    final deleted = await _tasks.deleteTask(task, status);
-    if (!deleted || !mounted) return;
-
-    setState(() {});
+    // Оптимистично убираем из локальных колонок для быстрой реакции.
+    setState(() {
+      _localColumns[status]?.removeAt(index);
+    });
 
     if (cardSize != null) {
       _taskListKeys[status]?.currentState?.removeTaskAt(
@@ -366,10 +364,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       );
     }
 
-    Toast.show(
-      message: '«${task.title}» удалена',
-      type: ToastType.success,
+    context.read<TasksBloc>().add(
+      TaskDeleteRequested(task: task, status: status),
     );
+    // BlocListener синхронизирует при успехе или откатит при ошибке.
+    Toast.show(message: '«${task.title}» удалена', type: ToastType.success);
   }
 
   Future<void> _openTaskDetails(Task task) async {
@@ -377,92 +376,27 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       context,
       mode: TaskSidePanelMode.view,
       task: task,
-      taskTypes: _tasks.taskTypes.toList(),
+      taskTypes: _taskTypes,
     );
 
     if (updated == null || !mounted) return;
 
-    await _applyTaskUpdate(task, updated);
-  }
-
-  Future<void> _applyTaskUpdate(Task original, Task updated) async {
-    final oldStatus = original.status;
-    final newStatus = updated.status;
-
-    if (oldStatus == newStatus) {
-      final saved = await _tasks.updateTask(original, updated);
-      if (saved == null || !mounted) return;
-      setState(() {});
-      return;
-    }
-
-    final oldIndex =
-        _columnTasks(oldStatus).indexWhere((item) => item.id == original.id);
-    if (oldIndex < 0) return;
-
-    final cardSize = _taskCardSizes[original.id];
-    final gap =
-        oldIndex < _columnTasks(oldStatus).length - 1 ? DdtTheme.spacing.h : 0.0;
-
-    final saved = await _tasks.updateTask(original, updated);
-    if (saved == null || !mounted) return;
-
-    setState(() {});
-
-    if (cardSize != null) {
-      _taskListKeys[oldStatus]?.currentState?.removeTaskAt(
-        oldIndex,
-        slotHeight: cardSize.height + gap,
-      );
-    }
-
-    _taskListKeys[newStatus]?.currentState?.insertTaskAt(
-      _columnTasks(newStatus).length - 1,
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
     );
-
-    Toast.show(
-      message: 'Задача перемещена в «${newStatus.label}»',
-      type: ToastType.success,
-    );
+    // BlocListener синхронизирует _localColumns после ответа сервера.
   }
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      if (_tasks.isLoading.value && _tasks.allTasks.isEmpty) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      final error = _tasks.errorMessage.value;
-      if (error != null && _tasks.allTasks.isEmpty) {
-        return Center(
-          child: Padding(
-            padding: EdgeInsets.all(24.w),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Не удалось загрузить задачи',
-                  style: DdtTheme.style(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8.h),
-                Text(error, textAlign: TextAlign.center),
-                SizedBox(height: 16.h),
-                Button(
-                  text: 'Повторить',
-                  onPressed: _tasks.loadBoard,
-                  borderRadius: DdtTheme.radius,
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      return LayoutBuilder(
+    return BlocListener<TasksBloc, TasksState>(
+      listenWhen: (previous, current) =>
+          previous.columns != current.columns ||
+          previous.taskTypes != current.taskTypes,
+      listener: (context, state) {
+        setState(() => _syncFromBlocState(state));
+      },
+      child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
 
@@ -470,7 +404,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (var index = 0; index < TaskStatus.values.length; index++) ...[
+                for (
+                  var index = 0;
+                  index < TaskStatus.values.length;
+                  index++
+                ) ...[
                   if (index > 0) DdtTheme.horizontalGap(),
                   Expanded(
                     child: _KanbanColumn(
@@ -525,8 +463,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
             ),
           );
         },
-      );
-    });
+      ),
+    );
   }
 }
 
@@ -551,10 +489,10 @@ class _KanbanColumn extends StatefulWidget {
   final List<Task> tasks;
   final GlobalKey<_KanbanTaskListState> taskListKey;
   final int? animatingTaskId;
-  final GlobalKey Function(int taskId) taskCardKey;
+  final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
   final void Function(Task task, TaskStatus to) onRegisterDrop;
-  final void Function(int taskId) onDragStarted;
+  final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(TaskStatus status) onAddTask;
   final Future<void> Function(Task task, TaskStatus status) onDeleteTask;
@@ -623,8 +561,7 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                       Positioned.fill(
                         child: DragTarget<Task>(
                           onWillAcceptWithDetails: (details) {
-                            final accept =
-                                details.data.status != widget.status;
+                            final accept = details.data.status != widget.status;
                             _setDragOver(accept);
                             return accept;
                           },
@@ -727,11 +664,7 @@ class _KanbanColumnHeader extends StatelessWidget {
         IconButton(
           tooltip: 'Добавить задачу',
           onPressed: () => onAddTask(status),
-          icon: Icon(
-            CupertinoIcons.add,
-            size: 20.sp,
-            color: AppColors.primary,
-          ),
+          icon: Icon(CupertinoIcons.add, size: 20.sp, color: AppColors.primary),
           visualDensity: VisualDensity.compact,
         ),
       ],
@@ -756,9 +689,9 @@ class _KanbanTaskList extends StatefulWidget {
   final TaskStatus status;
   final List<Task> tasks;
   final int? animatingTaskId;
-  final GlobalKey Function(int taskId) taskCardKey;
+  final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
-  final void Function(int taskId) onDragStarted;
+  final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(Task task, TaskStatus status) onDeleteTask;
   final void Function(Task task) onOpenTask;
@@ -769,23 +702,59 @@ class _KanbanTaskList extends StatefulWidget {
 
 class _KanbanTaskListState extends State<_KanbanTaskList> {
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  late int _animatedItemCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _animatedItemCount = widget.tasks.length;
+  }
+
+  @override
+  void didUpdateWidget(covariant _KanbanTaskList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAnimatedItemCount(oldWidget.tasks);
+  }
 
   void insertTaskAt(int index) {
-    _listKey.currentState!.insertItem(
-      index,
-      duration: Duration.zero,
-    );
+    _listKey.currentState!.insertItem(index, duration: Duration.zero);
+    _animatedItemCount++;
   }
 
   void removeTaskAt(int index, {required double slotHeight}) {
     _listKey.currentState!.removeItem(
       index,
-      (context, animation) => _KanbanSlotCollapse(
-        animation: animation,
-        height: slotHeight,
-      ),
+      (context, animation) =>
+          _KanbanSlotCollapse(animation: animation, height: slotHeight),
       duration: _kanbanMotionDuration,
     );
+    _animatedItemCount--;
+  }
+
+  void _syncAnimatedItemCount(List<Task> previousTasks) {
+    final listState = _listKey.currentState;
+    if (listState == null) return;
+
+    while (_animatedItemCount > widget.tasks.length) {
+      _animatedItemCount--;
+      final gap = _animatedItemCount < previousTasks.length - 1
+          ? DdtTheme.spacing.h
+          : 0.0;
+      listState.removeItem(
+        _animatedItemCount,
+        (context, animation) =>
+            _KanbanSlotCollapse(animation: animation, height: 120.0 + gap),
+        duration: _kanbanMotionDuration,
+      );
+    }
+
+    while (_animatedItemCount < widget.tasks.length) {
+      listState.insertItem(
+        _animatedItemCount,
+        duration: const Duration(milliseconds: 280),
+      );
+      _animatedItemCount++;
+    }
   }
 
   @override
@@ -810,10 +779,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
           Center(
             child: Text(
               'Перетащите задачу сюда',
-              style: DdtTheme.style(
-                fontSize: 13.sp,
-                color: Colors.grey[600],
-              ),
+              style: DdtTheme.style(fontSize: 13.sp, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ),
@@ -828,11 +794,11 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
   }) {
     final card = _DraggableTaskCard(
       key: ValueKey(task.id),
-      cardKey: widget.taskCardKey(task.id),
+      cardKey: widget.taskCardKey(widget.status, task.id),
       isHidden: widget.animatingTaskId == task.id,
       task: task,
       onSizeChanged: (size) => widget.onRegisterCardSize(task.id, size),
-      onDragStarted: () => widget.onDragStarted(task.id),
+      onDragStarted: () => widget.onDragStarted(widget.status, task.id),
       onDragEnd: (details) => widget.onDragEnd(task, details),
       onDelete: () => widget.onDeleteTask(task, widget.status),
       onTap: () => widget.onOpenTask(task),
@@ -845,10 +811,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       ),
       axisAlignment: -1,
       child: FadeTransition(
-        opacity: CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        ),
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
         child: card,
       ),
     );
@@ -972,10 +935,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
 }
 
 class _KanbanSlotCollapse extends StatelessWidget {
-  const _KanbanSlotCollapse({
-    required this.animation,
-    required this.height,
-  });
+  const _KanbanSlotCollapse({required this.animation, required this.height});
 
   final Animation<double> animation;
   final double height;
@@ -985,8 +945,9 @@ class _KanbanSlotCollapse extends StatelessWidget {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) {
-        final heightFactor =
-            _kanbanMotionCurve.transform(animation.value).clamp(0.0, 1.0);
+        final heightFactor = _kanbanMotionCurve
+            .transform(animation.value)
+            .clamp(0.0, 1.0);
 
         return ClipRect(
           child: Align(
@@ -996,10 +957,7 @@ class _KanbanSlotCollapse extends StatelessWidget {
           ),
         );
       },
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-      ),
+      child: SizedBox(width: double.infinity, height: height),
     );
   }
 }

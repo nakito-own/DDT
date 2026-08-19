@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/app_section.dart';
 import '../theme/ddt_theme.dart';
+import 'ddt_app_bar_section_actions.dart';
 import 'ddt_glass_app_bar.dart';
 import 'ddt_glass_navigation_rail.dart';
 
@@ -38,7 +39,12 @@ class DdtShellLayout extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    DdtGlassAppBar(title: title),
+                    DdtGlassAppBar(
+                      title: title,
+                      actions: DdtAppBarSectionActions(
+                        section: selectedSection,
+                      ),
+                    ),
                     SizedBox(height: DdtTheme.shellSizeOf(context, DdtTheme.spacing)),
                     Expanded(
                       child: RepaintBoundary(child: child),

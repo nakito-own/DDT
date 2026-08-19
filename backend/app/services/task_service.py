@@ -61,9 +61,19 @@ class TaskService:
             grouped[row["task_id"]].append(map_task_comment_row(row))
         return grouped
 
-    def _fetch_task_row(self, cursor, task_id: int, owner_id: int):
+    def _fetch_task_row(
+        self,
+        cursor,
+        task_id: int,
+        owner_id: int,
+        *,
+        space_id: int | None = None,
+    ):
+        scope_column = "space_id" if space_id is not None else "owner_id"
+        scope_id = space_id if space_id is not None else owner_id
+        personal_filter = "" if space_id is not None else "AND t.space_id IS NULL"
         cursor.execute(
-            """
+            f"""
             SELECT
               t.*,
               tt.id AS type_ref_id,
@@ -71,9 +81,9 @@ class TaskService:
               tt.created_at AS type_created_at
             FROM tasks t
             LEFT JOIN task_types tt ON tt.id = t.type_id
-            WHERE t.id = %s AND t.owner_id = %s
+            WHERE t.id = %s AND t.{scope_column} = %s {personal_filter}
             """,
-            (task_id, owner_id),
+            (task_id, scope_id),
         )
         return cursor.fetchone()
 
@@ -96,10 +106,19 @@ class TaskService:
         )
 
     def list_tasks(self, owner_id: int) -> list[dict]:
+        return self._list_tasks("owner_id", owner_id)
+
+    def list_space_tasks(self, space_id: int) -> list[dict]:
+        return self._list_tasks("space_id", space_id)
+
+    def _list_tasks(self, scope_column: str, scope_id: int) -> list[dict]:
+        personal_filter = (
+            "AND t.space_id IS NULL" if scope_column == "owner_id" else ""
+        )
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT
                       t.*,
                       tt.id AS type_ref_id,
@@ -107,10 +126,10 @@ class TaskService:
                       tt.created_at AS type_created_at
                     FROM tasks t
                     LEFT JOIN task_types tt ON tt.id = t.type_id
-                    WHERE t.owner_id = %s
+                    WHERE t.{scope_column} = %s {personal_filter}
                     ORDER BY t.updated_at DESC, t.id DESC
                     """,
-                    (owner_id,),
+                    (scope_id,),
                 )
                 rows = cursor.fetchall()
                 task_ids = [row["id"] for row in rows]
@@ -127,9 +146,26 @@ class TaskService:
         ]
 
     def get_task(self, task_id: int, owner_id: int) -> dict:
+        return self._get_task(task_id, owner_id)
+
+    def get_space_task(self, task_id: int, space_id: int) -> dict:
+        return self._get_task(task_id, owner_id=0, space_id=space_id)
+
+    def _get_task(
+        self,
+        task_id: int,
+        owner_id: int,
+        *,
+        space_id: int | None = None,
+    ) -> dict:
         with get_db() as conn:
             with conn.cursor() as cursor:
-                row = self._fetch_task_row(cursor, task_id, owner_id)
+                row = self._fetch_task_row(
+                    cursor,
+                    task_id,
+                    owner_id,
+                    space_id=space_id,
+                )
                 if not row:
                     raise TaskNotFoundError
                 links = self._fetch_links(cursor, [task_id]).get(task_id, [])
@@ -148,8 +184,25 @@ class TaskService:
                 (task_id, link.url, link.title),
             )
 
+    def _insert_comment(
+        self, cursor, task_id: int, author_id: int, text: str
+    ) -> int:
+        cursor.execute(
+            """
+            INSERT INTO task_comments (task_id, author_id, text)
+            VALUES (%s, %s, %s)
+            """,
+            (task_id, author_id, text),
+        )
+        return cursor.lastrowid
+
     def create_task(
-        self, owner_id: int, author_id: int, payload: CreateTaskRequest
+        self,
+        owner_id: int,
+        author_id: int,
+        payload: CreateTaskRequest,
+        *,
+        space_id: int | None = None,
     ) -> dict:
         time_set = payload.time_set or datetime.utcnow()
 
@@ -160,8 +213,8 @@ class TaskService:
                     INSERT INTO tasks (
                       title, status, type_id, description,
                       executor_id, author_id, responsible_id, owner_id,
-                      time_set, time_start, time_end, deadline, priority
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                      space_id, time_set, time_start, time_end, deadline, priority
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         payload.title,
@@ -172,6 +225,7 @@ class TaskService:
                         author_id,
                         payload.responsible_id,
                         owner_id,
+                        space_id,
                         time_set,
                         payload.time_start,
                         payload.time_end,
@@ -182,17 +236,65 @@ class TaskService:
                 task_id = cursor.lastrowid
                 if payload.links:
                     self._replace_links(cursor, task_id, payload.links)
+                if payload.initial_comment:
+                    self._insert_comment(
+                        cursor, task_id, author_id, payload.initial_comment
+                    )
 
-        return self.get_task(task_id, owner_id)
+        return self._get_task(
+            task_id,
+            owner_id,
+            space_id=space_id,
+        )
+
+    def add_comment(
+        self,
+        task_id: int,
+        owner_id: int,
+        author_id: int,
+        text: str,
+        *,
+        space_id: int | None = None,
+    ) -> dict:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                row = self._fetch_task_row(
+                    cursor,
+                    task_id,
+                    owner_id,
+                    space_id=space_id,
+                )
+                if not row:
+                    raise TaskNotFoundError
+
+                comment_id = self._insert_comment(
+                    cursor, task_id, author_id, text
+                )
+                cursor.execute(
+                    """
+                    SELECT id, task_id, author_id, text, created_at
+                    FROM task_comments
+                    WHERE id = %s
+                    """,
+                    (comment_id,),
+                )
+                comment = cursor.fetchone()
+
+        return map_task_comment_row(comment)
 
     def update_task(
-        self, task_id: int, owner_id: int, payload: UpdateTaskRequest
+        self,
+        task_id: int,
+        owner_id: int,
+        payload: UpdateTaskRequest,
+        *,
+        space_id: int | None = None,
     ) -> dict:
         updates: dict = payload.model_dump(exclude_unset=True)
         links = updates.pop("links", None)
 
         if not updates and links is None:
-            return self.get_task(task_id, owner_id)
+            return self._get_task(task_id, owner_id, space_id=space_id)
 
         if "status" in updates and updates["status"] is not None:
             updates["status"] = updates["status"].value
@@ -201,18 +303,30 @@ class TaskService:
 
         with get_db() as conn:
             with conn.cursor() as cursor:
-                row = self._fetch_task_row(cursor, task_id, owner_id)
+                row = self._fetch_task_row(
+                    cursor,
+                    task_id,
+                    owner_id,
+                    space_id=space_id,
+                )
                 if not row:
                     raise TaskNotFoundError
 
                 if updates:
                     set_clause = ", ".join(f"{column} = %s" for column in updates)
-                    values = list(updates.values()) + [task_id, owner_id]
+                    scope_column = (
+                        "space_id" if space_id is not None else "owner_id"
+                    )
+                    scope_id = space_id if space_id is not None else owner_id
+                    personal_filter = (
+                        "" if space_id is not None else "AND space_id IS NULL"
+                    )
+                    values = list(updates.values()) + [task_id, scope_id]
                     cursor.execute(
                         f"""
                         UPDATE tasks
                         SET {set_clause}
-                        WHERE id = %s AND owner_id = %s
+                        WHERE id = %s AND {scope_column} = %s {personal_filter}
                         """,
                         values,
                     )
@@ -220,14 +334,28 @@ class TaskService:
                 if links is not None:
                     self._replace_links(cursor, task_id, links)
 
-        return self.get_task(task_id, owner_id)
+        return self._get_task(task_id, owner_id, space_id=space_id)
 
-    def delete_task(self, task_id: int, owner_id: int) -> None:
+    def delete_task(
+        self,
+        task_id: int,
+        owner_id: int,
+        *,
+        space_id: int | None = None,
+    ) -> None:
         with get_db() as conn:
             with conn.cursor() as cursor:
+                scope_column = "space_id" if space_id is not None else "owner_id"
+                scope_id = space_id if space_id is not None else owner_id
+                personal_filter = (
+                    "" if space_id is not None else "AND space_id IS NULL"
+                )
                 cursor.execute(
-                    "DELETE FROM tasks WHERE id = %s AND owner_id = %s",
-                    (task_id, owner_id),
+                    f"""
+                    DELETE FROM tasks
+                    WHERE id = %s AND {scope_column} = %s {personal_filter}
+                    """,
+                    (task_id, scope_id),
                 )
                 if cursor.rowcount == 0:
                     raise TaskNotFoundError

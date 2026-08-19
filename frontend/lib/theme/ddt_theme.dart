@@ -6,16 +6,33 @@ import 'package:google_fonts/google_fonts.dart';
 class DdtTheme {
   DdtTheme._();
 
-  static const double borderRadius = 18;
+  static const double borderRadius = 16;
+  static const double inputControlRadius = 8;
   static const double spacing = 16;
 
-  static const Color lightTextPrimary = Color(0xFF0A0F18);
-  static const Color lightTextSecondary = Color(0xFF1C2736);
+  static const Color lightBackground = Color(0xFFFFFFFF);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightWidget = Color(0xFFFFFFFF);
+  static const Color lightInputFill = Color(0xFFF1F5F9);
+  static const Color lightBorderStrong = Color(0xFF64748B);
+
+  static const double lightShellGlassBackgroundOpacity = 0.08;
+  static const double lightGlassBackgroundOpacity = 0.16;
+  static const double lightGlassBackgroundOpacityActive = 0.22;
+
+  static const Color darkBackground = Color(0xFF050508);
+  static const Color darkSurface = Color(0xFF0C0C10);
+  static const Color darkWidget = Color(0xFF121216);
+  static const Color darkInputFill = Color(0xFF0A0A0E);
+  static const Color darkBorderStrong = Color(0xFF3F3F48);
+
+  static const Color lightTextPrimary = Color(0xFF020617);
+  static const Color lightTextSecondary = Color(0xFF1E293B);
   static const Color lightTextMuted = Color(0xFF334155);
 
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color darkTextSecondary = Color(0xFFE8EDF5);
-  static const Color darkTextMuted = Color(0xFFCBD5E1);
+  static const Color darkTextSecondary = Color(0xFFE2E8F0);
+  static const Color darkTextMuted = Color(0xFF94A3B8);
 
   static bool _isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
@@ -35,6 +52,68 @@ class DdtTheme {
 
   static BorderRadius get radius => BorderRadius.circular(borderRadius.r);
 
+  static BorderRadius get inputControlBorderRadius =>
+      BorderRadius.circular(inputControlRadius.r);
+
+  static const Color darkPickerSurface = Color(0xFF1C1C22);
+  static const Color darkPickerInputFill = Color(0xFF141418);
+
+  static Color inputFillColor(BuildContext context) =>
+      _isDark(context) ? darkInputFill : lightInputFill;
+
+  static Color pickerSurfaceColor(BuildContext context) =>
+      _isDark(context) ? darkPickerSurface : lightSurface;
+
+  static Color pickerInputFillColor(BuildContext context) =>
+      _isDark(context) ? darkPickerInputFill : lightInputFill;
+
+  static TextStyle inputLabelStyle(BuildContext context) => style(
+        fontSize: 14.sp,
+        color: textSecondary(context),
+      );
+
+  static TextStyle inputFloatingLabelStyle(BuildContext context) => style(
+        fontSize: 12.sp,
+        color: textMuted(context),
+      );
+
+  static TextStyle inputHintStyle(BuildContext context) => style(
+        fontSize: 14.sp,
+        color: textMuted(context),
+      );
+
+  static Color inputBorderColor(BuildContext context) =>
+      _isDark(context) ? darkBorderStrong : lightBorderStrong;
+
+  static MenuThemeData menuThemeData() => MenuThemeData(
+        style: MenuStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+          ),
+        ),
+      );
+
+  static PopupMenuThemeData popupMenuThemeData() => PopupMenuThemeData(
+        shape: RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+      );
+
+  static DropdownMenuThemeData dropdownMenuThemeData(
+    TextTheme typography,
+    Brightness brightness,
+  ) {
+    final textColor =
+        brightness == Brightness.dark ? darkTextPrimary : lightTextPrimary;
+
+    return DropdownMenuThemeData(
+      textStyle: TextStyle(color: textColor),
+      menuStyle: MenuStyle(
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+        ),
+      ),
+    );
+  }
+
   static double shellSize(num value) => value.r;
 
   static double shellSizeOf(BuildContext context, num value) {
@@ -48,14 +127,49 @@ class DdtTheme {
   static SizedBox verticalGap() => SizedBox(height: shellSize(spacing));
 
   static Color glassBorderColor(Brightness brightness) {
-    return brightness == Brightness.dark ? Colors.white : AppColors.primary;
+    return brightness == Brightness.dark
+        ? Colors.white
+        : AppColors.primary;
   }
 
   static double glassBorderOpacity(Brightness brightness) {
-    return brightness == Brightness.dark ? 0.2 : 0.3;
+    return brightness == Brightness.dark ? 0.34 : 0.58;
   }
 
-  static GlassContainer glass({
+  static Color shellSurfaceColor(BuildContext context) =>
+      _isDark(context) ? darkWidget : lightSurface;
+
+  static Color shellSurfaceBorderColor(BuildContext context) {
+    return _isDark(context)
+        ? Colors.white.withValues(alpha: 0.14)
+        : lightBorderStrong.withValues(alpha: 0.32);
+  }
+
+  static BoxDecoration shellSurfaceDecoration(
+    BuildContext context, {
+    bool addShadow = true,
+    double? radius,
+  }) {
+    final isDark = _isDark(context);
+
+    return BoxDecoration(
+      color: shellSurfaceColor(context),
+      borderRadius: BorderRadius.circular(radius ?? borderRadius.r),
+      border: Border.all(color: shellSurfaceBorderColor(context)),
+      boxShadow: addShadow
+          ? [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ]
+          : null,
+    );
+  }
+
+  /// Shell panels (app bar, navigation rail, page sections) use a solid fill.
+  static Widget glass({
     required BuildContext context,
     required Widget child,
     double? width,
@@ -63,18 +177,11 @@ class DdtTheme {
     EdgeInsetsGeometry? padding,
     bool addShadow = true,
   }) {
-    final brightness = Theme.of(context).brightness;
-
-    return GlassContainer(
-      type: GlassType.frosted,
-      shape: GlassShape.roundedRectangle,
-      radius: borderRadius.r,
+    return Container(
       width: width,
       height: height,
       padding: padding,
-      addShadow: addShadow,
-      borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness),
+      decoration: shellSurfaceDecoration(context, addShadow: addShadow),
       child: child,
     );
   }
@@ -86,6 +193,39 @@ class DdtTheme {
       textSecondary(context);
 
   static Color taskCardIconMuted(BuildContext context) => textMuted(context);
+
+  static GlassContainer contextMenuGlass({
+    required BuildContext context,
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+    double blurIntensity = 6,
+    double? cornerRadius,
+  }) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+    final radius = cornerRadius ?? borderRadius.r;
+
+    return GlassContainer(
+      type: GlassType.custom,
+      shape: GlassShape.roundedRectangle,
+      radius: radius,
+      padding: padding ?? EdgeInsets.all(8.w),
+      blurIntensity: blurIntensity,
+      backgroundColor: isDark
+          ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
+          : Colors.white.withValues(alpha: 0.3),
+      backgroundOpacity: isDark ? 0.2 : lightGlassBackgroundOpacity,
+      borderColor: glassBorderColor(brightness),
+      borderOpacity: glassBorderOpacity(brightness) * 0.65,
+      borderWidth: 1,
+      addShadow: true,
+      shadowBlurRadius: 24,
+      shadowSpreadRadius: -4,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.34 : 0.16),
+      shadowOffset: const Offset(0, 8),
+      child: child,
+    );
+  }
 
   static GlassContainer taskCardGlass({
     required BuildContext context,
@@ -111,9 +251,11 @@ class DdtTheme {
           : Colors.white.withValues(alpha: isDragging ? 0.38 : 0.3),
       backgroundOpacity: isDark
           ? (isDragging ? 0.26 : 0.2)
-          : (isDragging ? 0.22 : 0.16),
+          : (isDragging
+              ? lightGlassBackgroundOpacityActive
+              : lightGlassBackgroundOpacity),
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.55,
+      borderOpacity: glassBorderOpacity(brightness) * 0.65,
       borderWidth: 1,
       addShadow: false,
       onTap: onTap,
@@ -179,12 +321,12 @@ class DdtTheme {
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.9)
           : Colors.white.withValues(alpha: 0.94),
       borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.45,
+      borderOpacity: glassBorderOpacity(brightness) * 0.55,
       borderWidth: 1,
       addShadow: true,
       shadowBlurRadius: 32,
       shadowSpreadRadius: -6,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.14),
       shadowOffset: const Offset(-6, 0),
       child: child,
     );
@@ -224,8 +366,8 @@ class DdtTheme {
 
   static Color sidePanelDivider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.grey.shade300;
+        ? Colors.white.withValues(alpha: 0.22)
+        : lightBorderStrong.withValues(alpha: 0.72);
   }
 
   static ThemeData sidePanelTheme(BuildContext context) {
@@ -244,16 +386,17 @@ class DdtTheme {
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
         labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextPrimary),
+        floatingLabelStyle: TextStyle(color: darkTextMuted),
         hintStyle: TextStyle(color: darkTextMuted),
+        fillColor: darkInputFill,
       ),
-      dropdownMenuTheme: theme.dropdownMenuTheme.copyWith(
-        textStyle: TextStyle(color: darkTextPrimary),
-      ),
+      dropdownMenuTheme: dropdownMenuThemeData(theme.textTheme, Brightness.dark),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
-          side: BorderSide(color: darkTextSecondary.withValues(alpha: 0.45)),
+          side: BorderSide(color: darkBorderStrong),
           shape: roundedShape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
@@ -309,17 +452,66 @@ class DdtTheme {
     return theme;
   }
 
+  static const Duration selectionAnimationDuration = Duration(milliseconds: 220);
+  static const Curve selectionAnimationCurve = Curves.easeOutCubic;
+
+  static const WidgetStateProperty<Color> _transparentOverlay =
+      WidgetStatePropertyAll(Colors.transparent);
+
+  static ButtonStyle _withoutMaterialOverlay(ButtonStyle? style) {
+    return (style ?? const ButtonStyle()).copyWith(
+      overlayColor: _transparentOverlay,
+      splashFactory: NoSplash.splashFactory,
+    );
+  }
+
+  static ThemeData _applyInteractionTheme(ThemeData theme) {
+    return theme.copyWith(
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      iconButtonTheme: IconButtonThemeData(
+        style: _withoutMaterialOverlay(
+          IconButton.styleFrom(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        enableFeedback: false,
+      ),
+      checkboxTheme: theme.checkboxTheme.copyWith(
+        splashRadius: 0,
+        overlayColor: _transparentOverlay,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: _withoutMaterialOverlay(theme.elevatedButtonTheme.style),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: _withoutMaterialOverlay(theme.outlinedButtonTheme.style),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: _withoutMaterialOverlay(theme.textButtonTheme.style),
+      ),
+    );
+  }
+
   static ThemeData light() {
     final theme = AppTheme.lightTheme();
     final typography = textTheme(Brightness.light);
     final shape = roundedShape;
 
-    return theme.copyWith(
+    return _applyInteractionTheme(
+      theme.copyWith(
       textTheme: typography,
       primaryTextTheme: typography,
+      scaffoldBackgroundColor: lightBackground,
       colorScheme: theme.colorScheme.copyWith(
+        surface: lightSurface,
         onSurface: lightTextPrimary,
         onSurfaceVariant: lightTextSecondary,
+        outline: lightBorderStrong,
       ),
       appBarTheme: theme.appBarTheme.copyWith(
         titleTextStyle: GoogleFonts.nunitoSans(
@@ -328,8 +520,20 @@ class DdtTheme {
           fontWeight: FontWeight.bold,
         ),
       ),
-      dialogTheme: theme.dialogTheme.copyWith(shape: shape),
-      cardTheme: theme.cardTheme.copyWith(shape: shape),
+      dialogTheme: theme.dialogTheme.copyWith(
+        shape: shape,
+        backgroundColor: lightSurface,
+      ),
+      cardTheme: theme.cardTheme.copyWith(
+        color: lightSurface,
+        shape: shape,
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.10),
+      ),
+      dividerTheme: DividerThemeData(
+        color: lightBorderStrong.withValues(alpha: 0.55),
+        thickness: 1,
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -341,22 +545,24 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: lightTextPrimary,
-          side: BorderSide(color: AppColors.primary),
+          side: BorderSide(color: AppColors.primary, width: 1.5),
           shape: shape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: lightInputFill,
         labelStyle: TextStyle(color: lightTextSecondary),
-        floatingLabelStyle: TextStyle(color: lightTextPrimary),
+        floatingLabelStyle: TextStyle(color: lightTextMuted),
         hintStyle: TextStyle(color: lightTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.lightBorder),
+          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.lightBorder),
+          borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
@@ -373,9 +579,13 @@ class DdtTheme {
         disabledBorder: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(
-            color: AppColors.lightBorder.withValues(alpha: 0.55),
+            color: lightBorderStrong.withValues(alpha: 0.55),
           ),
         ),
+      ),
+      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }
@@ -385,12 +595,16 @@ class DdtTheme {
     final typography = textTheme(Brightness.dark);
     final shape = roundedShape;
 
-    return theme.copyWith(
+    return _applyInteractionTheme(
+      theme.copyWith(
       textTheme: typography,
       primaryTextTheme: typography,
+      scaffoldBackgroundColor: darkBackground,
       colorScheme: theme.colorScheme.copyWith(
+        surface: darkSurface,
         onSurface: darkTextPrimary,
         onSurfaceVariant: darkTextSecondary,
+        outline: darkBorderStrong,
       ),
       appBarTheme: theme.appBarTheme.copyWith(
         titleTextStyle: GoogleFonts.nunitoSans(
@@ -399,8 +613,19 @@ class DdtTheme {
           fontWeight: FontWeight.bold,
         ),
       ),
-      dialogTheme: theme.dialogTheme.copyWith(shape: shape),
-      cardTheme: theme.cardTheme.copyWith(shape: shape),
+      dialogTheme: theme.dialogTheme.copyWith(
+        shape: shape,
+        backgroundColor: darkSurface,
+      ),
+      cardTheme: theme.cardTheme.copyWith(
+        color: darkWidget,
+        shape: shape,
+        elevation: 0,
+      ),
+      dividerTheme: DividerThemeData(
+        color: Colors.white.withValues(alpha: 0.16),
+        thickness: 1,
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -412,22 +637,24 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
-          side: BorderSide(color: AppColors.primary),
+          side: BorderSide(color: AppColors.primary, width: 1.5),
           shape: shape,
           padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
         ),
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: darkInputFill,
         labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextPrimary),
+        floatingLabelStyle: TextStyle(color: darkTextMuted),
         hintStyle: TextStyle(color: darkTextMuted),
         border: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.darkBorder),
+          borderSide: BorderSide(color: darkBorderStrong),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.darkBorder),
+          borderSide: BorderSide(color: darkBorderStrong),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
@@ -444,20 +671,28 @@ class DdtTheme {
         disabledBorder: OutlineInputBorder(
           borderRadius: radius,
           borderSide: BorderSide(
-            color: AppColors.darkBorder.withValues(alpha: 0.55),
+            color: darkBorderStrong.withValues(alpha: 0.45),
           ),
         ),
+      ),
+      dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
+      menuTheme: menuThemeData(),
+      popupMenuTheme: popupMenuThemeData(),
       ),
     );
   }
 
   static InputDecoration inputDecoration({
-    required String labelText,
+    String? labelText,
+    String? hintText,
     Widget? suffixIcon,
+    bool alignLabelWithHint = false,
   }) {
     return InputDecoration(
       labelText: labelText,
+      hintText: hintText,
       suffixIcon: suffixIcon,
+      alignLabelWithHint: alignLabelWithHint,
     );
   }
 

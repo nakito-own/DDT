@@ -58,3 +58,17 @@ Color statusColumnColor(TaskStatus status) {
       return const Color(0xFF07753F);
   }
 }
+
+const _taskTypePalette = <Color>[
+  Color(0xFF5E35B1),
+  Color(0xFF00897B),
+  Color(0xFFD81B60),
+  Color(0xFF6D4C41),
+  Color(0xFF3949AB),
+  Color(0xFF00ACC1),
+  Color(0xFFF4511E),
+];
+
+Color taskTypeColor(int typeId) {
+  return _taskTypePalette[typeId.abs() % _taskTypePalette.length];
+}

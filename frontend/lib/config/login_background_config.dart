@@ -19,7 +19,7 @@ class LoginBackgroundConfig {
     return networkUrls[rng.nextInt(networkUrls.length)];
   }
 
-  static const double darkOverlayOpacity = 0.4;
+  static const double darkOverlayOpacity = 0.58;
 
-  static const double lightOverlayOpacity = 0.36;
+  static const double lightOverlayOpacity = 0.62;
 }

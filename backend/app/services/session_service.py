@@ -107,8 +107,7 @@ class SessionService:
         email: str,
         remember_me: bool,
     ) -> tuple[str, SessionContext]:
-        account = ews_service.create_account(username, password, email)
-        ews_service.verify_account(account)
+        account = ews_service.connect_account(username, password, email)
 
         ews_account_id = self._upsert_account(email, username, password)
         user = self._sync_user_profile(account, ews_account_id)
@@ -186,7 +185,9 @@ class SessionService:
 
     def get_session(self, token: str) -> SessionContext | None:
         token_hash = crypto_service.hash_token(token)
+        return self.get_session_by_hash(token_hash)
 
+    def get_session_by_hash(self, token_hash: str) -> SessionContext | None:
         with self._lock:
             context = self._memory_sessions.get(token_hash)
 
@@ -209,10 +210,9 @@ class SessionService:
             if cached is not None:
                 return cached
 
-        account = ews_service.create_account(
+        account = ews_service.connect_account(
             context.username, context.password, context.email
         )
-        ews_service.verify_account(account)
 
         with self._lock:
             self._account_cache[context.token_hash] = account
@@ -229,6 +229,9 @@ class SessionService:
         return user
 
     def delete_session(self, token_hash: str) -> None:
+        from app.services.ews_notification_service import ews_notification_service
+
+        ews_notification_service.stop_for_session(token_hash)
         with self._lock:
             self._memory_sessions.pop(token_hash, None)
             self._account_cache.pop(token_hash, None)

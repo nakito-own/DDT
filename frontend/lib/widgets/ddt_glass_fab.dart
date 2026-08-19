@@ -11,12 +11,12 @@ class DdtGlassFab extends StatefulWidget {
     super.key,
     required this.onPressed,
     required this.icon,
-    required this.label,
+    this.label,
   });
 
   final VoidCallback onPressed;
   final IconData icon;
-  final String label;
+  final String? label;
 
   @override
   State<DdtGlassFab> createState() => _DdtGlassFabState();
@@ -39,20 +39,23 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
 
   Widget _buildContent(BuildContext context) {
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
+    final label = widget.label;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(widget.icon, size: 20.sp, color: AppColors.primary),
-        SizedBox(width: 8.w),
-        Text(
-          widget.label,
-          style: DdtTheme.style(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: textPrimary,
+        if (label != null) ...[
+          SizedBox(width: 8.w),
+          Text(
+            label,
+            style: DdtTheme.style(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -86,7 +89,9 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
           children: [
             DdtTheme.taskCardGlass(
               context: context,
-              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
+              padding: widget.label == null
+                  ? EdgeInsets.all(14.w)
+                  : EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
               child: _buildContent(context),
             ),
             Positioned.fill(

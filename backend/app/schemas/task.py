@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.task import TaskPriority, TaskStatus
 
@@ -26,6 +26,18 @@ class TaskCommentResponse(BaseModel):
     created_at: datetime
 
 
+class CreateTaskCommentRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Comment text must not be empty")
+        return value
+
+
 class TaskResponse(BaseModel):
     id: int
     title: str
@@ -37,6 +49,7 @@ class TaskResponse(BaseModel):
     author_id: int | None = None
     responsible_id: int | None = None
     owner_id: int
+    space_id: int | None = None
     time_set: datetime
     time_start: datetime | None = None
     time_end: datetime | None = None
@@ -61,6 +74,15 @@ class CreateTaskRequest(BaseModel):
     deadline: datetime | None = None
     priority: TaskPriority | None = None
     links: list[TaskLinkPayload] = Field(default_factory=list)
+    initial_comment: str | None = Field(default=None, max_length=10000)
+
+    @field_validator("initial_comment")
+    @classmethod
+    def normalize_initial_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class UpdateTaskRequest(BaseModel):

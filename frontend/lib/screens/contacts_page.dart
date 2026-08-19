@@ -1,87 +1,108 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 
-import '../controllers/contacts_controller.dart';
+import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
 import '../theme/ddt_theme.dart';
 
-class ContactsPage extends StatelessWidget {
+class ContactsPage extends StatefulWidget {
   const ContactsPage({super.key});
 
   @override
+  State<ContactsPage> createState() => _ContactsPageState();
+}
+
+class _ContactsPageState extends State<ContactsPage> {
+  late final ContactsBloc _bloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = ContactsBloc()..add(const ContactsLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _bloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = Get.put(ContactsController());
-
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(bottom: 12.h),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Поиск контактов',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: DdtTheme.radius),
+    return BlocProvider.value(
+      value: _bloc,
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(bottom: 12.h),
+            child: TextField(
+              decoration: DdtTheme.inputDecoration(
+                hintText: 'Поиск контактов',
+              ).copyWith(prefixIcon: const Icon(Icons.search)),
+              onChanged: (value) => _bloc.add(ContactsSearchQueryChanged(value)),
             ),
-            onChanged: controller.updateSearch,
           ),
-        ),
-        Expanded(
-          child: Obx(() {
-            if (controller.isLoading.value && controller.contacts.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
+          Expanded(
+            child: BlocBuilder<ContactsBloc, ContactsState>(
+              builder: (context, state) {
+                if (state.isLoading && state.contacts.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            if (controller.errorMessage.value != null &&
-                controller.contacts.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(controller.errorMessage.value!),
-                    SizedBox(height: 12.h),
-                    Button(
-                      text: 'Повторить',
-                      onPressed: controller.loadContacts,
-                      borderRadius: DdtTheme.radius,
+                if (state.errorMessage != null && state.contacts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(state.errorMessage!),
+                        SizedBox(height: 12.h),
+                        Button(
+                          text: 'Повторить',
+                          onPressed: () =>
+                              _bloc.add(const ContactsLoadRequested()),
+                          borderRadius: DdtTheme.radius,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }
+                  );
+                }
 
-            return RefreshIndicator(
-              onRefresh: controller.loadContacts,
-              child: DdtTheme.glass(
-                context: context,
-                padding: EdgeInsets.all(16.w),
-                child: controller.contacts.isEmpty
-                    ? ListView(
-                        children: [
-                          SizedBox(height: 120.h),
-                          Center(
-                            child: Text(
-                              'Контакты не найдены',
-                              style: DdtTheme.style(fontSize: 15.sp),
-                            ),
+                return RefreshIndicator(
+                  onRefresh: () async =>
+                      _bloc.add(const ContactsLoadRequested()),
+                  child: DdtTheme.glass(
+                    context: context,
+                    padding: EdgeInsets.all(16.w),
+                    child: state.contacts.isEmpty
+                        ? ListView(
+                            children: [
+                              SizedBox(height: 120.h),
+                              Center(
+                                child: Text(
+                                  'Контакты не найдены',
+                                  style: DdtTheme.style(fontSize: 15.sp),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            itemCount: state.contacts.length,
+                            separatorBuilder: (_, __) => SizedBox(height: 8.h),
+                            itemBuilder: (context, index) {
+                              return ContactListItem(
+                                contact: state.contacts[index],
+                              );
+                            },
                           ),
-                        ],
-                      )
-                    : ListView.separated(
-                        itemCount: controller.contacts.length,
-                        separatorBuilder: (_, __) => SizedBox(height: 8.h),
-                        itemBuilder: (context, index) {
-                          return ContactListItem(
-                            contact: controller.contacts[index],
-                          );
-                        },
-                      ),
-              ),
-            );
-          }),
-        ),
-      ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

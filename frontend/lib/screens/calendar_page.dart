@@ -1,72 +1,166 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart';
 
-import '../controllers/calendar_controller.dart';
+import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
 import '../theme/ddt_theme.dart';
 import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_segmented_control.dart';
 
-class CalendarPage extends StatelessWidget {
+class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
 
   @override
+  State<CalendarPage> createState() => _CalendarPageState();
+}
+
+class _CalendarPageState extends State<CalendarPage> {
+  late final EventsController _eventsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _eventsController = EventsController()
+      ..onFocusedDayChange = (day) {
+        context
+            .read<CalendarBloc>()
+            .add(CalendarPlannerDayChanged(day));
+      };
+
+    final bloc = context.read<CalendarBloc>();
+    // Синхронизируем уже загруженные события при открытии раздела.
+    _syncPlannerEvents(bloc.state.events);
+    bloc.add(const CalendarEventsLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _eventsController.dispose();
+    super.dispose();
+  }
+
+  void _syncPlannerEvents(List<CalendarEvent> events) {
+    final plannerEvents = events
+        .map(_toPlannerEvent)
+        .whereType<Event>()
+        .toList(growable: false);
+
+    _eventsController.updateCalendarData((data) {
+      data.dayEvents.clear();
+      data.addEvents(plannerEvents);
+    });
+  }
+
+  Event? _toPlannerEvent(CalendarEvent event) {
+    final start = event.start?.toLocal();
+    if (start == null) return null;
+
+    final end = event.end?.toLocal() ?? start.add(const Duration(hours: 1));
+    if (!end.isAfter(start)) return null;
+
+    return Event(
+      startTime: start,
+      endTime: end,
+      title: event.subject,
+      description: event.location,
+      data: event,
+      color: _eventColor(event),
+      textColor: _eventTextColor(event),
+    );
+  }
+
+  Color _eventColor(CalendarEvent event) {
+    if (event.needsResponse) {
+      return AppColors.primary.withValues(alpha: 0.1);
+    }
+    if (event.isDeclined) {
+      return Colors.grey.withValues(alpha: 0.08);
+    }
+    return Colors.transparent;
+  }
+
+  Color _eventTextColor(CalendarEvent event) => Colors.transparent;
+
+  DateTime _plannerInitialDate(DateTime date, CalendarViewMode mode) {
+    return switch (mode) {
+      CalendarViewMode.day => DateTime(date.year, date.month, date.day),
+      CalendarViewMode.week =>
+        CalendarState.startOfWeek(date),
+      CalendarViewMode.month => DateTime(date.year, date.month, date.day),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = Get.put(CalendarController());
+    return BlocListener<CalendarBloc, CalendarState>(
+      listenWhen: (previous, current) => previous.events != current.events,
+      listener: (context, state) => _syncPlannerEvents(state.events),
+      child: Stack(
+        children: [
+          BlocBuilder<CalendarBloc, CalendarState>(
+            buildWhen: (previous, current) =>
+                previous.isLoading != current.isLoading ||
+                previous.errorMessage != current.errorMessage ||
+                previous.events.isEmpty != current.events.isEmpty ||
+                previous.viewMode != current.viewMode ||
+                previous.focusedDate != current.focusedDate,
+            builder: (context, state) {
+              if (state.isLoading && state.events.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-    return Stack(
-      children: [
-        Obx(() {
-          if (controller.isLoading.value && controller.events.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+              if (state.errorMessage != null && state.events.isEmpty) {
+                return _ErrorState(
+                  message: state.errorMessage!,
+                  onRetry: () => context
+                      .read<CalendarBloc>()
+                      .add(const CalendarEventsLoadRequested()),
+                );
+              }
 
-          if (controller.errorMessage.value != null &&
-              controller.events.isEmpty) {
-            return _ErrorState(
-              message: controller.errorMessage.value!,
-              onRetry: controller.loadEvents,
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: controller.loadEvents,
-            child: DdtTheme.glass(
-              context: context,
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _CalendarToolbar(controller: controller),
-                  if (controller.isLoading.value) ...[
-                    SizedBox(height: 8.h),
-                    const LinearProgressIndicator(minHeight: 2),
-                  ],
-                  SizedBox(height: 12.h),
-                  Expanded(
-                    child: _CalendarBody(controller: controller),
+              return RefreshIndicator(
+                onRefresh: () async => context
+                    .read<CalendarBloc>()
+                    .add(const CalendarEventsRefreshRequested()),
+                child: DdtTheme.glass(
+                  context: context,
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _CalendarToolbar(state: state),
+                      SizedBox(height: 12.h),
+                      Expanded(
+                        child: _CalendarBody(
+                          state: state,
+                          eventsController: _eventsController,
+                          plannerInitialDate: _plannerInitialDate,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          );
-        }),
-        Positioned(
-          right: 24.w,
-          bottom: 24.h,
-          child: DdtGlassFab(
-            onPressed: () => showComposeEventPanel(context),
-            icon: Icons.add,
-            label: 'Событие',
+                ),
+              );
+            },
           ),
-        ),
-      ],
+          Positioned(
+            right: 24.w,
+            bottom: 24.h,
+            child: DdtGlassFab(
+              onPressed: () => showComposeEventPanel(context),
+              icon: Icons.add,
+              label: 'Событие',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -97,54 +191,76 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _CalendarToolbar extends StatelessWidget {
-  const _CalendarToolbar({required this.controller});
+  const _CalendarToolbar({required this.state});
 
-  final CalendarController controller;
+  final CalendarState state;
 
   @override
   Widget build(BuildContext context) {
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
-    final textSecondary = DdtTheme.taskCardTextSecondary(context);
 
-    return Obx(
-      () => Row(
-        children: [
-          OutlinedButton(
-            onPressed: controller.goToToday,
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+    return Row(
+      children: [
+        OutlinedButton(
+          onPressed: () => context
+              .read<CalendarBloc>()
+              .add(const CalendarGoToTodayRequested()),
+          style: OutlinedButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding:
+                EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+          ),
+          child: Text(
+            'Сегодня',
+            style: DdtTheme.style(fontSize: 13.sp),
+          ),
+        ),
+        _NavButton(
+          icon: CupertinoIcons.chevron_left,
+          onPressed: () => context
+              .read<CalendarBloc>()
+              .add(const CalendarGoPreviousRequested()),
+        ),
+        _NavButton(
+          icon: CupertinoIcons.chevron_right,
+          onPressed: () => context
+              .read<CalendarBloc>()
+              .add(const CalendarGoNextRequested()),
+        ),
+        SizedBox(width: 8.w),
+        Text(
+          state.titleLabel,
+          style: DdtTheme.style(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w700,
+            color: textPrimary,
+          ),
+        ),
+        const Spacer(),
+        DdtSegmentedControl<CalendarViewMode>(
+          segments: const [
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.day,
+              label: 'День',
+              icon: CupertinoIcons.time,
             ),
-            child: Text(
-              'Сегодня',
-              style: DdtTheme.style(fontSize: 13.sp),
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.week,
+              label: 'Неделя',
+              icon: CupertinoIcons.calendar,
             ),
-          ),
-          _NavButton(
-            icon: CupertinoIcons.chevron_left,
-            onPressed: controller.goPrevious,
-          ),
-          _NavButton(
-            icon: CupertinoIcons.chevron_right,
-            onPressed: controller.goNext,
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            controller.titleLabel(),
-            style: DdtTheme.style(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.month,
+              label: 'Месяц',
+              icon: CupertinoIcons.calendar_badge_plus,
             ),
-          ),
-          const Spacer(),
-          _ViewModeSelector(
-            mode: controller.viewMode.value,
-            onChanged: controller.setViewMode,
-            textSecondary: textSecondary,
-          ),
-        ],
-      ),
+          ],
+          selected: state.viewMode,
+          onChanged: (mode) => context
+              .read<CalendarBloc>()
+              .add(CalendarViewModeChanged(mode)),
+        ),
+      ],
     );
   }
 }
@@ -165,74 +281,16 @@ class _NavButton extends StatelessWidget {
   }
 }
 
-class _ViewModeSelector extends StatelessWidget {
-  const _ViewModeSelector({
-    required this.mode,
-    required this.onChanged,
-    required this.textSecondary,
+class _CalendarBody extends StatelessWidget {
+  const _CalendarBody({
+    required this.state,
+    required this.eventsController,
+    required this.plannerInitialDate,
   });
 
-  final CalendarViewMode mode;
-  final ValueChanged<CalendarViewMode> onChanged;
-  final Color textSecondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return SegmentedButton<CalendarViewMode>(
-      segments: [
-        ButtonSegment(
-          value: CalendarViewMode.day,
-          label: const Text('День'),
-          icon: Icon(CupertinoIcons.time, size: 16.sp),
-        ),
-        ButtonSegment(
-          value: CalendarViewMode.week,
-          label: const Text('Неделя'),
-          icon: Icon(CupertinoIcons.calendar, size: 16.sp),
-        ),
-        ButtonSegment(
-          value: CalendarViewMode.month,
-          label: const Text('Месяц'),
-          icon: Icon(CupertinoIcons.calendar_badge_plus, size: 16.sp),
-        ),
-      ],
-      selected: {mode},
-      onSelectionChanged: (selection) => onChanged(selection.first),
-      showSelectedIcon: false,
-      style: ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        textStyle: WidgetStatePropertyAll(DdtTheme.style(fontSize: 12.sp)),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08);
-          }
-          return Colors.transparent;
-        }),
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withValues(alpha: 0.85);
-          }
-          return textSecondary;
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return BorderSide(
-              color: AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.2),
-            );
-          }
-          return BorderSide.none;
-        }),
-      ),
-    );
-  }
-}
-
-class _CalendarBody extends StatelessWidget {
-  const _CalendarBody({required this.controller});
-
-  final CalendarController controller;
+  final CalendarState state;
+  final EventsController eventsController;
+  final DateTime Function(DateTime, CalendarViewMode) plannerInitialDate;
 
   static const _weekDayFullLabels = [
     'Понедельник',
@@ -244,31 +302,28 @@ class _CalendarBody extends StatelessWidget {
     'Воскресенье',
   ];
 
-  static String _weekdayLabel(DateTime day) =>
-      _weekDayFullLabels[(day.weekday - 1) % 7];
-
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final mode = controller.viewMode.value;
-      final focused = controller.focusedDate.value;
-      final key = ValueKey('${mode.name}-${focused.year}-${focused.month}-${focused.day}');
+    final mode = state.viewMode;
+    final focused = state.effectiveFocusedDate;
+    final key = ValueKey(
+        '${mode.name}-${focused.year}-${focused.month}-${focused.day}');
 
-      if (mode == CalendarViewMode.month) {
-        return _MonthCalendar(
-          key: key,
-          controller: controller,
-          focused: focused,
-        );
-      }
-
-      return _PlannerCalendar(
+    if (mode == CalendarViewMode.month) {
+      return _MonthCalendar(
         key: key,
-        controller: controller,
+        eventsController: eventsController,
         focused: focused,
-        daysShowed: controller.plannerDaysShowed,
       );
-    });
+    }
+
+    return _PlannerCalendar(
+      key: key,
+      eventsController: eventsController,
+      focused: plannerInitialDate(focused, mode),
+      daysShowed: state.plannerDaysShowed,
+      maxNextDays: state.plannerMaxNextDays,
+    );
   }
 
   static Widget buildDayHeader(
@@ -276,7 +331,8 @@ class _CalendarBody extends StatelessWidget {
     DateTime day,
     bool isToday,
   ) {
-    final weekdayLabel = _weekdayLabel(day);
+    final weekdayLabel =
+        _weekDayFullLabels[(day.weekday - 1) % 7];
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
 
@@ -405,41 +461,48 @@ class _CalendarBody extends StatelessWidget {
 class _PlannerCalendar extends StatelessWidget {
   const _PlannerCalendar({
     super.key,
-    required this.controller,
+    required this.eventsController,
     required this.focused,
     required this.daysShowed,
+    required this.maxNextDays,
   });
 
-  final CalendarController controller;
+  final EventsController eventsController;
   final DateTime focused;
   final int daysShowed;
+  final int maxNextDays;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final initialDate = controller.plannerInitialDate(focused);
     const heightPerMinute = 1.15;
     const timesWidth = 48.0;
     const headerHeight = 48.0;
     const fullDayBarHeight = 24.0;
     const fullDayEventHeight = 18.0;
     final now = DateTime.now();
-    final initialScroll = heightPerMinute * (now.hour * 60 + now.minute - 60);
+    final initialScroll =
+        heightPerMinute * (now.hour * 60 + now.minute - 60);
 
     return ClipRRect(
       borderRadius: DdtTheme.radius,
       child: EventsPlanner(
-        controller: controller.eventsController,
-        initialDate: initialDate,
+        controller: eventsController,
+        initialDate: focused,
         daysShowed: daysShowed,
         heightPerMinute: heightPerMinute,
-        initialVerticalScrollOffset: initialScroll.clamp(0, double.infinity),
+        initialVerticalScrollOffset:
+            initialScroll.clamp(0, double.infinity),
         maxPreviousDays: 0,
-        maxNextDays: controller.plannerMaxNextDays,
-        horizontalScrollPhysics: const NeverScrollableScrollPhysics(),
+        maxNextDays: maxNextDays,
+        horizontalScrollPhysics:
+            const NeverScrollableScrollPhysics(),
         automaticAdjustHorizontalScrollToDay: false,
-        pinchToZoomParam: const PinchToZoomParameters(pinchToZoom: false),
-        onDayChange: controller.onPlannerDayChanged,
+        pinchToZoomParam:
+            const PinchToZoomParameters(pinchToZoom: false),
+        onDayChange: (day) => context
+            .read<CalendarBloc>()
+            .add(CalendarPlannerDayChanged(day)),
         daysHeaderParam: DaysHeaderParam(
           daysHeaderHeight: headerHeight,
           daysHeaderColor: Colors.transparent,
@@ -450,7 +513,8 @@ class _PlannerCalendar extends StatelessWidget {
           fullDayEventsBarLeftText: 'Весь день',
           fullDayEventsBarHeight: fullDayBarHeight,
           fullDayEventHeight: fullDayEventHeight,
-          fullDayEventBuilder: (event, width) => _CalendarBody.buildFullDayEvent(
+          fullDayEventBuilder: (event, width) =>
+              _CalendarBody.buildFullDayEvent(
             context,
             event,
             width,
@@ -464,9 +528,12 @@ class _PlannerCalendar extends StatelessWidget {
                   ? const SizedBox.shrink()
                   : ClipRect(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.stretch,
                         children: [
-                          for (var i = 0; i < events.length; i++) ...[
+                          for (var i = 0;
+                              i < events.length;
+                              i++) ...[
                             if (i > 0) const SizedBox(height: 2),
                             _CalendarBody.buildFullDayEvent(
                               context,
@@ -482,7 +549,8 @@ class _PlannerCalendar extends StatelessWidget {
           },
         ),
         dayParam: DayParam(
-          todayColor: AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.06),
+          todayColor: AppColors.primary
+              .withValues(alpha: isDark ? 0.08 : 0.06),
           dayTopPadding: 4,
           dayBottomPadding: 8,
           dayCustomPainter: (heightPerMinute, isToday) => LinesPainter(
@@ -496,11 +564,13 @@ class _PlannerCalendar extends StatelessWidget {
             quarterStrokeWidth: 0.12,
           ),
           dayEventBuilder: (event, height, width, _) =>
-              _CalendarBody.buildPlannerEvent(context, event, height, width),
+              _CalendarBody.buildPlannerEvent(
+                  context, event, height, width),
         ),
         timesIndicatorsParam: TimesIndicatorsParam(
           timesIndicatorsWidth: timesWidth,
-          timesIndicatorsCustomPainter: (heightPerMinute) => HoursPainter(
+          timesIndicatorsCustomPainter: (heightPerMinute) =>
+              HoursPainter(
             heightPerMinute: heightPerMinute,
             showCurrentHour: true,
             hourColor: isDark
@@ -526,11 +596,11 @@ class _PlannerCalendar extends StatelessWidget {
 class _MonthCalendar extends StatelessWidget {
   const _MonthCalendar({
     super.key,
-    required this.controller,
+    required this.eventsController,
     required this.focused,
   });
 
-  final CalendarController controller;
+  final EventsController eventsController;
   final DateTime focused;
 
   @override
@@ -540,11 +610,13 @@ class _MonthCalendar extends StatelessWidget {
     return ClipRRect(
       borderRadius: DdtTheme.radius,
       child: EventsMonths(
-        controller: controller.eventsController,
+        controller: eventsController,
         initialMonth: DateTime(focused.year, focused.month),
-        onMonthChange: controller.onVisibleMonthChanged,
+        onMonthChange: (date) => context
+            .read<CalendarBloc>()
+            .add(CalendarVisibleMonthChanged(date)),
         weekParam: WeekParam(
-          startOfWeekDay: CalendarController.startOfWeekDay,
+          startOfWeekDay: CalendarState.startOfWeekDay,
           headerHeight: 36,
           weekHeight: 108,
           headerDayText: (dayOfMonth) {
