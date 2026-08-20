@@ -89,7 +89,7 @@ backup_file="$backup_dir/ddt-$timestamp.sql.gz"
 
 "${compose[@]}" exec -T backend python -c \
   "import urllib.request; urllib.request.urlopen('http://localhost:3000/api/health', timeout=10)"
-"${compose[@]}" exec -T frontend wget -qO- http://localhost/api/health >/dev/null
+"${compose[@]}" exec -T frontend wget -qO- http://127.0.0.1/api/health >/dev/null
 
 ln -sfn "$release_dir" "$current_link"
 find "$backup_dir" -type f -name 'ddt-*.sql.gz' -mtime +14 -delete
