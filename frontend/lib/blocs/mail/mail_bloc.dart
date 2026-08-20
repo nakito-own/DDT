@@ -9,9 +9,8 @@ part 'mail_event.dart';
 part 'mail_state.dart';
 
 class MailBloc extends Bloc<MailEvent, MailState> {
-  MailBloc({EwsApi? api})
-      : _api = api ?? ewsApi,
-        super(const MailState()) {
+  MailBloc({EwsApi? api}) : _api = api ?? ewsApi, super(const MailState()) {
+    on<MailSessionCleared>(_onSessionCleared);
     on<MailInboxLoadRequested>(_onInboxLoadRequested);
     on<MailInboxRefreshRequested>(_onInboxRefreshRequested);
     on<MailInboxLoadMoreRequested>(_onInboxLoadMoreRequested);
@@ -31,6 +30,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
 
   final EwsApi _api;
   int _inboxRequestGeneration = 0;
+  int _sessionGeneration = 0;
+
+  void _onSessionCleared(MailSessionCleared event, Emitter<MailState> emit) {
+    _inboxRequestGeneration++;
+    _sessionGeneration++;
+    emit(const MailState());
+  }
 
   // ─── Inbox loading ────────────────────────────────────────────────────────
 
@@ -67,10 +73,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       return;
     }
 
-    emit(state.copyWith(
-      isLoadingMore: true,
-      loadMoreErrorMessage: () => null,
-    ));
+    emit(state.copyWith(isLoadingMore: true, loadMoreErrorMessage: () => null));
+    final generation = ++_inboxRequestGeneration;
 
     try {
       final batch = await _api.fetchInbox(
@@ -80,19 +84,25 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         sort: state.sort,
         folderId: state.selectedFolderId,
       );
+      if (generation != _inboxRequestGeneration) return;
 
-      emit(state.copyWith(
-        isLoadingMore: false,
-        messages: [...state.messages, ...batch],
-        hasMoreMessages: batch.length >= _pageSize,
-        loadMoreErrorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          messages: [...state.messages, ...batch],
+          hasMoreMessages: batch.length >= _pageSize,
+          loadMoreErrorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isLoadingMore: false,
-        loadMoreErrorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (generation != _inboxRequestGeneration) return;
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          loadMoreErrorMessage: () =>
+              error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -103,8 +113,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     final nextFilter = event.filter ?? state.filter;
     final nextSort = event.sort ?? state.sort;
     final nextFolderId = event.folderId ?? state.selectedFolderId;
-    final showAnimation =
-        nextFilter != state.filter || nextSort != state.sort;
+    final showAnimation = nextFilter != state.filter || nextSort != state.sort;
 
     if (nextFilter == state.filter &&
         nextSort == state.sort &&
@@ -112,15 +121,17 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       return;
     }
 
-    emit(state.copyWith(
-      filter: nextFilter,
-      sort: nextSort,
-      selectedFolderId: () => nextFolderId,
-      inboxQueryErrorMessage: () => null,
-      // Clear selection when switching query
-      selectedMessageIds: const {},
-      isSelectionModeActive: false,
-    ));
+    emit(
+      state.copyWith(
+        filter: nextFilter,
+        sort: nextSort,
+        selectedFolderId: () => nextFolderId,
+        inboxQueryErrorMessage: () => null,
+        // Clear selection when switching query
+        selectedMessageIds: const {},
+        isSelectionModeActive: false,
+      ),
+    );
 
     await _reloadInbox(emit, showAnimation: showAnimation);
   }
@@ -137,11 +148,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     final previousSelected = state.selectedMessage;
 
     if (showAnimation) {
-      emit(state.copyWith(
-        isRefreshingInbox: true,
-        inboxQueryErrorMessage: () => null,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isRefreshingInbox: true,
+          inboxQueryErrorMessage: () => null,
+          errorMessage: () => null,
+        ),
+      );
     }
 
     try {
@@ -173,43 +186,50 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       final messagesChanged =
           !background || _hasMessagesChanged(state.messages, mergedMessages);
 
-      final messagesForSelection =
-          messagesChanged ? mergedMessages : state.messages;
+      final messagesForSelection = messagesChanged
+          ? mergedMessages
+          : state.messages;
       final updatedSelected = _resolveSelectedMessage(
         previousSelected,
         messagesForSelection,
         folderId,
       );
 
-      emit(state.copyWith(
-        isLoading: false,
-        isRefreshingInbox: false,
-        folders: folders != null ? () => folders : null,
-        selectedFolderId: () => folderId,
-        messages: messagesChanged ? mergedMessages : null,
-        hasMoreMessages: freshMessages.length >= _pageSize,
-        loadMoreErrorMessage: () => null,
-        selectedMessage: () => updatedSelected,
-        errorMessage: () => null,
-        inboxQueryErrorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          isRefreshingInbox: false,
+          folders: folders != null ? () => folders : null,
+          selectedFolderId: () => folderId,
+          messages: messagesChanged ? mergedMessages : null,
+          hasMoreMessages: freshMessages.length >= _pageSize,
+          loadMoreErrorMessage: () => null,
+          selectedMessage: () => updatedSelected,
+          errorMessage: () => null,
+          inboxQueryErrorMessage: () => null,
+        ),
+      );
     } catch (error) {
       if (generation != _inboxRequestGeneration) return;
 
       final message = error.toString().replaceFirst('Exception: ', '');
       if (background) {
-        emit(state.copyWith(
-          isRefreshingInbox: false,
-          inboxQueryErrorMessage: () => message,
-        ));
+        emit(
+          state.copyWith(
+            isRefreshingInbox: false,
+            inboxQueryErrorMessage: () => message,
+          ),
+        );
         return;
       }
 
-      emit(state.copyWith(
-        isLoading: false,
-        isRefreshingInbox: false,
-        errorMessage: () => message,
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          isRefreshingInbox: false,
+          errorMessage: () => message,
+        ),
+      );
     }
   }
 
@@ -219,6 +239,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailMessageSelected event,
     Emitter<MailState> emit,
   ) async {
+    final sessionGeneration = _sessionGeneration;
     final tapped = event.message;
     final cached = _findMessageById(state.messages, tapped.id) ?? tapped;
     final wasUnread = !cached.isRead;
@@ -238,12 +259,14 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     final needsBody = selected.body == null || selected.body!.isEmpty;
     final needsAttachments =
         (selected.hasAttachments || selected.attachments.isNotEmpty) &&
-            selected.attachments.isEmpty;
+        selected.attachments.isEmpty;
     final needsDetail = !selected.detailLoaded || needsBody || needsAttachments;
-    emit(state.copyWith(
-      selectedMessage: () => selected,
-      messages: updatedMessages,
-    ));
+    emit(
+      state.copyWith(
+        selectedMessage: () => selected,
+        messages: updatedMessages,
+      ),
+    );
 
     if (!needsDetail) {
       if (wasUnread) {
@@ -261,20 +284,25 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         markRead: wasUnread,
         folderId: cached.folderId,
       );
+      if (sessionGeneration != _sessionGeneration) return;
       final merged = _mergeDetail(updatedMessages, detail);
       final updatedSelected = merged.firstWhere((m) => m.id == detail.id);
-      emit(state.copyWith(
-        isLoadingDetail: false,
-        selectedMessage: () => updatedSelected,
-        messages: merged,
-        errorMessage: () => null,
-      ));
+      emit(
+        state.copyWith(
+          isLoadingDetail: false,
+          selectedMessage: () => updatedSelected,
+          messages: merged,
+          errorMessage: () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isLoadingDetail: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          isLoadingDetail: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -282,6 +310,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailMessageSendRequested event,
     Emitter<MailState> emit,
   ) async {
+    final sessionGeneration = _sessionGeneration;
     emit(state.copyWith(isSending: true, errorMessage: () => null));
     try {
       await _api.sendMail(
@@ -290,14 +319,18 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         subject: event.subject,
         body: event.body,
       );
+      if (sessionGeneration != _sessionGeneration) return;
       await _reloadInbox(emit, showAnimation: false);
+      if (sessionGeneration != _sessionGeneration) return;
       emit(state.copyWith(isSending: false));
     } catch (error) {
-      emit(state.copyWith(
-        isSending: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          isSending: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -307,10 +340,12 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailSelectionModeEntered event,
     Emitter<MailState> emit,
   ) {
-    emit(state.copyWith(
-      isSelectionModeActive: true,
-      archiveErrorMessage: () => null,
-    ));
+    emit(
+      state.copyWith(
+        isSelectionModeActive: true,
+        archiveErrorMessage: () => null,
+      ),
+    );
   }
 
   void _onSelectionToggled(
@@ -323,21 +358,22 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     } else {
       ids.add(event.messageId);
     }
-    emit(state.copyWith(
-      selectedMessageIds: ids,
-      archiveErrorMessage: () => null,
-    ));
+    emit(
+      state.copyWith(selectedMessageIds: ids, archiveErrorMessage: () => null),
+    );
   }
 
   void _onSelectionCleared(
     MailSelectionCleared event,
     Emitter<MailState> emit,
   ) {
-    emit(state.copyWith(
-      selectedMessageIds: const {},
-      isSelectionModeActive: false,
-      archiveErrorMessage: () => null,
-    ));
+    emit(
+      state.copyWith(
+        selectedMessageIds: const {},
+        isSelectionModeActive: false,
+        archiveErrorMessage: () => null,
+      ),
+    );
   }
 
   void _onSelectAllRequested(
@@ -361,17 +397,14 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       return m;
     }).toList();
 
-    emit(state.copyWith(
-      messages: updatedMessages,
-      selectedMessageIds: const {},
-    ));
+    emit(
+      state.copyWith(messages: updatedMessages, selectedMessageIds: const {}),
+    );
 
     // Fire-and-forget: mark read on server
     final folderId = state.selectedFolderId;
     for (final id in ids) {
-      _api
-          .markMessageRead(id, folderId: folderId)
-          .catchError((_) => null);
+      _api.markMessageRead(id, folderId: folderId).catchError((_) => null);
     }
   }
 
@@ -382,17 +415,16 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     Emitter<MailState> emit,
   ) async {
     if (event.messageIds.isEmpty) return;
+    final sessionGeneration = _sessionGeneration;
 
-    emit(state.copyWith(
-      isArchiving: true,
-      archiveErrorMessage: () => null,
-    ));
+    emit(state.copyWith(isArchiving: true, archiveErrorMessage: () => null));
 
     try {
       final result = await _api.archiveMessages(
         event.messageIds,
         folderId: event.folderId,
       );
+      if (sessionGeneration != _sessionGeneration) return;
 
       final archivedSet = result.archivedIds.toSet();
 
@@ -416,19 +448,24 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         errorMsg = 'Не удалось переместить $n ${_pluralMail(n)}';
       }
 
-      emit(state.copyWith(
-        isArchiving: false,
-        messages: updatedMessages,
-        selectedMessage: () => updatedSelected,
-        selectedMessageIds: updatedSelection,
-        archiveErrorMessage: errorMsg != null ? () => errorMsg : () => null,
-      ));
+      emit(
+        state.copyWith(
+          isArchiving: false,
+          messages: updatedMessages,
+          selectedMessage: () => updatedSelected,
+          selectedMessageIds: updatedSelection,
+          archiveErrorMessage: errorMsg != null ? () => errorMsg : () => null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isArchiving: false,
-        archiveErrorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          isArchiving: false,
+          archiveErrorMessage: () =>
+              error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -438,6 +475,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailAttachmentDownloadRequested event,
     Emitter<MailState> emit,
   ) async {
+    final sessionGeneration = _sessionGeneration;
     emit(state.copyWith(downloadErrorMessage: () => null));
     try {
       await _api.downloadAttachment(
@@ -448,10 +486,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         folderId: event.folderId,
       );
     } catch (error) {
-      emit(state.copyWith(
-        downloadErrorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      if (sessionGeneration != _sessionGeneration) return;
+      emit(
+        state.copyWith(
+          downloadErrorMessage: () =>
+              error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 
@@ -497,8 +538,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       return null;
     }
 
-    final index =
-        messages.indexWhere((item) => item.id == previousSelected.id);
+    final index = messages.indexWhere((item) => item.id == previousSelected.id);
     if (index >= 0) {
       return _mergeMessageDetails(messages[index], previousSelected);
     }
@@ -514,7 +554,9 @@ class MailBloc extends Bloc<MailEvent, MailState> {
   }
 
   List<MailMessage> _mergeDetail(
-      List<MailMessage> messages, MailMessage detail) {
+    List<MailMessage> messages,
+    MailMessage detail,
+  ) {
     return messages.map((m) {
       if (m.id != detail.id) return m;
       return m.copyWith(
@@ -538,16 +580,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
   ) {
     if (current.isEmpty) return fresh;
 
-    final currentMap = <String, MailMessage>{
-      for (final m in current) m.id: m,
-    };
+    final currentMap = <String, MailMessage>{for (final m in current) m.id: m};
 
     return fresh.map((freshMsg) {
       final existing = currentMap[freshMsg.id];
       if (existing == null) return freshMsg;
 
-      final hasCachedBody =
-          existing.body != null && existing.body!.isNotEmpty;
+      final hasCachedBody = existing.body != null && existing.body!.isNotEmpty;
       if (!hasCachedBody) return freshMsg;
 
       return freshMsg.copyWith(

@@ -152,10 +152,12 @@ class EwsApi {
 
   Future<void> markMessageRead(String messageId, {String? folderId}) async {
     final encodedId = Uri.encodeComponent(messageId);
-    final response = await _client.post('/api/ews/mail/messages/$encodedId/read',
-        query: {
-          if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-        });
+    final response = await _client.post(
+      '/api/ews/mail/messages/$encodedId/read',
+      query: {
+        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
+      },
+    );
     _ensureSuccess(response);
   }
 
@@ -167,12 +169,7 @@ class EwsApi {
   }) async {
     final response = await _client.post(
       '/api/ews/mail/send',
-      body: {
-        'to': to,
-        'cc': cc,
-        'subject': subject,
-        'body': body,
-      },
+      body: {'to': to, 'cc': cc, 'subject': subject, 'body': body},
     );
     _ensureSuccess(response);
   }
@@ -227,7 +224,10 @@ class EwsApi {
       query['end'] = end.toUtc().toIso8601String();
     }
 
-    final response = await _client.get('/api/ews/calendar/events', query: query);
+    final response = await _client.get(
+      '/api/ews/calendar/events',
+      query: query,
+    );
     _ensureSuccess(response);
     return ApiClient.decodeList(response).map(CalendarEvent.fromJson).toList();
   }
@@ -260,9 +260,7 @@ class EwsApi {
     final encodedId = Uri.encodeComponent(eventId);
     final response = await _client.post(
       '/api/ews/calendar/events/$encodedId/response',
-      body: {
-        'response': action.apiValue,
-      },
+      body: {'response': action.apiValue},
     );
     _ensureSuccess(response);
     return CalendarEvent.fromJson(ApiClient.decodeMap(response));
@@ -274,10 +272,7 @@ class EwsApi {
   }) async {
     final response = await _client.get(
       '/api/ews/contacts',
-      query: {
-        'limit': '$limit',
-        if (search.isNotEmpty) 'search': search,
-      },
+      query: {'limit': '$limit', if (search.isNotEmpty) 'search': search},
     );
     _ensureSuccess(response);
     return ApiClient.decodeList(response).map(Contact.fromJson).toList();

@@ -5,7 +5,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'api_client.dart';
 
-typedef NotificationMessageHandler = void Function(Map<String, dynamic> message);
+typedef NotificationMessageHandler =
+    void Function(Map<String, dynamic> message);
 typedef NotificationDisconnectHandler = void Function();
 
 class NotificationWsClient {

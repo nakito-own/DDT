@@ -22,14 +22,12 @@ from app.routers import (
 )
 from app.services.ews_notification_service import ews_notification_service
 from app.services.notification_hub import notification_hub
-from app.services.schema_service import ensure_space_schema
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    ensure_space_schema()
     notification_hub.set_loop(asyncio.get_running_loop())
     yield
     ews_notification_service.shutdown_all()

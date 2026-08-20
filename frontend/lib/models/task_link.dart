@@ -1,9 +1,5 @@
 class TaskLink {
-  TaskLink({
-    required this.id,
-    required this.url,
-    this.title,
-  });
+  TaskLink({required this.id, required this.url, this.title});
 
   final int id;
   final String url;
@@ -18,10 +14,6 @@ class TaskLink {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'url': url,
-      if (title != null) 'title': title,
-    };
+    return {'id': id, 'url': url, if (title != null) 'title': title};
   }
 }

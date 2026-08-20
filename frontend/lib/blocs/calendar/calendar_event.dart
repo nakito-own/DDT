@@ -7,6 +7,11 @@ sealed class CalendarBlocEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+/// Очистить персональные данные календаря при завершении сессии.
+final class CalendarSessionCleared extends CalendarBlocEvent {
+  const CalendarSessionCleared();
+}
+
 /// Загрузить события при открытии раздела.
 final class CalendarEventsLoadRequested extends CalendarBlocEvent {
   const CalendarEventsLoadRequested();

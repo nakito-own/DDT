@@ -29,14 +29,14 @@ class CalendarEvent {
   bool get isOrganizer => myResponseType == 'Organizer';
 
   String get responseLabel => switch (myResponseType) {
-        'Accept' => 'Принято',
-        'Decline' => 'Отклонено',
-        'Tentative' => 'Предварительно',
-        'Organizer' => 'Организатор',
-        'NoResponseReceived' => 'Ожидает ответа',
-        'Unknown' => 'Неизвестно',
-        _ => '—',
-      };
+    'Accept' => 'Принято',
+    'Decline' => 'Отклонено',
+    'Tentative' => 'Предварительно',
+    'Organizer' => 'Организатор',
+    'NoResponseReceived' => 'Ожидает ответа',
+    'Unknown' => 'Неизвестно',
+    _ => '—',
+  };
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
     return CalendarEvent(

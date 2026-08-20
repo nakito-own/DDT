@@ -78,7 +78,8 @@ class _DdtSegmentedControlItem<T> extends StatefulWidget {
       _DdtSegmentedControlItemState<T>();
 }
 
-class _DdtSegmentedControlItemState<T> extends State<_DdtSegmentedControlItem<T>> {
+class _DdtSegmentedControlItemState<T>
+    extends State<_DdtSegmentedControlItem<T>> {
   bool _hovered = false;
 
   @override
@@ -90,16 +91,16 @@ class _DdtSegmentedControlItemState<T> extends State<_DdtSegmentedControlItem<T>
     final foregroundColor = isSelected
         ? AppColors.primary.withValues(alpha: 0.95)
         : (_hovered
-            ? (isDark
-                ? Colors.white.withValues(alpha: 0.82)
-                : DdtTheme.lightTextPrimary)
-            : textSecondary);
+              ? (isDark
+                    ? Colors.white.withValues(alpha: 0.82)
+                    : DdtTheme.lightTextPrimary)
+              : textSecondary);
 
     final backgroundColor = isSelected
         ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
         : (_hovered
-            ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.06)
-            : Colors.transparent);
+              ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.06)
+              : Colors.transparent);
 
     final borderColor = isSelected
         ? AppColors.primary.withValues(alpha: isDark ? 0.45 : 0.32)
@@ -121,18 +122,16 @@ class _DdtSegmentedControlItemState<T> extends State<_DdtSegmentedControlItem<T>
           ),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(DdtSegmentedControl._segmentRadius.r),
+            borderRadius: BorderRadius.circular(
+              DdtSegmentedControl._segmentRadius.r,
+            ),
             border: Border.all(color: borderColor),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.segment.icon != null) ...[
-                Icon(
-                  widget.segment.icon,
-                  size: 14.sp,
-                  color: foregroundColor,
-                ),
+                Icon(widget.segment.icon, size: 14.sp, color: foregroundColor),
                 SizedBox(width: 5.w),
               ],
               Text(

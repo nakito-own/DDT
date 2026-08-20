@@ -59,8 +59,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   }
 
   void _goToToday() {
-    _ganttController.startDate =
-        DateTime.now().subtract(const Duration(days: 3));
+    _ganttController.startDate = DateTime.now().subtract(
+      const Duration(days: 3),
+    );
     _ganttController.update();
   }
 
@@ -90,9 +91,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
 
     if (updated == null || !mounted) return;
 
-    context
-        .read<TasksBloc>()
-        .add(TaskUpdateRequested(original: task, updated: updated));
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
+    );
     _ganttController.update();
   }
 
@@ -112,9 +113,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
       updated = updated.copyWith(timeEnd: end);
     }
 
-    context
-        .read<TasksBloc>()
-        .add(TaskUpdateRequested(original: task, updated: updated));
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
+    );
     _ganttController.update();
   }
 
@@ -178,17 +179,15 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
           child: Text(
             '$zoomPercent%',
             textAlign: TextAlign.center,
-            style: DdtTheme.style(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-            ),
+            style: DdtTheme.style(fontSize: 12.sp, fontWeight: FontWeight.w600),
           ),
         ),
         _GanttToolbarButton(
           tooltip: 'Приблизить',
           icon: CupertinoIcons.plus,
-          onPressed:
-              _zoom < _maxZoom ? () => _setZoom(_zoom + _zoomStep) : null,
+          onPressed: _zoom < _maxZoom
+              ? () => _setZoom(_zoom + _zoomStep)
+              : null,
         ),
         SizedBox(width: 12.w),
         Expanded(
@@ -221,7 +220,12 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   Widget build(BuildContext context) {
     return BlocBuilder<TasksBloc, TasksState>(
       buildWhen: (previous, current) =>
-          previous.filteredTasks != current.filteredTasks,
+          previous.columns != current.columns ||
+          previous.searchQuery != current.searchQuery ||
+          previous.statusFilters != current.statusFilters ||
+          previous.priorityFilter != current.priorityFilter ||
+          previous.typeFilter != current.typeFilter ||
+          previous.sortOption != current.sortOption,
       builder: (context, state) {
         final activities = _buildActivities(state.filteredTasks);
 
@@ -301,14 +305,14 @@ class _GanttToolbarButton extends StatelessWidget {
                   ? Colors.white.withValues(alpha: enabled ? 0.06 : 0.03)
                   : AppColors.primary.withValues(alpha: enabled ? 0.06 : 0.03),
               border: Border.all(
-                color: DdtTheme.glassBorderColor(
-                  Theme.of(context).brightness,
-                ).withValues(
-                  alpha: DdtTheme.glassBorderOpacity(
-                        Theme.of(context).brightness,
-                      ) *
-                      0.45,
-                ),
+                color: DdtTheme.glassBorderColor(Theme.of(context).brightness)
+                    .withValues(
+                      alpha:
+                          DdtTheme.glassBorderOpacity(
+                            Theme.of(context).brightness,
+                          ) *
+                          0.45,
+                    ),
               ),
             ),
             child: Icon(icon, size: 16.sp, color: color),

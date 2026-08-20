@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:go_router/go_router.dart';
 
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/calendar/calendar_bloc.dart';
@@ -18,6 +17,7 @@ import 'services/session_token_storage.dart';
 import 'theme/ddt_theme.dart';
 import 'utils/browser_page_zoom.dart';
 import 'utils/ddt_date_time_picker.dart';
+import 'utils/ddt_toast.dart';
 
 const _themeStorageBox = 'ddt_storage';
 
@@ -48,19 +48,19 @@ class _DdtAppState extends State<DdtApp> {
   // (для доступа из виджетного дерева). Это исключает рассинхронизацию
   // состояния между роутером и UI.
   late final AuthBloc _authBloc;
-  late final GoRouterHolder _routerHolder;
+  late final AppRouter _appRouter;
 
   @override
   void initState() {
     super.initState();
     _authBloc = AuthBloc()..add(const AuthSessionRestoreRequested());
-    _routerHolder = GoRouterHolder(createAppRouter(_authBloc));
+    _appRouter = createAppRouter(_authBloc);
   }
 
   @override
   void dispose() {
+    _appRouter.dispose();
     _authBloc.close();
-    _routerHolder.router.dispose();
     super.dispose();
   }
 
@@ -79,15 +79,17 @@ class _DdtAppState extends State<DdtApp> {
         BlocProvider.value(value: _authBloc),
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
-        BlocProvider(
-          create: (_) =>
-              CalendarBloc()..add(const CalendarEventsLoadRequested()),
-        ),
+        BlocProvider(create: (_) => CalendarBloc()),
       ],
       child: MultiBlocListener(
         listeners: [
-          // Auth → Notifications
+          // Auth управляет временем жизни персональных данных и подключений.
           BlocListener<AuthBloc, AuthState>(
+            listenWhen: (previous, current) =>
+                (current is AuthAuthenticated &&
+                    previous is! AuthAuthenticated) ||
+                (current is AuthUnauthenticated &&
+                    previous is! AuthUnauthenticated),
             listener: (context, authState) {
               final notif = context.read<NotificationsBloc>();
               if (authState is AuthAuthenticated) {
@@ -99,23 +101,20 @@ class _DdtAppState extends State<DdtApp> {
               } else if (authState is AuthUnauthenticated) {
                 notif.add(const NotificationsDisconnectRequested());
                 notif.add(const NotificationsClearAllRequested());
-              }
-            },
-          ),
-          // При выходе очищаем только персональный TasksBloc. Загрузка
-          // выполняется TasksShellPage при входе в раздел, чтобы не запускать
-          // два параллельных запроса и не затрагивать bloc пространства.
-          BlocListener<AuthBloc, AuthState>(
-            listener: (context, authState) {
-              if (authState is AuthUnauthenticated) {
                 context.read<TasksBloc>().add(const TasksBoardCleared());
+                context.read<MailBloc>().add(const MailSessionCleared());
+                context.read<CalendarBloc>().add(
+                  const CalendarSessionCleared(),
+                );
               }
             },
           ),
           // Notifications → Mail / Calendar
           BlocListener<NotificationsBloc, NotificationsState>(
             listenWhen: (previous, current) =>
-                previous.items.length != current.items.length,
+                current.items.isNotEmpty &&
+                (previous.items.isEmpty ||
+                    previous.items.first.id != current.items.first.id),
             listener: (context, notifState) {
               if (notifState.items.isEmpty) return;
               final latest = notifState.items.first;
@@ -147,7 +146,8 @@ class _DdtAppState extends State<DdtApp> {
             child: BlocBuilder<ThemeBloc, ThemeState>(
               buildWhen: (previous, current) => previous.mode != current.mode,
               builder: (context, themeState) => MaterialApp.router(
-                routerConfig: _routerHolder.router,
+                routerConfig: _appRouter.router,
+                scaffoldMessengerKey: rootScaffoldMessengerKey,
                 title: 'DDT',
                 locale: ddtPickerLocale,
                 supportedLocales: const [ddtPickerLocale],
@@ -178,10 +178,4 @@ class _DdtAppState extends State<DdtApp> {
       ),
     );
   }
-}
-
-/// Простой контейнер для [GoRouter], чтобы явно управлять его временем жизни.
-class GoRouterHolder {
-  const GoRouterHolder(this.router);
-  final GoRouter router;
 }

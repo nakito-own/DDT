@@ -6,11 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
 
 class MailHtmlRenderer extends StatefulWidget {
-  const MailHtmlRenderer({
-    super.key,
-    required this.viewId,
-    required this.html,
-  });
+  const MailHtmlRenderer({super.key, required this.viewId, required this.html});
 
   final String viewId;
   final String html;

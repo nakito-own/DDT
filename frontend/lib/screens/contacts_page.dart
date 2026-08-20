@@ -41,7 +41,8 @@ class _ContactsPageState extends State<ContactsPage> {
               decoration: DdtTheme.inputDecoration(
                 hintText: 'Поиск контактов',
               ).copyWith(prefixIcon: const Icon(Icons.search)),
-              onChanged: (value) => _bloc.add(ContactsSearchQueryChanged(value)),
+              onChanged: (value) =>
+                  _bloc.add(ContactsSearchQueryChanged(value)),
             ),
           ),
           Expanded(
@@ -132,10 +133,7 @@ class ContactListItem extends StatelessWidget {
           if (contact.emails.isNotEmpty) ...[
             SizedBox(height: 6.h),
             ...contact.emails.map(
-              (email) => Text(
-                email,
-                style: DdtTheme.style(fontSize: 13.sp),
-              ),
+              (email) => Text(email, style: DdtTheme.style(fontSize: 13.sp)),
             ),
           ],
           if (contact.phones.isNotEmpty) ...[

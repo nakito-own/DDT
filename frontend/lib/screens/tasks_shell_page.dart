@@ -65,9 +65,9 @@ class _TasksShellPageState extends State<TasksShellPage> {
                   SizedBox(height: 16.h),
                   Button(
                     text: 'Повторить',
-                    onPressed: () => context
-                        .read<TasksBloc>()
-                        .add(const TasksBoardLoadRequested()),
+                    onPressed: () => context.read<TasksBloc>().add(
+                      const TasksBoardLoadRequested(),
+                    ),
                     borderRadius: DdtTheme.radius,
                   ),
                 ],

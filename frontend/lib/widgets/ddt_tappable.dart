@@ -59,9 +59,7 @@ class _DdtTappableState extends State<DdtTappable> {
       );
     }
 
-    return AppColors.primary.withValues(
-      alpha: isDark ? 0.12 : 0.08,
-    );
+    return AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08);
   }
 
   @override

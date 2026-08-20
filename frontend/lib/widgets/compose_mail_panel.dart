@@ -8,10 +8,7 @@ import '../theme/ddt_theme.dart';
 import 'ddt_side_panel.dart';
 
 Future<bool?> showComposeMailPanel(BuildContext context) {
-  return showDdtSidePanel<bool>(
-    context,
-    child: const ComposeMailPanel(),
-  );
+  return showDdtSidePanel<bool>(context, child: const ComposeMailPanel());
 }
 
 class ComposeMailPanel extends StatefulWidget {
@@ -50,18 +47,20 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
       return;
     }
 
-    context.read<MailBloc>().add(MailMessageSendRequested(
-          to: _parseEmails(_toController.text),
-          cc: _parseEmails(_ccController.text),
-          subject: _subjectController.text.trim(),
-          body: _bodyController.text.trim(),
-        ));
+    context.read<MailBloc>().add(
+      MailMessageSendRequested(
+        to: _parseEmails(_toController.text),
+        cc: _parseEmails(_ccController.text),
+        subject: _subjectController.text.trim(),
+        body: _bodyController.text.trim(),
+      ),
+    );
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Письмо отправляется...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Письмо отправляется...')));
   }
 
   @override
@@ -133,13 +132,11 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
                 ),
                 minLines: 8,
                 maxLines: 16,
-                validator: (value) =>
-                    value == null || value.trim().isEmpty
-                        ? 'Введите текст письма'
-                        : null,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Введите текст письма'
+                    : null,
               ),
-              if (state.errorMessage != null &&
-                  state.errorMessage!.isNotEmpty)
+              if (state.errorMessage != null && state.errorMessage!.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.only(top: 12.h),
                   child: Text(

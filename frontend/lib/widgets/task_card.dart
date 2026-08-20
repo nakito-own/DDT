@@ -112,18 +112,12 @@ class TaskCard extends StatelessWidget {
 
     if (!isDragging) return card;
 
-    return _TaskCardEdgeGlow(
-      borderRadius: DdtTheme.radius,
-      child: card,
-    );
+    return _TaskCardEdgeGlow(borderRadius: DdtTheme.radius, child: card);
   }
 }
 
 class _TaskCardEdgeGlow extends StatelessWidget {
-  const _TaskCardEdgeGlow({
-    required this.borderRadius,
-    required this.child,
-  });
+  const _TaskCardEdgeGlow({required this.borderRadius, required this.child});
 
   final BorderRadius borderRadius;
   final Widget child;
@@ -247,11 +241,7 @@ class _TaskCardMeta extends StatelessWidget {
 }
 
 class _MetaItem extends StatelessWidget {
-  const _MetaItem({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
+  const _MetaItem({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;

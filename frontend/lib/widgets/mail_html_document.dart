@@ -79,11 +79,7 @@ class MailHtmlDocument {
     final headOpen = RegExp(r'<head[^>]*>', caseSensitive: false);
     final headMatch = headOpen.firstMatch(html);
     if (headMatch != null) {
-      return html.replaceRange(
-        headMatch.end,
-        headMatch.end,
-        headInjection,
-      );
+      return html.replaceRange(headMatch.end, headMatch.end, headInjection);
     }
 
     final headClose = RegExp(r'</head>', caseSensitive: false);
@@ -93,7 +89,10 @@ class MailHtmlDocument {
 
     final bodyOpen = RegExp(r'<body[^>]*>', caseSensitive: false);
     if (bodyOpen.hasMatch(html)) {
-      return html.replaceFirst(bodyOpen, '${bodyOpen.firstMatch(html)!.group(0)}$headInjection');
+      return html.replaceFirst(
+        bodyOpen,
+        '${bodyOpen.firstMatch(html)!.group(0)}$headInjection',
+      );
     }
 
     return _wrapFragment(html);

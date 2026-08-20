@@ -12,13 +12,30 @@ services:
       - "3308:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  migrate:
+    image: mysql:8.0
+    container_name: ddt-migrate
+    restart: "no"
+    entrypoint: ["/bin/bash", "/run-migrations.sh"]
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-ddt}
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+    volumes:
+      - ./database/migrations:/migrations:ro
+      - ./scripts/run-migrations.sh:/run-migrations.sh:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   backend:
     build:
@@ -42,11 +59,15 @@ services:
       EWS_CREDENTIALS_KEY: ${EWS_CREDENTIALS_KEY:-}
       EWS_SESSION_TTL_HOURS: ${EWS_SESSION_TTL_HOURS:-24}
       EWS_REMEMBER_TTL_DAYS: ${EWS_REMEMBER_TTL_DAYS:-30}
+      EWS_NOTIFICATION_MODE: ${EWS_NOTIFICATION_MODE:-pull}
+      EWS_NOTIFICATION_STREAM_TIMEOUT: ${EWS_NOTIFICATION_STREAM_TIMEOUT:-1}
+      EWS_NOTIFICATION_POLL_INTERVAL: ${EWS_NOTIFICATION_POLL_INTERVAL:-15}
+      EWS_NOTIFICATION_PULL_TIMEOUT: ${EWS_NOTIFICATION_PULL_TIMEOUT:-10}
     ports:
       - "3000:3000"
     depends_on:
-      mysql:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   frontend:
     build:

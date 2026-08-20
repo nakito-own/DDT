@@ -5,18 +5,18 @@ enum MailInboxFilter {
   mentions;
 
   String get apiValue => switch (this) {
-        MailInboxFilter.all => 'all',
-        MailInboxFilter.toMe => 'to_me',
-        MailInboxFilter.flagged => 'flagged',
-        MailInboxFilter.mentions => 'mentions',
-      };
+    MailInboxFilter.all => 'all',
+    MailInboxFilter.toMe => 'to_me',
+    MailInboxFilter.flagged => 'flagged',
+    MailInboxFilter.mentions => 'mentions',
+  };
 
   String get label => switch (this) {
-        MailInboxFilter.all => 'Все',
-        MailInboxFilter.toMe => 'Мне',
-        MailInboxFilter.flagged => 'Помеченные',
-        MailInboxFilter.mentions => 'Упоминания',
-      };
+    MailInboxFilter.all => 'Все',
+    MailInboxFilter.toMe => 'Мне',
+    MailInboxFilter.flagged => 'Помеченные',
+    MailInboxFilter.mentions => 'Упоминания',
+  };
 }
 
 enum MailInboxSort {
@@ -29,22 +29,22 @@ enum MailInboxSort {
   importance;
 
   String get apiValue => switch (this) {
-        MailInboxSort.dateAsc => 'date_asc',
-        MailInboxSort.dateDesc => 'date_desc',
-        MailInboxSort.fromAddress => 'from',
-        MailInboxSort.toAddress => 'to',
-        MailInboxSort.subject => 'subject',
-        MailInboxSort.attachments => 'attachments',
-        MailInboxSort.importance => 'importance',
-      };
+    MailInboxSort.dateAsc => 'date_asc',
+    MailInboxSort.dateDesc => 'date_desc',
+    MailInboxSort.fromAddress => 'from',
+    MailInboxSort.toAddress => 'to',
+    MailInboxSort.subject => 'subject',
+    MailInboxSort.attachments => 'attachments',
+    MailInboxSort.importance => 'importance',
+  };
 
   String get label => switch (this) {
-        MailInboxSort.dateAsc => 'Дата по возрастанию',
-        MailInboxSort.dateDesc => 'Дата по убыванию',
-        MailInboxSort.fromAddress => 'От',
-        MailInboxSort.toAddress => 'Кому',
-        MailInboxSort.subject => 'Тема',
-        MailInboxSort.attachments => 'Вложения',
-        MailInboxSort.importance => 'Важность',
-      };
+    MailInboxSort.dateAsc => 'Дата по возрастанию',
+    MailInboxSort.dateDesc => 'Дата по убыванию',
+    MailInboxSort.fromAddress => 'От',
+    MailInboxSort.toAddress => 'Кому',
+    MailInboxSort.subject => 'Тема',
+    MailInboxSort.attachments => 'Вложения',
+    MailInboxSort.importance => 'Важность',
+  };
 }
