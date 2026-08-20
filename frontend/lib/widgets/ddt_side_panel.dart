@@ -31,10 +31,7 @@ Future<T?> showDdtSidePanel<T>(
           child: SizedBox(
             width: width,
             height: height,
-            child: Material(
-              type: MaterialType.transparency,
-              child: child,
-            ),
+            child: Material(type: MaterialType.transparency, child: child),
           ),
         ),
       );
@@ -111,7 +108,12 @@ class DdtSidePanelShell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(DdtTheme.spacing.w, 14.h, 4.w, 14.h),
+                padding: EdgeInsets.fromLTRB(
+                  DdtTheme.spacing.w,
+                  14.h,
+                  4.w,
+                  14.h,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

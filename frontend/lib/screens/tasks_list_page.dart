@@ -8,6 +8,7 @@ import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 import '../widgets/tasks_filters_panel.dart';
@@ -72,14 +73,14 @@ class TasksListPage extends StatelessWidget {
     );
 
     context.read<TasksBloc>().add(TaskCreateRequested(draft));
-    Toast.show(message: 'Задача создаётся...', type: ToastType.info);
+    DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
   Future<void> _deleteTask(BuildContext context, Task task) async {
     context.read<TasksBloc>().add(
       TaskDeleteRequested(task: task, status: task.status),
     );
-    Toast.show(message: '«${task.title}» удалена', type: ToastType.success);
+    DdtToast.show(message: '«${task.title}» удалена', type: ToastType.success);
   }
 
   @override

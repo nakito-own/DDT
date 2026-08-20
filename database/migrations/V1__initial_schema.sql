@@ -1,0 +1,100 @@
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  display_name VARCHAR(255) NULL,
+  job_title VARCHAR(255) NULL,
+  department VARCHAR(255) NULL,
+  phone VARCHAR(50) NULL,
+  office_location VARCHAR(255) NULL,
+  ews_account_id INT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS task_types (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS spaces (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'todo',
+  type_id INT NULL,
+  description TEXT NOT NULL,
+  executor_id INT NULL,
+  author_id INT NULL,
+  responsible_id INT NULL,
+  owner_id INT NULL,
+  space_id INT NULL,
+  time_set DATETIME NOT NULL,
+  time_start DATETIME NULL,
+  time_end DATETIME NULL,
+  deadline DATETIME NULL,
+  priority ENUM('insignificant', 'low', 'medium', 'high', 'blocker') NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_tasks_type FOREIGN KEY (type_id) REFERENCES task_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tasks_executor FOREIGN KEY (executor_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tasks_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tasks_responsible FOREIGN KEY (responsible_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tasks_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tasks_space FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE,
+  INDEX idx_tasks_space_id (space_id)
+);
+
+CREATE TABLE IF NOT EXISTS task_links (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  url VARCHAR(2048) NOT NULL,
+  title VARCHAR(255) NULL,
+  CONSTRAINT fk_task_links_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  author_id INT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_task_comments_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_task_comments_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS ews_accounts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  username_encrypted VARBINARY(512) NOT NULL,
+  password_encrypted VARBINARY(512) NOT NULL,
+  ews_server VARCHAR(255) NOT NULL DEFAULT 'owa.mos.ru',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS app_sessions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  ews_account_id INT NOT NULL,
+  remember_me BOOLEAN NOT NULL DEFAULT FALSE,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_app_sessions_account
+    FOREIGN KEY (ews_account_id) REFERENCES ews_accounts(id) ON DELETE CASCADE
+);
+
+INSERT IGNORE INTO task_types (name) VALUES
+  ('Задача'),
+  ('Баг'),
+  ('Улучшение');
+
+INSERT INTO spaces (name) VALUES
+  ('TEST'),
+  ('KRRMR')
+ON DUPLICATE KEY UPDATE name = VALUES(name);

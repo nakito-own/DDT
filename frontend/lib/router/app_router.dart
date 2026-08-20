@@ -26,10 +26,10 @@ import 'route_paths.dart';
 /// [authBloc] должен быть тем же экземпляром, который предоставлен
 /// через [BlocProvider] в дереве виджетов. Это гарантирует, что redirect
 /// и виджеты читают одно и то же состояние.
-GoRouter createAppRouter(AuthBloc authBloc) {
+AppRouter createAppRouter(AuthBloc authBloc) {
   final notifier = _AuthRouterNotifier(authBloc);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: RoutePaths.tasksKanban,
     refreshListenable: notifier,
     redirect: (BuildContext context, GoRouterState state) {
@@ -247,6 +247,22 @@ GoRouter createAppRouter(AuthBloc authBloc) {
     // Обработка неизвестных маршрутов (404)
     errorBuilder: (context, state) => _NotFoundPage(error: state.error),
   );
+
+  return AppRouter(router: router, authNotifier: notifier);
+}
+
+/// Владеет роутером и его подпиской на AuthBloc.
+final class AppRouter {
+  const AppRouter({required this.router, required ChangeNotifier authNotifier})
+    : _authNotifier = authNotifier;
+
+  final GoRouter router;
+  final ChangeNotifier _authNotifier;
+
+  void dispose() {
+    router.dispose();
+    _authNotifier.dispose();
+  }
 }
 
 /// Страница с плавным fade-переходом.
@@ -283,11 +299,18 @@ CustomTransitionPage<void> _buildFadePage({
 /// Этот класс только предоставляет текущее значение [isAuthenticated].
 class _AuthRouterNotifier extends ChangeNotifier {
   _AuthRouterNotifier(AuthBloc authBloc) : _authBloc = authBloc {
-    _subscription = authBloc.stream.listen((_) => notifyListeners());
+    _wasAuthenticated = isAuthenticated;
+    _subscription = authBloc.stream.listen((_) {
+      final authenticated = isAuthenticated;
+      if (authenticated == _wasAuthenticated) return;
+      _wasAuthenticated = authenticated;
+      notifyListeners();
+    });
   }
 
   final AuthBloc _authBloc;
   late final StreamSubscription<AuthState> _subscription;
+  late bool _wasAuthenticated;
 
   bool get isAuthenticated => _authBloc.state is AuthAuthenticated;
 

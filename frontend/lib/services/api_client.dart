@@ -6,7 +6,7 @@ import 'session_token_storage.dart';
 
 const apiUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://localhost:3000',
+  defaultValue: '',
 );
 
 class ApiClient {
@@ -98,12 +98,12 @@ class ApiClient {
     return response;
   }
 
-  Future<http.Response> delete(
-    String path, {
-    bool auth = true,
-  }) async {
+  Future<http.Response> delete(String path, {bool auth = true}) async {
     final uri = Uri.parse('$apiUrl$path');
-    final response = await http.delete(uri, headers: await _headers(auth: auth));
+    final response = await http.delete(
+      uri,
+      headers: await _headers(auth: auth),
+    );
     if (auth) {
       _handleUnauthorized(response);
     }

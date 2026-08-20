@@ -7,6 +7,11 @@ sealed class MailEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+/// Очистить персональные данные почты при завершении сессии.
+final class MailSessionCleared extends MailEvent {
+  const MailSessionCleared();
+}
+
 /// Загрузить входящие при открытии почты.
 final class MailInboxLoadRequested extends MailEvent {
   const MailInboxLoadRequested({this.showAnimation = false});

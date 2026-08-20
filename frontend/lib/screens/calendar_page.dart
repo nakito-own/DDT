@@ -29,15 +29,12 @@ class _CalendarPageState extends State<CalendarPage> {
     super.initState();
     _eventsController = EventsController()
       ..onFocusedDayChange = (day) {
-        context
-            .read<CalendarBloc>()
-            .add(CalendarPlannerDayChanged(day));
+        context.read<CalendarBloc>().add(CalendarPlannerDayChanged(day));
       };
 
     final bloc = context.read<CalendarBloc>();
     // Синхронизируем уже загруженные события при открытии раздела.
     _syncPlannerEvents(bloc.state.events);
-    bloc.add(const CalendarEventsLoadRequested());
   }
 
   @override
@@ -91,8 +88,7 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _plannerInitialDate(DateTime date, CalendarViewMode mode) {
     return switch (mode) {
       CalendarViewMode.day => DateTime(date.year, date.month, date.day),
-      CalendarViewMode.week =>
-        CalendarState.startOfWeek(date),
+      CalendarViewMode.week => CalendarState.startOfWeek(date),
       CalendarViewMode.month => DateTime(date.year, date.month, date.day),
     };
   }
@@ -119,16 +115,16 @@ class _CalendarPageState extends State<CalendarPage> {
               if (state.errorMessage != null && state.events.isEmpty) {
                 return _ErrorState(
                   message: state.errorMessage!,
-                  onRetry: () => context
-                      .read<CalendarBloc>()
-                      .add(const CalendarEventsLoadRequested()),
+                  onRetry: () => context.read<CalendarBloc>().add(
+                    const CalendarEventsLoadRequested(),
+                  ),
                 );
               }
 
               return RefreshIndicator(
-                onRefresh: () async => context
-                    .read<CalendarBloc>()
-                    .add(const CalendarEventsRefreshRequested()),
+                onRefresh: () async => context.read<CalendarBloc>().add(
+                  const CalendarEventsRefreshRequested(),
+                ),
                 child: DdtTheme.glass(
                   context: context,
                   padding: EdgeInsets.all(16.w),
@@ -202,30 +198,25 @@ class _CalendarToolbar extends StatelessWidget {
     return Row(
       children: [
         OutlinedButton(
-          onPressed: () => context
-              .read<CalendarBloc>()
-              .add(const CalendarGoToTodayRequested()),
+          onPressed: () => context.read<CalendarBloc>().add(
+            const CalendarGoToTodayRequested(),
+          ),
           style: OutlinedButton.styleFrom(
             visualDensity: VisualDensity.compact,
-            padding:
-                EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           ),
-          child: Text(
-            'Сегодня',
-            style: DdtTheme.style(fontSize: 13.sp),
-          ),
+          child: Text('Сегодня', style: DdtTheme.style(fontSize: 13.sp)),
         ),
         _NavButton(
           icon: CupertinoIcons.chevron_left,
-          onPressed: () => context
-              .read<CalendarBloc>()
-              .add(const CalendarGoPreviousRequested()),
+          onPressed: () => context.read<CalendarBloc>().add(
+            const CalendarGoPreviousRequested(),
+          ),
         ),
         _NavButton(
           icon: CupertinoIcons.chevron_right,
-          onPressed: () => context
-              .read<CalendarBloc>()
-              .add(const CalendarGoNextRequested()),
+          onPressed: () =>
+              context.read<CalendarBloc>().add(const CalendarGoNextRequested()),
         ),
         SizedBox(width: 8.w),
         Text(
@@ -256,9 +247,8 @@ class _CalendarToolbar extends StatelessWidget {
             ),
           ],
           selected: state.viewMode,
-          onChanged: (mode) => context
-              .read<CalendarBloc>()
-              .add(CalendarViewModeChanged(mode)),
+          onChanged: (mode) =>
+              context.read<CalendarBloc>().add(CalendarViewModeChanged(mode)),
         ),
       ],
     );
@@ -307,7 +297,8 @@ class _CalendarBody extends StatelessWidget {
     final mode = state.viewMode;
     final focused = state.effectiveFocusedDate;
     final key = ValueKey(
-        '${mode.name}-${focused.year}-${focused.month}-${focused.day}');
+      '${mode.name}-${focused.year}-${focused.month}-${focused.day}',
+    );
 
     if (mode == CalendarViewMode.month) {
       return _MonthCalendar(
@@ -331,8 +322,7 @@ class _CalendarBody extends StatelessWidget {
     DateTime day,
     bool isToday,
   ) {
-    final weekdayLabel =
-        _weekDayFullLabels[(day.weekday - 1) % 7];
+    final weekdayLabel = _weekDayFullLabels[(day.weekday - 1) % 7];
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
 
@@ -481,8 +471,7 @@ class _PlannerCalendar extends StatelessWidget {
     const fullDayBarHeight = 24.0;
     const fullDayEventHeight = 18.0;
     final now = DateTime.now();
-    final initialScroll =
-        heightPerMinute * (now.hour * 60 + now.minute - 60);
+    final initialScroll = heightPerMinute * (now.hour * 60 + now.minute - 60);
 
     return ClipRRect(
       borderRadius: DdtTheme.radius,
@@ -491,18 +480,14 @@ class _PlannerCalendar extends StatelessWidget {
         initialDate: focused,
         daysShowed: daysShowed,
         heightPerMinute: heightPerMinute,
-        initialVerticalScrollOffset:
-            initialScroll.clamp(0, double.infinity),
+        initialVerticalScrollOffset: initialScroll.clamp(0, double.infinity),
         maxPreviousDays: 0,
         maxNextDays: maxNextDays,
-        horizontalScrollPhysics:
-            const NeverScrollableScrollPhysics(),
+        horizontalScrollPhysics: const NeverScrollableScrollPhysics(),
         automaticAdjustHorizontalScrollToDay: false,
-        pinchToZoomParam:
-            const PinchToZoomParameters(pinchToZoom: false),
-        onDayChange: (day) => context
-            .read<CalendarBloc>()
-            .add(CalendarPlannerDayChanged(day)),
+        pinchToZoomParam: const PinchToZoomParameters(pinchToZoom: false),
+        onDayChange: (day) =>
+            context.read<CalendarBloc>().add(CalendarPlannerDayChanged(day)),
         daysHeaderParam: DaysHeaderParam(
           daysHeaderHeight: headerHeight,
           daysHeaderColor: Colors.transparent,
@@ -515,11 +500,11 @@ class _PlannerCalendar extends StatelessWidget {
           fullDayEventHeight: fullDayEventHeight,
           fullDayEventBuilder: (event, width) =>
               _CalendarBody.buildFullDayEvent(
-            context,
-            event,
-            width,
-            fullDayEventHeight,
-          ),
+                context,
+                event,
+                width,
+                fullDayEventHeight,
+              ),
           fullDayEventsBuilder: (events, width) {
             return SizedBox(
               height: fullDayBarHeight,
@@ -528,12 +513,9 @@ class _PlannerCalendar extends StatelessWidget {
                   ? const SizedBox.shrink()
                   : ClipRect(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.stretch,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (var i = 0;
-                              i < events.length;
-                              i++) ...[
+                          for (var i = 0; i < events.length; i++) ...[
                             if (i > 0) const SizedBox(height: 2),
                             _CalendarBody.buildFullDayEvent(
                               context,
@@ -549,8 +531,7 @@ class _PlannerCalendar extends StatelessWidget {
           },
         ),
         dayParam: DayParam(
-          todayColor: AppColors.primary
-              .withValues(alpha: isDark ? 0.08 : 0.06),
+          todayColor: AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.06),
           dayTopPadding: 4,
           dayBottomPadding: 8,
           dayCustomPainter: (heightPerMinute, isToday) => LinesPainter(
@@ -564,13 +545,11 @@ class _PlannerCalendar extends StatelessWidget {
             quarterStrokeWidth: 0.12,
           ),
           dayEventBuilder: (event, height, width, _) =>
-              _CalendarBody.buildPlannerEvent(
-                  context, event, height, width),
+              _CalendarBody.buildPlannerEvent(context, event, height, width),
         ),
         timesIndicatorsParam: TimesIndicatorsParam(
           timesIndicatorsWidth: timesWidth,
-          timesIndicatorsCustomPainter: (heightPerMinute) =>
-              HoursPainter(
+          timesIndicatorsCustomPainter: (heightPerMinute) => HoursPainter(
             heightPerMinute: heightPerMinute,
             showCurrentHour: true,
             hourColor: isDark
@@ -612,9 +591,8 @@ class _MonthCalendar extends StatelessWidget {
       child: EventsMonths(
         controller: eventsController,
         initialMonth: DateTime(focused.year, focused.month),
-        onMonthChange: (date) => context
-            .read<CalendarBloc>()
-            .add(CalendarVisibleMonthChanged(date)),
+        onMonthChange: (date) =>
+            context.read<CalendarBloc>().add(CalendarVisibleMonthChanged(date)),
         weekParam: WeekParam(
           startOfWeekDay: CalendarState.startOfWeekDay,
           headerHeight: 36,
@@ -638,9 +616,7 @@ class _MonthCalendar extends StatelessWidget {
           dayEventBuilder: (event, width, height) =>
               _CalendarBody.buildMonthEvent(context, event, width, height),
         ),
-        pinchToZoomParam: PinchToZoom(
-          pinchToZoom: false,
-        ),
+        pinchToZoomParam: PinchToZoom(pinchToZoom: false),
       ),
     );
   }

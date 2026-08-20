@@ -5,11 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme/ddt_theme.dart';
 
 class MailHtmlRenderer extends StatelessWidget {
-  const MailHtmlRenderer({
-    super.key,
-    required this.viewId,
-    required this.html,
-  });
+  const MailHtmlRenderer({super.key, required this.viewId, required this.html});
 
   final String viewId;
   final String html;

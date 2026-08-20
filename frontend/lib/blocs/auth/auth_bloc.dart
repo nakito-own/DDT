@@ -9,9 +9,7 @@ part 'auth_event.dart';
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({EwsApi? api})
-      : _api = api ?? ewsApi,
-        super(const AuthInitial()) {
+  AuthBloc({EwsApi? api}) : _api = api ?? ewsApi, super(const AuthInitial()) {
     on<AuthSessionRestoreRequested>(_onSessionRestoreRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -42,11 +40,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
       _notifyAuthenticated();
-      emit(AuthAuthenticated(
-        user: session.user,
-        email: session.email,
-        connected: session.connected,
-      ));
+      emit(
+        AuthAuthenticated(
+          user: session.user,
+          email: session.email,
+          connected: session.connected,
+        ),
+      );
     } catch (_) {
       await _clearToken();
       emit(const AuthUnauthenticated());
@@ -66,11 +66,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         rememberMe: event.rememberMe,
       );
       _notifyAuthenticated();
-      emit(AuthAuthenticated(
-        user: session.user,
-        email: session.email,
-        connected: session.connected,
-      ));
+      emit(
+        AuthAuthenticated(
+          user: session.user,
+          email: session.email,
+          connected: session.connected,
+        ),
+      );
     } catch (error) {
       final message = error.toString().replaceFirst('Exception: ', '');
       await _clearToken();

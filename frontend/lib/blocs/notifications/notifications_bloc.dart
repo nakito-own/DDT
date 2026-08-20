@@ -12,13 +12,15 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
   NotificationsBloc({
     NotificationWsClient? client,
     BrowserNotificationService? browserNotifications,
-  })  : _client = client ?? NotificationWsClient(),
-        _browserNotifications =
-            browserNotifications ?? browserNotificationService,
-        super(NotificationsState(
-          browserPermission:
-              (browserNotifications ?? browserNotificationService).permission,
-        )) {
+  }) : _client = client ?? NotificationWsClient(),
+       _browserNotifications =
+           browserNotifications ?? browserNotificationService,
+       super(
+         NotificationsState(
+           browserPermission:
+               (browserNotifications ?? browserNotificationService).permission,
+         ),
+       ) {
     on<NotificationsConnectRequested>(_onConnectRequested);
     on<NotificationsDisconnectRequested>(_onDisconnectRequested);
     on<NotificationsMessageReceived>(_onMessageReceived);
@@ -85,8 +87,7 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
 
     final notification = AppNotification.fromJson(data);
     final updated = [notification, ...state.items];
-    final trimmed =
-        updated.length > 50 ? updated.sublist(0, 50) : updated;
+    final trimmed = updated.length > 50 ? updated.sublist(0, 50) : updated;
 
     emit(state.copyWith(items: trimmed));
 

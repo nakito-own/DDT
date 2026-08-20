@@ -9,8 +9,8 @@ part 'contacts_state.dart';
 
 class ContactsBloc extends Bloc<ContactsEvent, ContactsState> {
   ContactsBloc({EwsApi? api})
-      : _api = api ?? ewsApi,
-        super(const ContactsState()) {
+    : _api = api ?? ewsApi,
+      super(const ContactsState()) {
     on<ContactsLoadRequested>(_onLoadRequested);
     on<ContactsSearchQueryChanged>(_onSearchQueryChanged);
   }
@@ -21,28 +21,31 @@ class ContactsBloc extends Bloc<ContactsEvent, ContactsState> {
     ContactsLoadRequested event,
     Emitter<ContactsState> emit,
   ) async {
-    emit(state.copyWith(
-      isLoading: true,
-      errorMessage: () => null,
-      searchQuery: event.search ?? state.searchQuery,
-    ));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        errorMessage: () => null,
+        searchQuery: event.search ?? state.searchQuery,
+      ),
+    );
 
     try {
       final query = event.search ?? state.searchQuery;
-      final result = await _api.fetchContacts(
-        search: query,
+      final result = await _api.fetchContacts(search: query);
+      emit(
+        state.copyWith(
+          isLoading: false,
+          contacts: result,
+          errorMessage: () => null,
+        ),
       );
-      emit(state.copyWith(
-        isLoading: false,
-        contacts: result,
-        errorMessage: () => null,
-      ));
     } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: () =>
-            error.toString().replaceFirst('Exception: ', ''),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
     }
   }
 

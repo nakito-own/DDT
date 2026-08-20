@@ -11,10 +11,7 @@ import 'ddt_side_panel.dart';
 import 'ddt_tappable.dart';
 
 Future<bool?> showComposeEventPanel(BuildContext context) {
-  return showDdtSidePanel<bool>(
-    context,
-    child: const ComposeEventPanel(),
-  );
+  return showDdtSidePanel<bool>(context, child: const ComposeEventPanel());
 }
 
 class ComposeEventPanel extends StatefulWidget {
@@ -49,9 +46,7 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
     super.dispose();
   }
 
-  Future<void> _pickDateTime({
-    required bool isStart,
-  }) async {
+  Future<void> _pickDateTime({required bool isStart}) async {
     final initial = isStart ? _start : _end;
     final value = await showDdtDateTimePicker(
       context: context,
@@ -80,24 +75,28 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
 
     if (!_end.isAfter(_start)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Время окончания должно быть позже начала')),
+        const SnackBar(
+          content: Text('Время окончания должно быть позже начала'),
+        ),
       );
       return;
     }
 
-    context.read<CalendarBloc>().add(CalendarEventCreateRequested(
-          subject: _subjectController.text.trim(),
-          start: _start,
-          end: _end,
-          location: _locationController.text.trim(),
-          body: _bodyController.text.trim(),
-        ));
+    context.read<CalendarBloc>().add(
+      CalendarEventCreateRequested(
+        subject: _subjectController.text.trim(),
+        start: _start,
+        end: _end,
+        location: _locationController.text.trim(),
+        body: _bodyController.text.trim(),
+      ),
+    );
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Событие создаётся...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Событие создаётся...')));
   }
 
   Widget _dateTile({
@@ -154,60 +153,59 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
             ),
           ],
         ),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: EdgeInsets.all(DdtTheme.spacing.w),
-          children: [
-            TextFormField(
-              controller: _subjectController,
-              decoration: DdtTheme.inputDecoration(labelText: 'Название'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Укажите название события'
-                  : null,
-            ),
-            SizedBox(height: 12.h),
-            _dateTile(
-              label: 'Начало',
-              value: _start,
-              onTap: () => _pickDateTime(isStart: true),
-            ),
-            _dateTile(
-              label: 'Окончание',
-              value: _end,
-              onTap: () => _pickDateTime(isStart: false),
-            ),
-            SizedBox(height: 12.h),
-            TextFormField(
-              controller: _locationController,
-              decoration: DdtTheme.inputDecoration(labelText: 'Место'),
-            ),
-            SizedBox(height: 12.h),
-            TextFormField(
-              controller: _bodyController,
-              decoration: DdtTheme.inputDecoration(
-                labelText: 'Описание',
-                alignLabelWithHint: true,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: EdgeInsets.all(DdtTheme.spacing.w),
+            children: [
+              TextFormField(
+                controller: _subjectController,
+                decoration: DdtTheme.inputDecoration(labelText: 'Название'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Укажите название события'
+                    : null,
               ),
-              minLines: 4,
-              maxLines: 10,
-            ),
-            if (state.errorMessage != null &&
-                state.errorMessage!.isNotEmpty)
-              Padding(
-                padding: EdgeInsets.only(top: 12.h),
-                child: Text(
-                  state.errorMessage!,
-                  style: DdtTheme.style(
-                    fontSize: 13.sp,
-                    color: Colors.redAccent,
+              SizedBox(height: 12.h),
+              _dateTile(
+                label: 'Начало',
+                value: _start,
+                onTap: () => _pickDateTime(isStart: true),
+              ),
+              _dateTile(
+                label: 'Окончание',
+                value: _end,
+                onTap: () => _pickDateTime(isStart: false),
+              ),
+              SizedBox(height: 12.h),
+              TextFormField(
+                controller: _locationController,
+                decoration: DdtTheme.inputDecoration(labelText: 'Место'),
+              ),
+              SizedBox(height: 12.h),
+              TextFormField(
+                controller: _bodyController,
+                decoration: DdtTheme.inputDecoration(
+                  labelText: 'Описание',
+                  alignLabelWithHint: true,
+                ),
+                minLines: 4,
+                maxLines: 10,
+              ),
+              if (state.errorMessage != null && state.errorMessage!.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(top: 12.h),
+                  child: Text(
+                    state.errorMessage!,
+                    style: DdtTheme.style(
+                      fontSize: 13.sp,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }

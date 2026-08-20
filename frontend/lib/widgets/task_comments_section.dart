@@ -10,6 +10,7 @@ import '../models/task.dart';
 import '../models/task_comment.dart';
 import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 
 class TaskCommentsSection extends StatefulWidget {
@@ -91,7 +92,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSending = false);
-      Toast.show(
+      DdtToast.show(
         message: error.toString().replaceFirst('Exception: ', ''),
         type: ToastType.error,
         title: 'Комментарий не отправлен',
@@ -101,10 +102,10 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = context.watch<AuthBloc>().state;
-    final currentUserId = authState is AuthAuthenticated
-        ? authState.user.id
-        : null;
+    final currentUserId = context.select<AuthBloc, int?>((bloc) {
+      final state = bloc.state;
+      return state is AuthAuthenticated ? state.user.id : null;
+    });
 
     final header = Row(
       children: [

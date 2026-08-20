@@ -39,21 +39,22 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
   }
 
   Future<void> _respond(CalendarEventResponseAction action) async {
-    context
-        .read<CalendarBloc>()
-        .add(CalendarEventRespondRequested(event: _event, action: action));
+    context.read<CalendarBloc>().add(
+      CalendarEventRespondRequested(event: _event, action: action),
+    );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_responseSuccessMessage(action))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_responseSuccessMessage(action))));
   }
 
   String _responseSuccessMessage(CalendarEventResponseAction action) {
     return switch (action) {
       CalendarEventResponseAction.accept => 'Приглашение принято',
       CalendarEventResponseAction.decline => 'Приглашение отклонено',
-      CalendarEventResponseAction.tentative => 'Ответ «Предварительно» отправлен',
+      CalendarEventResponseAction.tentative =>
+        'Ответ «Предварительно» отправлен',
     };
   }
 
@@ -77,74 +78,68 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
                 onRespond: _respond,
               )
             : null,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.only(top: 16.h, bottom: 24.h),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _event.subject,
-              style: DdtTheme.style(
-                fontSize: 22.sp,
-                fontWeight: pending ? FontWeight.w800 : FontWeight.w700,
-                color: textPrimary,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(top: 16.h, bottom: 24.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _event.subject,
+                style: DdtTheme.style(
+                  fontSize: 22.sp,
+                  fontWeight: pending ? FontWeight.w800 : FontWeight.w700,
+                  color: textPrimary,
+                ),
               ),
-            ),
-            if (_event.isMeeting) ...[
-              SizedBox(height: 12.h),
-              _ResponseStatusBadge(
-                event: _event,
-                color: textSecondary,
-              ),
+              if (_event.isMeeting) ...[
+                SizedBox(height: 12.h),
+                _ResponseStatusBadge(event: _event, color: textSecondary),
+              ],
+              SizedBox(height: 20.h),
+              if (_event.start != null)
+                _InfoField(
+                  icon: CupertinoIcons.time,
+                  label: 'Начало',
+                  value: _dateFormat.format(_event.start!.toLocal()),
+                  color: textSecondary,
+                ),
+              if (_event.end != null) ...[
+                SizedBox(height: 14.h),
+                _InfoField(
+                  icon: CupertinoIcons.time_solid,
+                  label: 'Окончание',
+                  value: _dateFormat.format(_event.end!.toLocal()),
+                  color: textSecondary,
+                ),
+              ],
+              if (_event.location != null && _event.location!.isNotEmpty) ...[
+                SizedBox(height: 14.h),
+                _InfoField(
+                  icon: CupertinoIcons.location,
+                  label: 'Место',
+                  value: _event.location!,
+                  color: textSecondary,
+                ),
+              ],
+              if (_event.organizer != null && _event.organizer!.isNotEmpty) ...[
+                SizedBox(height: 14.h),
+                _InfoField(
+                  icon: CupertinoIcons.person,
+                  label: 'Организатор',
+                  value: _event.organizer!,
+                  color: textSecondary,
+                ),
+              ],
             ],
-            SizedBox(height: 20.h),
-            if (_event.start != null)
-              _InfoField(
-                icon: CupertinoIcons.time,
-                label: 'Начало',
-                value: _dateFormat.format(_event.start!.toLocal()),
-                color: textSecondary,
-              ),
-            if (_event.end != null) ...[
-              SizedBox(height: 14.h),
-              _InfoField(
-                icon: CupertinoIcons.time_solid,
-                label: 'Окончание',
-                value: _dateFormat.format(_event.end!.toLocal()),
-                color: textSecondary,
-              ),
-            ],
-            if (_event.location != null && _event.location!.isNotEmpty) ...[
-              SizedBox(height: 14.h),
-              _InfoField(
-                icon: CupertinoIcons.location,
-                label: 'Место',
-                value: _event.location!,
-                color: textSecondary,
-              ),
-            ],
-            if (_event.organizer != null && _event.organizer!.isNotEmpty) ...[
-              SizedBox(height: 14.h),
-              _InfoField(
-                icon: CupertinoIcons.person,
-                label: 'Организатор',
-                value: _event.organizer!,
-                color: textSecondary,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
 
 class _ResponseStatusBadge extends StatelessWidget {
-  const _ResponseStatusBadge({
-    required this.event,
-    required this.color,
-  });
+  const _ResponseStatusBadge({required this.event, required this.color});
 
   final CalendarEvent event;
   final Color color;
@@ -156,8 +151,8 @@ class _ResponseStatusBadge extends StatelessWidget {
     final background = pending
         ? AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.1)
         : (event.isDeclined
-            ? Colors.grey.withValues(alpha: isDark ? 0.18 : 0.12)
-            : AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08));
+              ? Colors.grey.withValues(alpha: isDark ? 0.18 : 0.12)
+              : AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08));
     final borderColor = pending
         ? AppColors.primary.withValues(alpha: 0.55)
         : color.withValues(alpha: 0.25);

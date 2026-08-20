@@ -92,7 +92,18 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<TasksBloc, TasksState>(
-      listenWhen: (previous, current) => previous.columns != current.columns,
+      listenWhen: (previous, current) {
+        Task? findTask(TasksState state) {
+          for (final tasks in state.columns.values) {
+            for (final task in tasks) {
+              if (task.id == widget.taskId) return task;
+            }
+          }
+          return null;
+        }
+
+        return findTask(previous) != findTask(current);
+      },
       listener: (context, state) {
         final index = state.allTasks.indexWhere(
           (task) => task.id == widget.taskId,

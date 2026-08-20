@@ -13,6 +13,7 @@ import '../models/task_status.dart';
 import '../models/task_type.dart';
 import '../router/route_paths.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
 import '../utils/ddt_date_time_picker.dart';
 import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
@@ -166,7 +167,10 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      Toast.show(message: 'Введите название задачи', type: ToastType.warning);
+      DdtToast.show(
+        message: 'Введите название задачи',
+        type: ToastType.warning,
+      );
       return;
     }
 
@@ -525,7 +529,10 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      Toast.show(message: 'Введите название задачи', type: ToastType.warning);
+      DdtToast.show(
+        message: 'Введите название задачи',
+        type: ToastType.warning,
+      );
       return;
     }
 

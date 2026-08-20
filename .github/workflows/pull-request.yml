@@ -1,0 +1,62 @@
+name: Pull request checks
+
+on:
+  pull_request:
+    branches:
+      - production
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Validate backend imports
+        run: python -m compileall -q backend/app
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Analyze frontend
+        working-directory: frontend
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos lib test
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: flutter test --platform chrome
+
+      - name: Verify locally built frontend bundle
+        run: bash scripts/verify-frontend-release.sh
+
+      - name: Validate production Compose file
+        env:
+          APP_DOMAIN: example.com
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_PASSWORD: ci-app-password
+          EWS_CREDENTIALS_KEY: ci-only-placeholder
+        run: docker compose --env-file .env.example -f compose.production.yml config --quiet

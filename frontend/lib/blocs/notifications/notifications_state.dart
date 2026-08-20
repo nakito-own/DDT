@@ -32,5 +32,10 @@ final class NotificationsState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [items, connected, reconnecting, browserPermission];
+  List<Object?> get props => [
+    items,
+    connected,
+    reconnecting,
+    browserPermission,
+  ];
 }

@@ -1,9 +1,5 @@
 class TaskType {
-  TaskType({
-    required this.id,
-    required this.name,
-    this.createdAt,
-  });
+  TaskType({required this.id, required this.name, this.createdAt});
 
   final int id;
   final String name;

@@ -38,7 +38,9 @@ class AppNotification {
   factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
       id: json['id'] as String,
-      category: AppNotificationCategory.fromApi(json['category'] as String? ?? 'system'),
+      category: AppNotificationCategory.fromApi(
+        json['category'] as String? ?? 'system',
+      ),
       title: json['title'] as String? ?? 'Уведомление',
       body: json['body'] as String? ?? '',
       timestamp: DateTime.parse(json['timestamp'] as String),
@@ -47,12 +49,12 @@ class AppNotification {
   }
 
   AppNotification markRead() => AppNotification(
-        id: id,
-        category: category,
-        title: title,
-        body: body,
-        timestamp: timestamp,
-        itemId: itemId,
-        read: true,
-      );
+    id: id,
+    category: category,
+    title: title,
+    body: body,
+    timestamp: timestamp,
+    itemId: itemId,
+    read: true,
+  );
 }

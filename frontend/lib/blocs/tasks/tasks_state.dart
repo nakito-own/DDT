@@ -32,8 +32,7 @@ final class TasksState extends Equatable {
   List<Task> get filteredTasks {
     final query = searchQuery.trim().toLowerCase();
     final filtered = allTasks.where((task) {
-      if (statusFilters.isNotEmpty &&
-          !statusFilters.contains(task.status)) {
+      if (statusFilters.isNotEmpty && !statusFilters.contains(task.status)) {
         return false;
       }
       if (priorityFilter != null && task.priority != priorityFilter) {
@@ -95,13 +94,13 @@ final class TasksState extends Equatable {
       columns: columns ?? this.columns,
       taskTypes: taskTypes ?? this.taskTypes,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage:
-          errorMessage != null ? errorMessage() : this.errorMessage,
+      errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       viewMode: viewMode ?? this.viewMode,
       searchQuery: searchQuery ?? this.searchQuery,
       statusFilters: statusFilters ?? this.statusFilters,
-      priorityFilter:
-          priorityFilter != null ? priorityFilter() : this.priorityFilter,
+      priorityFilter: priorityFilter != null
+          ? priorityFilter()
+          : this.priorityFilter,
       typeFilter: typeFilter != null ? typeFilter() : this.typeFilter,
       sortOption: sortOption ?? this.sortOption,
     );
@@ -109,15 +108,15 @@ final class TasksState extends Equatable {
 
   @override
   List<Object?> get props => [
-        columns,
-        taskTypes,
-        isLoading,
-        errorMessage,
-        viewMode,
-        searchQuery,
-        statusFilters,
-        priorityFilter,
-        typeFilter,
-        sortOption,
-      ];
+    columns,
+    taskTypes,
+    isLoading,
+    errorMessage,
+    viewMode,
+    searchQuery,
+    statusFilters,
+    priorityFilter,
+    typeFilter,
+    sortOption,
+  ];
 }

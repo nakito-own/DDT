@@ -72,8 +72,7 @@ GanttActivity taskToGanttActivity({
     start: start,
     end: end,
     title: task.title,
-    tooltip:
-        '${task.title}\n${formatTaskDate(start)} — ${formatTaskDate(end)}',
+    tooltip: '${task.title}\n${formatTaskDate(start)} — ${formatTaskDate(end)}',
     color: statusColumnColor(task.status),
     data: task,
     builder: barBuilder,
@@ -84,8 +83,9 @@ GanttActivity taskToGanttActivity({
 
 Widget buildTaskGanttBar(BuildContext context, GanttActivity activity) {
   final task = activity.data as Task?;
-  final statusColor =
-      task == null ? AppColors.primary : statusColumnColor(task.status);
+  final statusColor = task == null
+      ? AppColors.primary
+      : statusColumnColor(task.status);
 
   return Tooltip(
     message: activity.tooltip ?? activity.title ?? '',
@@ -100,10 +100,7 @@ Widget buildTaskGanttBar(BuildContext context, GanttActivity activity) {
           borderRadius: BorderRadius.circular(8.r),
           child: Row(
             children: [
-              Container(
-                width: 4.w,
-                color: statusColor,
-              ),
+              Container(width: 4.w, color: statusColor),
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10.w),
@@ -144,10 +141,7 @@ class _TaskGanttListTitle extends StatelessWidget {
         Container(
           width: 8.w,
           height: 8.w,
-          decoration: BoxDecoration(
-            color: statusColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
         ),
         SizedBox(width: 8.w),
         Expanded(
@@ -155,10 +149,7 @@ class _TaskGanttListTitle extends StatelessWidget {
             task.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: DdtTheme.style(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-            ),
+            style: DdtTheme.style(fontSize: 12.sp, fontWeight: FontWeight.w600),
           ),
         ),
       ],

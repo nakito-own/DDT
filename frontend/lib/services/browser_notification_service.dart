@@ -21,18 +21,12 @@ class BrowserNotificationService {
     return result.toDart;
   }
 
-  void show({
-    required String title,
-    required String body,
-  }) {
+  void show({required String title, required String body}) {
     if (!kIsWeb || web.Notification.permission != 'granted') {
       return;
     }
 
-    web.Notification(
-      title,
-      web.NotificationOptions(body: body),
-    );
+    web.Notification(title, web.NotificationOptions(body: body));
   }
 }
 

@@ -77,10 +77,12 @@ final class MailState extends Equatable {
     return MailState(
       messages: messages ?? this.messages,
       folders: folders != null ? folders() : this.folders,
-      selectedMessage:
-          selectedMessage != null ? selectedMessage() : this.selectedMessage,
-      selectedFolderId:
-          selectedFolderId != null ? selectedFolderId() : this.selectedFolderId,
+      selectedMessage: selectedMessage != null
+          ? selectedMessage()
+          : this.selectedMessage,
+      selectedFolderId: selectedFolderId != null
+          ? selectedFolderId()
+          : this.selectedFolderId,
       filter: filter ?? this.filter,
       sort: sort ?? this.sort,
       isLoading: isLoading ?? this.isLoading,
@@ -93,8 +95,7 @@ final class MailState extends Equatable {
       selectedMessageIds: selectedMessageIds ?? this.selectedMessageIds,
       isSelectionModeActive:
           isSelectionModeActive ?? this.isSelectionModeActive,
-      errorMessage:
-          errorMessage != null ? errorMessage() : this.errorMessage,
+      errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       inboxQueryErrorMessage: inboxQueryErrorMessage != null
           ? inboxQueryErrorMessage()
           : this.inboxQueryErrorMessage,
@@ -112,25 +113,25 @@ final class MailState extends Equatable {
 
   @override
   List<Object?> get props => [
-        messages,
-        folders,
-        selectedMessage,
-        selectedFolderId,
-        filter,
-        sort,
-        isLoading,
-        isRefreshingInbox,
-        isLoadingMore,
-        isLoadingDetail,
-        isSending,
-        isArchiving,
-        hasMoreMessages,
-        selectedMessageIds,
-        isSelectionModeActive,
-        errorMessage,
-        inboxQueryErrorMessage,
-        loadMoreErrorMessage,
-        archiveErrorMessage,
-        downloadErrorMessage,
-      ];
+    messages,
+    folders,
+    selectedMessage,
+    selectedFolderId,
+    filter,
+    sort,
+    isLoading,
+    isRefreshingInbox,
+    isLoadingMore,
+    isLoadingDetail,
+    isSending,
+    isArchiving,
+    hasMoreMessages,
+    selectedMessageIds,
+    isSelectionModeActive,
+    errorMessage,
+    inboxQueryErrorMessage,
+    loadMoreErrorMessage,
+    archiveErrorMessage,
+    downloadErrorMessage,
+  ];
 }

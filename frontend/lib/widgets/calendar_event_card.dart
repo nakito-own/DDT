@@ -39,11 +39,7 @@ class CalendarEventCard extends StatelessWidget {
       );
     }
 
-    return _StandardEventCard(
-      event: event,
-      compact: compact,
-      onTap: onTap,
-    );
+    return _StandardEventCard(event: event, compact: compact, onTap: onTap);
   }
 }
 
@@ -81,20 +77,14 @@ class _EventCardShell extends StatelessWidget {
             padding: padding,
             highlighted: pending,
             onTap: onTap,
-            child: Opacity(
-              opacity: declined ? 0.72 : 1,
-              child: child,
-            ),
+            child: Opacity(opacity: declined ? 0.72 : 1, child: child),
           ),
           if (pending)
             Positioned(
               left: 0,
               top: 0,
               bottom: 0,
-              child: Container(
-                width: 3,
-                color: AppColors.primary,
-              ),
+              child: Container(width: 3, color: AppColors.primary),
             ),
         ],
       ),
@@ -175,7 +165,9 @@ class _PlannerEventTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: DdtTheme.style(
                           fontSize: titleSize,
-                          fontWeight: pending ? FontWeight.w700 : FontWeight.w600,
+                          fontWeight: pending
+                              ? FontWeight.w700
+                              : FontWeight.w600,
                           color: textPrimary,
                           height: 1.15,
                         ),
@@ -190,11 +182,7 @@ class _PlannerEventTile extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    CupertinoIcons.time,
-                    size: metaSize,
-                    color: timeColor,
-                  ),
+                  Icon(CupertinoIcons.time, size: metaSize, color: timeColor),
                   SizedBox(width: 3.w),
                   Flexible(
                     child: Text(
@@ -246,15 +234,18 @@ class _StandardEventCard extends StatelessWidget {
     final pending = event.needsResponse;
     final timeFormat = DateFormat('HH:mm');
     final timeLabel = _formatTimeRange(timeFormat);
-    final cornerRadius =
-        compact ? _calendarCardRadiusCompact.r : _calendarCardRadius.r;
+    final cornerRadius = compact
+        ? _calendarCardRadiusCompact.r
+        : _calendarCardRadius.r;
 
     return _EventCardShell(
       event: event,
       onTap: onTap,
       cornerRadius: cornerRadius,
       padding: EdgeInsets.fromLTRB(
-        pending ? (compact ? 10.w : 14.w) : (compact ? 8.w : DdtTheme.spacing.w),
+        pending
+            ? (compact ? 10.w : 14.w)
+            : (compact ? 8.w : DdtTheme.spacing.w),
         compact ? 6.h : 10.h,
         compact ? 8.w : DdtTheme.spacing.w,
         compact ? 6.h : 10.h,
@@ -267,11 +258,7 @@ class _StandardEventCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!compact && !pending) ...[
-                Icon(
-                  CupertinoIcons.calendar,
-                  size: 18.sp,
-                  color: iconMuted,
-                ),
+                Icon(CupertinoIcons.calendar, size: 18.sp, color: iconMuted),
                 SizedBox(width: 8.w),
               ],
               if (pending) ...[

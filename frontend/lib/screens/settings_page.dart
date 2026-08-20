@@ -38,9 +38,9 @@ class SettingsPage extends StatelessWidget {
                       color: AppColors.primary,
                       size: 22.sp,
                     ),
-                    onPressed: () => context
-                        .read<ThemeBloc>()
-                        .add(const ThemeToggleRequested()),
+                    onPressed: () => context.read<ThemeBloc>().add(
+                      const ThemeToggleRequested(),
+                    ),
                   ),
                 );
               },
@@ -74,11 +74,9 @@ class SettingsPage extends StatelessWidget {
                             onPressed: isDenied
                                 ? null
                                 : () => context.read<NotificationsBloc>().add(
-                                      const NotificationsBrowserPermissionRequested(),
-                                    ),
-                            child: Text(
-                              isDenied ? 'Запрещено' : 'Разрешить',
-                            ),
+                                    const NotificationsBrowserPermissionRequested(),
+                                  ),
+                            child: Text(isDenied ? 'Запрещено' : 'Разрешить'),
                           ),
                   );
                 },
@@ -106,20 +104,11 @@ class SettingsPage extends StatelessWidget {
                     _ProfileRow(label: 'Имя', value: profile.label),
                     _ProfileRow(label: 'Email', value: profile.email),
                     if (profile.jobTitle != null)
-                      _ProfileRow(
-                        label: 'Должность',
-                        value: profile.jobTitle!,
-                      ),
+                      _ProfileRow(label: 'Должность', value: profile.jobTitle!),
                     if (profile.department != null)
-                      _ProfileRow(
-                        label: 'Отдел',
-                        value: profile.department!,
-                      ),
+                      _ProfileRow(label: 'Отдел', value: profile.department!),
                     if (profile.phone != null)
-                      _ProfileRow(
-                        label: 'Телефон',
-                        value: profile.phone!,
-                      ),
+                      _ProfileRow(label: 'Телефон', value: profile.phone!),
                     if (profile.officeLocation != null)
                       _ProfileRow(
                         label: 'Офис',
@@ -134,9 +123,9 @@ class SettingsPage extends StatelessWidget {
                       text: isLoggingOut ? 'Выход...' : 'Выйти',
                       onPressed: isLoggingOut
                           ? null
-                          : () => context
-                              .read<AuthBloc>()
-                              .add(const AuthLogoutRequested()),
+                          : () => context.read<AuthBloc>().add(
+                              const AuthLogoutRequested(),
+                            ),
                       type: ButtonType.outlined,
                       borderRadius: DdtTheme.radius,
                     ),
@@ -160,10 +149,7 @@ class SettingsPage extends StatelessWidget {
 }
 
 class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({
-    required this.title,
-    required this.child,
-  });
+  const _SettingsSection({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -271,10 +257,7 @@ class _ProfileRow extends StatelessWidget {
           SizedBox(height: 4.h),
           Text(
             value,
-            style: DdtTheme.style(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-            ),
+            style: DdtTheme.style(fontSize: 14.sp, fontWeight: FontWeight.w600),
           ),
         ],
       ),

@@ -13,6 +13,7 @@ import '../models/task_status.dart';
 import '../models/task_type.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
+import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 
@@ -102,7 +103,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   }
 
   void _showMoveToast(Task task, TaskStatus to) {
-    Toast.show(
+    DdtToast.show(
       message: '«${task.title}» → ${to.label}',
       type: ToastType.info,
       title: 'Задача перемещена',
@@ -341,7 +342,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
     context.read<TasksBloc>().add(TaskCreateRequested(draft));
     // BlocListener синхронизирует _localColumns после ответа сервера.
-    Toast.show(message: 'Задача создаётся...', type: ToastType.info);
+    DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
   Future<void> _deleteTask(Task task, TaskStatus status) async {
@@ -368,7 +369,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       TaskDeleteRequested(task: task, status: status),
     );
     // BlocListener синхронизирует при успехе или откатит при ошибке.
-    Toast.show(message: '«${task.title}» удалена', type: ToastType.success);
+    DdtToast.show(message: '«${task.title}» удалена', type: ToastType.success);
   }
 
   Future<void> _openTaskDetails(Task task) async {
