@@ -1,27 +1,26 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: ddt-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-ddt}
       MYSQL_USER: ${MYSQL_USER:-ddt_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ddt_password}
-    ports:
-      - "3308:3306"
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 30s
+    networks:
+      - internal
 
   migrate:
     image: mysql:8.0
-    container_name: ddt-migrate
+    profiles: ["migration"]
     restart: "no"
     entrypoint: ["/bin/bash", "/run-migrations.sh"]
     environment:
@@ -29,19 +28,21 @@ services:
       DB_PORT: 3306
       DB_NAME: ${MYSQL_DATABASE:-ddt}
       DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
     volumes:
       - ./database/migrations:/migrations:ro
       - ./scripts/run-migrations.sh:/run-migrations.sh:ro
     depends_on:
       mysql:
         condition: service_healthy
+    networks:
+      - internal
 
   backend:
+    image: ddt-backend:${RELEASE_ID:-local}
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: ddt-backend
     restart: unless-stopped
     environment:
       PORT: 3000
@@ -49,36 +50,85 @@ services:
       DB_PORT: 3306
       DB_NAME: ${MYSQL_DATABASE:-ddt}
       DB_USER: ${MYSQL_USER:-ddt_user}
-      DB_PASSWORD: ${MYSQL_PASSWORD:-ddt_password}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
       EWS_SERVER: ${EWS_SERVER:-owa.mos.ru}
       EWS_AUTH_TYPE: ${EWS_AUTH_TYPE:-NTLM}
       EWS_SERVICE_ENDPOINT: ${EWS_SERVICE_ENDPOINT:-}
       EWS_VERIFY_MAX_ATTEMPTS: ${EWS_VERIFY_MAX_ATTEMPTS:-3}
       EWS_VERIFY_RETRY_DELAY_SECONDS: ${EWS_VERIFY_RETRY_DELAY_SECONDS:-1.0}
       EWS_TIMEZONE: ${EWS_TIMEZONE:-Europe/Moscow}
-      EWS_CREDENTIALS_KEY: ${EWS_CREDENTIALS_KEY:-}
+      EWS_CREDENTIALS_KEY: ${EWS_CREDENTIALS_KEY:?Set EWS_CREDENTIALS_KEY}
       EWS_SESSION_TTL_HOURS: ${EWS_SESSION_TTL_HOURS:-24}
       EWS_REMEMBER_TTL_DAYS: ${EWS_REMEMBER_TTL_DAYS:-30}
       EWS_NOTIFICATION_MODE: ${EWS_NOTIFICATION_MODE:-pull}
       EWS_NOTIFICATION_STREAM_TIMEOUT: ${EWS_NOTIFICATION_STREAM_TIMEOUT:-1}
       EWS_NOTIFICATION_POLL_INTERVAL: ${EWS_NOTIFICATION_POLL_INTERVAL:-15}
       EWS_NOTIFICATION_PULL_TIMEOUT: ${EWS_NOTIFICATION_PULL_TIMEOUT:-10}
-    ports:
-      - "3000:3000"
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:3000/api/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - internal
 
   frontend:
+    image: ddt-frontend:${RELEASE_ID:-local}
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: ddt-frontend
     restart: unless-stopped
-    ports:
-      - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    networks:
+      - internal
 
 volumes:
   mysql_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:

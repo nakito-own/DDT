@@ -1,0 +1,125 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out merged production commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: true
+
+      - name: Verify locally built frontend bundle
+        run: bash scripts/verify-frontend-release.sh
+
+      - name: Validate deployment settings
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          for variable in \
+            VPS_HOST \
+            VPS_USER \
+            VPS_SSH_PRIVATE_KEY \
+            VPS_SSH_KNOWN_HOSTS \
+            DEPLOY_PATH \
+            APP_URL; do
+            if [[ -z "${!variable}" ]]; then
+              echo "Missing GitHub production setting: $variable" >&2
+              exit 1
+            fi
+          done
+
+      - name: Package release
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=.env \
+            --exclude=frontend/build \
+            --exclude=release.tar.gz \
+            -czf release.tar.gz .
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$RUNNER_TEMP/ddt_deploy_key"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ddt_deploy_key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Upload release
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          ssh -i "$RUNNER_TEMP/ddt_deploy_key" -p "$VPS_SSH_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "mkdir -p '$DEPLOY_PATH/incoming' '$DEPLOY_PATH/releases'"
+          scp -i "$RUNNER_TEMP/ddt_deploy_key" -P "$VPS_SSH_PORT" \
+            release.tar.gz \
+            "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/incoming/$RELEASE_ID.tar.gz"
+
+      - name: Deploy release
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          ssh -i "$RUNNER_TEMP/ddt_deploy_key" -p "$VPS_SSH_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            bash -s -- "$DEPLOY_PATH" "$RELEASE_ID" <<'REMOTE'
+          set -Eeuo pipefail
+          deploy_root="$1"
+          release_id="$2"
+          archive="$deploy_root/incoming/$release_id.tar.gz"
+          release_dir="$deploy_root/releases/$release_id"
+
+          cleanup() {
+            rm -f "$archive"
+            if [[ ! -L "$deploy_root/current" ]] || \
+              [[ "$(readlink "$deploy_root/current")" != "$release_dir" ]]; then
+              rm -rf "$release_dir"
+            fi
+          }
+          trap cleanup EXIT
+
+          rm -rf "$release_dir"
+          mkdir -p "$release_dir"
+          tar -xzf "$archive" -C "$release_dir"
+          chmod +x "$release_dir"/scripts/*.sh
+          "$release_dir/scripts/deploy-production.sh" "$deploy_root" "$release_id"
+          REMOTE
+
+      - name: Verify public endpoint
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          curl --fail --show-error --silent \
+            --retry 12 --retry-delay 5 --retry-all-errors \
+            "${APP_URL%/}/api/health"

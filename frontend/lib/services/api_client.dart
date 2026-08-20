@@ -6,7 +6,7 @@ import 'session_token_storage.dart';
 
 const apiUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://localhost:3000',
+  defaultValue: '',
 );
 
 class ApiClient {
