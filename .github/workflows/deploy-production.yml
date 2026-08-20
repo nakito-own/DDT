@@ -54,8 +54,7 @@ jobs:
             --exclude=.git \
             --exclude=.env \
             --exclude=frontend/build \
-            --exclude=release.tar.gz \
-            -czf release.tar.gz .
+            -czf "$RUNNER_TEMP/release.tar.gz" .
 
       - name: Configure SSH
         env:
@@ -80,7 +79,7 @@ jobs:
             "$VPS_USER@$VPS_HOST" \
             "mkdir -p '$DEPLOY_PATH/incoming' '$DEPLOY_PATH/releases'"
           scp -i "$RUNNER_TEMP/ddt_deploy_key" -P "$VPS_SSH_PORT" \
-            release.tar.gz \
+            "$RUNNER_TEMP/release.tar.gz" \
             "$VPS_USER@$VPS_HOST:$DEPLOY_PATH/incoming/$RELEASE_ID.tar.gz"
 
       - name: Deploy release
