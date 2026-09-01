@@ -3,17 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'ddt_typography.dart';
+
 class DdtTheme {
   DdtTheme._();
 
   static const double borderRadius = 16;
-  static const double inputControlRadius = 8;
+  static const double inputControlRadius = 10;
+  static const double inputControlHeight = 44;
+  static const double compactInputControlHeight = 36;
+  static const double inputHorizontalPadding = 12;
+  static const double inputVerticalPadding = 10;
   static const double spacing = 16;
 
   static const Color lightBackground = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightWidget = Color(0xFFFFFFFF);
-  static const Color lightInputFill = Color(0xFFF1F5F9);
+  static const Color lightInputFill = Color(0xFFF8FAFC);
   static const Color lightBorderStrong = Color(0xFF64748B);
 
   static const double lightShellGlassBackgroundOpacity = 0.08;
@@ -23,7 +29,7 @@ class DdtTheme {
   static const Color darkBackground = Color(0xFF050508);
   static const Color darkSurface = Color(0xFF0C0C10);
   static const Color darkWidget = Color(0xFF121216);
-  static const Color darkInputFill = Color(0xFF0A0A0E);
+  static const Color darkInputFill = Color(0xFF15151A);
   static const Color darkBorderStrong = Color(0xFF3F3F48);
 
   static const Color lightTextPrimary = Color(0xFF020617);
@@ -52,7 +58,7 @@ class DdtTheme {
   static BorderRadius get radius => BorderRadius.circular(borderRadius.r);
 
   static BorderRadius get inputControlBorderRadius =>
-      BorderRadius.circular(inputControlRadius.r);
+      BorderRadius.circular(inputControlRadius);
 
   static const Color darkPickerSurface = Color(0xFF1C1C22);
   static const Color darkPickerInputFill = Color(0xFF141418);
@@ -67,16 +73,72 @@ class DdtTheme {
       _isDark(context) ? darkPickerInputFill : lightInputFill;
 
   static TextStyle inputLabelStyle(BuildContext context) =>
-      style(fontSize: 14.sp, color: textSecondary(context));
+      style(fontSize: DdtTypography.bodySize, color: textSecondary(context));
 
   static TextStyle inputFloatingLabelStyle(BuildContext context) =>
-      style(fontSize: 12.sp, color: textMuted(context));
+      style(fontSize: DdtTypography.labelSmallSize, color: textMuted(context));
 
-  static TextStyle inputHintStyle(BuildContext context) =>
-      style(fontSize: 14.sp, color: textMuted(context));
+  static TextStyle inputHintStyle(BuildContext context) => style(
+    fontSize: DdtTypography.bodySize,
+    color: textMuted(context).withValues(alpha: 0.62),
+  );
 
   static Color inputBorderColor(BuildContext context) =>
       _isDark(context) ? darkBorderStrong : lightBorderStrong;
+
+  static Color inputFillColorHover(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF191920) : const Color(0xFFF4F7FA);
+
+  static Color inputFillColorFocused(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF18181E) : const Color(0xFFFFFFFF);
+
+  static List<BoxShadow> inputFocusShadow(BuildContext context) {
+    final isDark = _isDark(context);
+    return [
+      BoxShadow(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+        blurRadius: 7,
+        spreadRadius: 0,
+      ),
+    ];
+  }
+
+  static EdgeInsetsGeometry inputContentPadding({
+    bool compact = false,
+    bool multiline = false,
+  }) {
+    if (compact) {
+      return const EdgeInsets.symmetric(horizontal: 10, vertical: 8);
+    }
+    return EdgeInsets.symmetric(
+      horizontal: inputHorizontalPadding,
+      vertical: multiline ? 12 : inputVerticalPadding,
+    );
+  }
+
+  static OutlineInputBorder _outlineBorder({
+    required BorderRadius borderRadius,
+    required Color color,
+    double width = 1,
+  }) {
+    return OutlineInputBorder(
+      borderRadius: borderRadius,
+      borderSide: BorderSide(color: color, width: width),
+    );
+  }
+
+  static OutlineInputBorder inputOutlineBorder(
+    BuildContext context, {
+    Color? color,
+    double width = 1,
+    BorderRadius? borderRadius,
+  }) {
+    return _outlineBorder(
+      borderRadius: borderRadius ?? radius,
+      color: color ?? inputBorderColor(context).withValues(alpha: 0.5),
+      width: width,
+    );
+  }
 
   static MenuThemeData menuThemeData() => MenuThemeData(
     style: MenuStyle(
@@ -418,25 +480,7 @@ class DdtTheme {
         ? ThemeData.dark().textTheme
         : ThemeData.light().textTheme;
 
-    var theme = GoogleFonts.nunitoSansTextTheme(base);
-
-    theme = theme.copyWith(
-      displayLarge: theme.displayLarge?.copyWith(fontSize: 32.sp),
-      displayMedium: theme.displayMedium?.copyWith(fontSize: 28.sp),
-      displaySmall: theme.displaySmall?.copyWith(fontSize: 24.sp),
-      headlineLarge: theme.headlineLarge?.copyWith(fontSize: 22.sp),
-      headlineMedium: theme.headlineMedium?.copyWith(fontSize: 20.sp),
-      headlineSmall: theme.headlineSmall?.copyWith(fontSize: 18.sp),
-      titleLarge: theme.titleLarge?.copyWith(fontSize: 16.sp),
-      titleMedium: theme.titleMedium?.copyWith(fontSize: 14.sp),
-      titleSmall: theme.titleSmall?.copyWith(fontSize: 12.sp),
-      bodyLarge: theme.bodyLarge?.copyWith(fontSize: 16.sp),
-      bodyMedium: theme.bodyMedium?.copyWith(fontSize: 14.sp),
-      bodySmall: theme.bodySmall?.copyWith(fontSize: 12.sp),
-      labelLarge: theme.labelLarge?.copyWith(fontSize: 16.sp),
-      labelMedium: theme.labelMedium?.copyWith(fontSize: 14.sp),
-      labelSmall: theme.labelSmall?.copyWith(fontSize: 12.sp),
-    );
+    var theme = DdtTypography.textTheme(base);
 
     if (brightness == Brightness.dark) {
       theme = theme.apply(
@@ -558,34 +602,44 @@ class DdtTheme {
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: lightInputFill,
-          labelStyle: TextStyle(color: lightTextSecondary),
-          floatingLabelStyle: TextStyle(color: lightTextMuted),
-          hintStyle: TextStyle(color: lightTextMuted),
-          border: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
+          constraints: const BoxConstraints(minHeight: inputControlHeight),
+          contentPadding: inputContentPadding(),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          labelStyle: TextStyle(
+            color: lightTextSecondary,
+            fontSize: DdtTypography.bodySize,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: lightBorderStrong, width: 1.25),
+          floatingLabelStyle: TextStyle(
+            color: lightTextMuted,
+            fontSize: DdtTypography.labelSmallSize,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.primary, width: 2),
+          hintStyle: TextStyle(
+            color: lightTextMuted.withValues(alpha: 0.62),
+            fontSize: DdtTypography.bodySize,
           ),
-          errorBorder: OutlineInputBorder(
+          border: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.error, width: 2),
+            color: lightBorderStrong.withValues(alpha: 0.5),
           ),
-          focusedErrorBorder: OutlineInputBorder(
+          enabledBorder: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.error, width: 2),
+            color: lightBorderStrong.withValues(alpha: 0.5),
           ),
-          disabledBorder: OutlineInputBorder(
+          focusedBorder: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(
-              color: lightBorderStrong.withValues(alpha: 0.55),
-            ),
+            color: AppColors.primary,
+          ),
+          errorBorder: _outlineBorder(
+            borderRadius: radius,
+            color: AppColors.error,
+          ),
+          focusedErrorBorder: _outlineBorder(
+            borderRadius: radius,
+            color: AppColors.error,
+          ),
+          disabledBorder: _outlineBorder(
+            borderRadius: radius,
+            color: lightBorderStrong.withValues(alpha: 0.35),
           ),
         ),
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
@@ -656,34 +710,44 @@ class DdtTheme {
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: darkInputFill,
-          labelStyle: TextStyle(color: darkTextSecondary),
-          floatingLabelStyle: TextStyle(color: darkTextMuted),
-          hintStyle: TextStyle(color: darkTextMuted),
-          border: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: darkBorderStrong),
+          constraints: const BoxConstraints(minHeight: inputControlHeight),
+          contentPadding: inputContentPadding(),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          labelStyle: TextStyle(
+            color: darkTextSecondary,
+            fontSize: DdtTypography.bodySize,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: darkBorderStrong),
+          floatingLabelStyle: TextStyle(
+            color: darkTextMuted,
+            fontSize: DdtTypography.labelSmallSize,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.primary, width: 2),
+          hintStyle: TextStyle(
+            color: darkTextMuted.withValues(alpha: 0.62),
+            fontSize: DdtTypography.bodySize,
           ),
-          errorBorder: OutlineInputBorder(
+          border: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.error, width: 2),
+            color: darkBorderStrong.withValues(alpha: 0.5),
           ),
-          focusedErrorBorder: OutlineInputBorder(
+          enabledBorder: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(color: AppColors.error, width: 2),
+            color: darkBorderStrong.withValues(alpha: 0.5),
           ),
-          disabledBorder: OutlineInputBorder(
+          focusedBorder: _outlineBorder(
             borderRadius: radius,
-            borderSide: BorderSide(
-              color: darkBorderStrong.withValues(alpha: 0.45),
-            ),
+            color: AppColors.primary,
+          ),
+          errorBorder: _outlineBorder(
+            borderRadius: radius,
+            color: AppColors.error,
+          ),
+          focusedErrorBorder: _outlineBorder(
+            borderRadius: radius,
+            color: AppColors.error,
+          ),
+          disabledBorder: _outlineBorder(
+            borderRadius: radius,
+            color: darkBorderStrong.withValues(alpha: 0.35),
           ),
         ),
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
@@ -693,17 +757,48 @@ class DdtTheme {
     );
   }
 
-  static InputDecoration inputDecoration({
+  static InputDecoration inputDecoration(
+    BuildContext context, {
     String? labelText,
     String? hintText,
+    Widget? prefixIcon,
     Widget? suffixIcon,
     bool alignLabelWithHint = false,
+    bool compact = false,
+    BorderRadius? borderRadius,
   }) {
+    final radiusValue =
+        borderRadius ?? (compact ? inputControlBorderRadius : radius);
+
+    OutlineInputBorder border(Color color, {double width = 1}) =>
+        OutlineInputBorder(
+          borderRadius: radiusValue,
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    final borderColor = inputBorderColor(context);
     return InputDecoration(
       labelText: labelText,
       hintText: hintText,
+      prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,
       alignLabelWithHint: alignLabelWithHint,
+      filled: true,
+      fillColor: inputFillColor(context),
+      isDense: compact,
+      constraints: BoxConstraints(
+        minHeight: compact ? compactInputControlHeight : inputControlHeight,
+      ),
+      contentPadding: inputContentPadding(compact: compact),
+      labelStyle: inputLabelStyle(context),
+      floatingLabelStyle: inputFloatingLabelStyle(context),
+      hintStyle: inputHintStyle(context),
+      border: border(borderColor.withValues(alpha: 0.5)),
+      enabledBorder: border(borderColor.withValues(alpha: 0.5)),
+      focusedBorder: border(AppColors.primary),
+      errorBorder: border(AppColors.error),
+      focusedErrorBorder: border(AppColors.error),
+      disabledBorder: border(borderColor.withValues(alpha: 0.35)),
     );
   }
 
@@ -714,8 +809,8 @@ class DdtTheme {
     double? height,
     TextDecoration? decoration,
   }) {
-    return GoogleFonts.nunitoSans(
-      fontSize: fontSize,
+    return DdtTypography.style(
+      size: fontSize ?? DdtTypography.bodySize,
       fontWeight: fontWeight,
       color: color,
       height: height,

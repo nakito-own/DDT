@@ -5,7 +5,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../blocs/mail/mail_bloc.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
+import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
+import '../theme/ddt_typography.dart';
 
 Future<bool?> showComposeMailPanel(BuildContext context) {
   return showDdtSidePanel<bool>(context, child: const ComposeMailPanel());
@@ -58,9 +61,7 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Письмо отправляется...')));
+    DdtToast.show(message: 'Письмо отправляется...', type: ToastType.info);
   }
 
   @override
@@ -96,12 +97,10 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
           child: ListView(
             padding: EdgeInsets.all(DdtTheme.spacing.w),
             children: [
-              TextFormField(
+              DdtAppInput(
+                label: 'Кому',
+                hint: 'email1@example.com, email2@example.com',
                 controller: _toController,
-                decoration: DdtTheme.inputDecoration(
-                  labelText: 'Кому',
-                  hintText: 'email1@example.com, email2@example.com',
-                ),
                 validator: (value) {
                   final emails = _parseEmails(value ?? '');
                   if (emails.isEmpty) {
@@ -111,25 +110,20 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
                 },
               ),
               SizedBox(height: 12.h),
-              TextFormField(
-                controller: _ccController,
-                decoration: DdtTheme.inputDecoration(labelText: 'Копия'),
-              ),
+              DdtAppInput(label: 'Копия', controller: _ccController),
               SizedBox(height: 12.h),
-              TextFormField(
+              DdtAppInput(
+                label: 'Тема',
                 controller: _subjectController,
-                decoration: DdtTheme.inputDecoration(labelText: 'Тема'),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Укажите тему'
                     : null,
               ),
               SizedBox(height: 12.h),
-              TextFormField(
+              DdtAppInput(
+                label: 'Сообщение',
                 controller: _bodyController,
-                decoration: DdtTheme.inputDecoration(
-                  labelText: 'Сообщение',
-                  alignLabelWithHint: true,
-                ),
+                type: InputType.multiline,
                 minLines: 8,
                 maxLines: 16,
                 validator: (value) => value == null || value.trim().isEmpty
@@ -142,7 +136,7 @@ class _ComposeMailPanelState extends State<ComposeMailPanel> {
                   child: Text(
                     state.errorMessage!,
                     style: DdtTheme.style(
-                      fontSize: 13.sp,
+                      fontSize: DdtTypography.labelSize,
                       color: Colors.redAccent,
                     ),
                   ),

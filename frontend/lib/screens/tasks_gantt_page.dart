@@ -10,6 +10,7 @@ import '../models/task.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_gantt_mapper.dart';
 import '../widgets/task_side_panel.dart';
+import '../theme/ddt_typography.dart';
 
 class TasksGanttPage extends StatefulWidget {
   const TasksGanttPage({super.key});
@@ -161,7 +162,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         Text(
           'Масштаб',
           style: DdtTheme.style(
-            fontSize: 12.sp,
+            fontSize: DdtTypography.labelSmallSize,
             fontWeight: FontWeight.w600,
             color: textSecondary,
           ),
@@ -179,7 +180,10 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
           child: Text(
             '$zoomPercent%',
             textAlign: TextAlign.center,
-            style: DdtTheme.style(fontSize: 12.sp, fontWeight: FontWeight.w600),
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSmallSize,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         _GanttToolbarButton(
@@ -236,7 +240,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
             child: Center(
               child: Text(
                 'Нет задач для отображения на диаграмме',
-                style: DdtTheme.style(fontSize: 14.sp),
+                style: DdtTheme.style(fontSize: DdtTypography.bodySize),
               ),
             ),
           );

@@ -10,6 +10,7 @@ import '../models/task_status.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_app_input.dart';
 import '../utils/task_formatters.dart';
+import '../theme/ddt_typography.dart';
 
 class TasksFiltersPanel extends StatefulWidget {
   const TasksFiltersPanel({super.key});
@@ -84,7 +85,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                     child: Text(
                       'Фильтры',
                       style: DdtTheme.style(
-                        fontSize: 16.sp,
+                        fontSize: DdtTypography.sectionTitleSize,
                         fontWeight: FontWeight.w700,
                         color: textPrimary,
                       ),
@@ -97,7 +98,8 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                 label: 'Поиск',
                 hint: 'Поиск по названию',
                 controller: _searchController,
-                borderRadius: DdtTheme.radius,
+                type: InputType.search,
+                prefixIcon: Icons.search,
               ),
               SizedBox(height: 20.h),
               Divider(height: 1, thickness: 1, color: dividerColor),
@@ -215,7 +217,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                 child: Text(
                   'Найдено: ${state.filteredTasks.length}',
                   style: DdtTheme.style(
-                    fontSize: 13.sp,
+                    fontSize: DdtTypography.labelSize,
                     fontWeight: FontWeight.w600,
                     color: textSecondary,
                   ),
@@ -252,7 +254,7 @@ class _FilterSection extends StatelessWidget {
         Text(
           title,
           style: DdtTheme.style(
-            fontSize: 13.sp,
+            fontSize: DdtTypography.labelSize,
             fontWeight: FontWeight.w600,
             color: DdtTheme.taskCardTextPrimary(context),
           ),
@@ -329,7 +331,7 @@ class _FilterChip extends StatelessWidget {
             Text(
               label,
               style: DdtTheme.style(
-                fontSize: 12.sp,
+                fontSize: DdtTypography.labelSmallSize,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                 color: selected
                     ? accent.withValues(alpha: 0.95)

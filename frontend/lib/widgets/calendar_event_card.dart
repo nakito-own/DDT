@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../models/calendar_event.dart';
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 const _calendarCardRadius = 5.0;
 const _calendarCardRadiusCompact = 4.0;
@@ -115,8 +116,14 @@ class _PlannerEventTile extends StatelessWidget {
     final showTime = height >= 34 && timeLabel != null;
     final showIcon = height >= 26;
     final titleLines = showTime ? 1 : (height >= 24 ? 2 : 1);
-    final titleSize = (height * 0.36).clamp(10.5, 14.sp);
-    final metaSize = (height * 0.26).clamp(8.5, 11.sp);
+    final titleSize = (height * 0.36).clamp(
+      DdtTypography.microSize,
+      DdtTypography.bodySize,
+    );
+    final metaSize = (height * 0.26).clamp(
+      DdtTypography.microSize,
+      DdtTypography.captionSize,
+    );
     final cornerRadius = _plannerCornerRadius(height);
     final leftPad = pending ? 6.0 : (showIcon ? 6.0 : 5.0);
     final hPad = showIcon ? leftPad : leftPad;
@@ -278,7 +285,9 @@ class _StandardEventCard extends StatelessWidget {
                   maxLines: compact ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: DdtTheme.style(
-                    fontSize: compact ? 11.sp : 14.sp,
+                    fontSize: compact
+                        ? DdtTypography.captionSize
+                        : DdtTypography.bodySize,
                     fontWeight: pending ? FontWeight.w700 : FontWeight.w600,
                     color: textPrimary,
                     height: 1.2,
@@ -293,7 +302,9 @@ class _StandardEventCard extends StatelessWidget {
               icon: CupertinoIcons.time,
               label: timeLabel,
               color: timeColor,
-              fontSize: compact ? 10.sp : 12.sp,
+              fontSize: compact
+                  ? DdtTypography.microSize
+                  : DdtTypography.labelSmallSize,
               iconSize: compact ? 12.sp : 14.sp,
             ),
           ],
@@ -305,7 +316,7 @@ class _StandardEventCard extends StatelessWidget {
               icon: CupertinoIcons.location,
               label: event.location!,
               color: textSecondary,
-              fontSize: 12.sp,
+              fontSize: DdtTypography.labelSmallSize,
               iconSize: 14.sp,
             ),
           ],

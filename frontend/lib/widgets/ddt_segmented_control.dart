@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class DdtSegmentedControlSegment<T> {
   const DdtSegmentedControlSegment({
@@ -137,7 +138,7 @@ class _DdtSegmentedControlItemState<T>
               Text(
                 widget.segment.label,
                 style: DdtTheme.style(
-                  fontSize: 12.sp,
+                  fontSize: DdtTypography.labelSmallSize,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: foregroundColor,
                 ),

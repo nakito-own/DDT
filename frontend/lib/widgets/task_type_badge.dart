@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class TaskTypeBadge extends StatelessWidget {
   const TaskTypeBadge({super.key, required this.label});
@@ -20,7 +21,7 @@ class TaskTypeBadge extends StatelessWidget {
       child: Text(
         label,
         style: DdtTheme.style(
-          fontSize: 11.sp,
+          fontSize: DdtTypography.captionSize,
           fontWeight: FontWeight.w600,
           color: AppColors.primary,
         ),

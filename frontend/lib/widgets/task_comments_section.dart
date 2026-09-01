@@ -12,6 +12,8 @@ import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
+import 'ddt_app_input.dart';
+import '../theme/ddt_typography.dart';
 
 class TaskCommentsSection extends StatefulWidget {
   const TaskCommentsSection({
@@ -35,6 +37,7 @@ class TaskCommentsSection extends StatefulWidget {
 
 class _TaskCommentsSectionState extends State<TaskCommentsSection> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   late List<TaskComment> _comments;
   bool _isSending = false;
 
@@ -42,6 +45,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
   void initState() {
     super.initState();
     _comments = _sortedComments(widget.task.comments);
+    _controller.addListener(_handleDraftChanged);
   }
 
   @override
@@ -65,8 +69,14 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
 
   @override
   void dispose() {
+    _controller.removeListener(_handleDraftChanged);
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _handleDraftChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _send() async {
@@ -80,10 +90,13 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
       ).addComment(widget.task.id, text);
       if (!mounted) return;
 
+      _controller.clear();
       setState(() {
         _comments = _sortedComments([comment, ..._comments]);
-        _controller.clear();
         _isSending = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
       });
 
       final updated = widget.task.copyWith(comments: _comments);
@@ -113,7 +126,9 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
           child: Text(
             'Комментарии',
             style: DdtTheme.style(
-              fontSize: widget.compact ? 14.sp : 17.sp,
+              fontSize: widget.compact
+                  ? DdtTypography.bodySize
+                  : DdtTypography.sectionTitleSize,
               fontWeight: FontWeight.w700,
               color: DdtTheme.sidePanelTextPrimary(context),
             ),
@@ -122,7 +137,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
         Text(
           _comments.length.toString(),
           style: DdtTheme.style(
-            fontSize: 12.sp,
+            fontSize: DdtTypography.labelSmallSize,
             color: DdtTheme.sidePanelTextMuted(context),
           ),
         ),
@@ -176,68 +191,50 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
   }
 
   Widget _buildInput() {
-    final sendButton = SizedBox(
-      width: 36.w,
-      height: 36.w,
-      child: IconButton.filled(
-        tooltip: 'Отправить',
-        onPressed: _isSending ? null : _send,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          minimumSize: Size(36.w, 36.w),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canSend = !_isSending && _controller.text.trim().isNotEmpty;
+    final disabledButtonColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+    final sendButton = Tooltip(
+      message: 'Отправить комментарий',
+      child: SizedBox.square(
+        dimension: 34,
+        child: IconButton(
+          onPressed: canSend ? _send : null,
+          style: IconButton.styleFrom(
+            backgroundColor: canSend ? AppColors.primary : disabledButtonColor,
+            foregroundColor: Colors.white,
+            disabledForegroundColor: DdtTheme.sidePanelTextMuted(context),
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          icon: _isSending
+              ? const SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(CupertinoIcons.arrow_up, size: 17),
         ),
-        icon: _isSending
-            ? SizedBox(
-                width: 16.w,
-                height: 16.w,
-                child: const CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(CupertinoIcons.arrow_up, size: 17.sp),
       ),
     );
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(14.w, 6.h, 6.w, 6.h),
-      decoration: BoxDecoration(
-        color: DdtTheme.inputFillColor(context),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: DdtTheme.inputBorderColor(context).withValues(alpha: 0.45),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              minLines: 1,
-              maxLines: 4,
-              textAlignVertical: TextAlignVertical.center,
-              textInputAction: TextInputAction.newline,
-              style: DdtTheme.style(
-                fontSize: 14.sp,
-                color: DdtTheme.sidePanelTextPrimary(context),
-              ),
-              decoration: InputDecoration(
-                hintText: 'Написать комментарий…',
-                hintStyle: DdtTheme.inputHintStyle(context),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 6.w,
-                  vertical: 8.h,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(width: 6.w),
-          sendButton,
-        ],
+    return DdtAppInput(
+      hint: 'Написать комментарий…',
+      controller: _controller,
+      focusNode: _focusNode,
+      variant: DdtInputVariant.standard,
+      minLines: 1,
+      maxLines: 4,
+      contentPadding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      borderRadius: BorderRadius.circular(14.r),
+      textInputAction: TextInputAction.newline,
+      textColor: DdtTheme.sidePanelTextPrimary(context),
+      readOnly: _isSending,
+      suffix: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: sendButton,
       ),
     );
   }
@@ -251,7 +248,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
             'Комментариев пока нет. Начните обсуждение задачи.',
             textAlign: TextAlign.center,
             style: DdtTheme.style(
-              fontSize: 13.sp,
+              fontSize: DdtTypography.labelSize,
               color: DdtTheme.sidePanelTextMuted(context),
             ),
           ),
@@ -330,7 +327,7 @@ class _CommentBubble extends StatelessWidget {
                           fallback: 'Пользователь',
                         ),
                   style: DdtTheme.style(
-                    fontSize: 12.sp,
+                    fontSize: DdtTypography.labelSmallSize,
                     fontWeight: FontWeight.w600,
                     color: DdtTheme.sidePanelTextSecondary(context),
                   ),
@@ -340,7 +337,7 @@ class _CommentBubble extends StatelessWidget {
                   Text(
                     formatTaskDateTime(comment.createdAt!.toLocal()),
                     style: DdtTheme.style(
-                      fontSize: 10.sp,
+                      fontSize: DdtTypography.microSize,
                       color: DdtTheme.sidePanelTextMuted(context),
                     ),
                   ),
@@ -351,7 +348,7 @@ class _CommentBubble extends StatelessWidget {
             SelectableText(
               comment.text,
               style: DdtTheme.style(
-                fontSize: 13.sp,
+                fontSize: DdtTypography.labelSize,
                 height: 1.4,
                 color: DdtTheme.sidePanelTextPrimary(context),
               ),

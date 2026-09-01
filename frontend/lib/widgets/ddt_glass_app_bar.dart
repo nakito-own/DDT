@@ -10,6 +10,7 @@ import '../models/app_notification.dart';
 import '../models/user_profile.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
+import '../theme/ddt_typography.dart';
 
 class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   const DdtGlassAppBar({super.key, required this.title, this.actions});
@@ -43,7 +44,7 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(
-                fontSize: 18.sp,
+                fontSize: DdtTypography.panelTitleSize,
                 fontWeight: FontWeight.w600,
                 color: foregroundColor,
               ),
@@ -140,7 +141,7 @@ class _NotificationsPanel extends StatelessWidget {
                       child: Text(
                         'Уведомления',
                         style: DdtTheme.style(
-                          fontSize: 15.sp,
+                          fontSize: DdtTypography.bodyLargeSize,
                           fontWeight: FontWeight.w600,
                           color: DdtTheme.taskCardTextPrimary(context),
                         ),
@@ -164,7 +165,7 @@ class _NotificationsPanel extends StatelessWidget {
                           : 'Подключение к серверу уведомлений...',
                       textAlign: TextAlign.center,
                       style: DdtTheme.style(
-                        fontSize: 13.sp,
+                        fontSize: DdtTypography.labelSize,
                         color: DdtTheme.taskCardTextSecondary(context),
                       ),
                     ),
@@ -242,7 +243,7 @@ class _NotificationTile extends StatelessWidget {
                     Text(
                       item.title,
                       style: DdtTheme.style(
-                        fontSize: 13.sp,
+                        fontSize: DdtTypography.labelSize,
                         fontWeight: FontWeight.w600,
                         color: primary,
                       ),
@@ -250,7 +251,10 @@ class _NotificationTile extends StatelessWidget {
                     SizedBox(height: 4.h),
                     Text(
                       item.body,
-                      style: DdtTheme.style(fontSize: 12.sp, color: muted),
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSmallSize,
+                        color: muted,
+                      ),
                     ),
                   ],
                 ),
@@ -350,7 +354,7 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: DdtTheme.style(
-                              fontSize: 13.sp,
+                              fontSize: DdtTypography.labelSize,
                               fontWeight: FontWeight.w500,
                               color: email != null ? textColor : mutedColor,
                             ),
@@ -469,7 +473,7 @@ class _ProfilePanelHeader extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: DdtTheme.style(
-              fontSize: 15.sp,
+              fontSize: DdtTypography.bodyLargeSize,
               fontWeight: FontWeight.w600,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
@@ -496,7 +500,7 @@ class _ProfilePanelField extends StatelessWidget {
           Text(
             label,
             style: DdtTheme.style(
-              fontSize: 11.sp,
+              fontSize: DdtTypography.captionSize,
               color: DdtTheme.taskCardTextSecondary(context),
             ),
           ),
@@ -506,7 +510,7 @@ class _ProfilePanelField extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: DdtTheme.style(
-              fontSize: 13.sp,
+              fontSize: DdtTypography.labelSize,
               fontWeight: FontWeight.w500,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
@@ -570,7 +574,7 @@ class _ProfileLogoutButtonState extends State<_ProfileLogoutButton> {
                 : Text(
                     'Выйти',
                     style: DdtTheme.style(
-                      fontSize: 13.sp,
+                      fontSize: DdtTypography.labelSize,
                       fontWeight: FontWeight.w600,
                       color: enabled
                           ? AppColors.error

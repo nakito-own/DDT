@@ -16,6 +16,7 @@ import '../utils/task_formatters.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
+import '../theme/ddt_typography.dart';
 
 const _kanbanMotionDuration = Duration(milliseconds: 380);
 const _kanbanMotionCurve = Curves.easeInOutCubicEmphasized;
@@ -640,7 +641,7 @@ class _KanbanColumnHeader extends StatelessWidget {
           child: Text(
             status.label,
             style: DdtTheme.style(
-              fontSize: 16.sp,
+              fontSize: DdtTypography.sectionTitleSize,
               fontWeight: FontWeight.w700,
               color: AppColors.primary,
             ),
@@ -655,7 +656,7 @@ class _KanbanColumnHeader extends StatelessWidget {
           child: Text(
             '$taskCount',
             style: DdtTheme.style(
-              fontSize: 12.sp,
+              fontSize: DdtTypography.labelSmallSize,
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),
@@ -780,7 +781,10 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
           Center(
             child: Text(
               'Перетащите задачу сюда',
-              style: DdtTheme.style(fontSize: 13.sp, color: Colors.grey[600]),
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSize,
+                color: Colors.grey[600],
+              ),
               textAlign: TextAlign.center,
             ),
           ),

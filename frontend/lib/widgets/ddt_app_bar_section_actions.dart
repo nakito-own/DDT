@@ -1,6 +1,7 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../theme/ddt_typography.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -313,7 +314,7 @@ class _AppBarTextAction extends StatelessWidget {
       label: Text(
         label,
         style: DdtTheme.style(
-          fontSize: DdtTheme.shellSizeOf(context, 14),
+          fontSize: DdtTypography.bodySize,
           fontWeight: FontWeight.w600,
           color: foregroundColor,
         ),
@@ -419,7 +420,7 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
                 label: Text(
                   widget.label!,
                   style: DdtTheme.style(
-                    fontSize: DdtTheme.shellSizeOf(context, 14),
+                    fontSize: DdtTypography.bodySize,
                     fontWeight: FontWeight.w600,
                     color: foregroundColor,
                   ),
