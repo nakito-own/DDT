@@ -3,6 +3,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class MailHtmlRenderer extends StatelessWidget {
   const MailHtmlRenderer({super.key, required this.viewId, required this.html});
@@ -17,7 +18,7 @@ class MailHtmlRenderer extends StatelessWidget {
       child: HtmlWidget(
         html,
         textStyle: DdtTheme.style(
-          fontSize: 14,
+          fontSize: DdtTypography.bodySize,
           height: 1.6,
           color: const Color(0xFF1A1A1A),
         ),

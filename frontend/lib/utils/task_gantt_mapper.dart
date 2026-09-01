@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../models/task.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
+import '../theme/ddt_typography.dart';
 
 const _ganttMonthNames = [
   'Январь',
@@ -111,7 +112,7 @@ Widget buildTaskGanttBar(BuildContext context, GanttActivity activity) {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: DdtTheme.style(
-                        fontSize: 12.sp,
+                        fontSize: DdtTypography.labelSmallSize,
                         fontWeight: FontWeight.w600,
                         color: DdtTheme.taskCardTextPrimary(context),
                       ),
@@ -149,7 +150,10 @@ class _TaskGanttListTitle extends StatelessWidget {
             task.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: DdtTheme.style(fontSize: 12.sp, fontWeight: FontWeight.w600),
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSmallSize,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],

@@ -9,6 +9,7 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/notifications/notifications_bloc.dart';
 import '../blocs/theme/theme_bloc.dart';
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -91,7 +92,7 @@ class SettingsPage extends StatelessWidget {
                 if (authState is! AuthAuthenticated) {
                   return Text(
                     'Войдите через Exchange, чтобы увидеть профиль',
-                    style: DdtTheme.style(fontSize: 14.sp),
+                    style: DdtTheme.style(fontSize: DdtTypography.bodySize),
                   );
                 }
 
@@ -165,7 +166,7 @@ class _SettingsSection extends StatelessWidget {
           Text(
             title,
             style: DdtTheme.style(
-              fontSize: 13.sp,
+              fontSize: DdtTypography.labelSize,
               fontWeight: FontWeight.w600,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
@@ -203,7 +204,7 @@ class _SettingsRow extends StatelessWidget {
               Text(
                 label,
                 style: DdtTheme.style(
-                  fontSize: 12.sp,
+                  fontSize: DdtTypography.labelSmallSize,
                   color: AppColors.primary.withValues(alpha: 0.6),
                 ),
               ),
@@ -211,7 +212,7 @@ class _SettingsRow extends StatelessWidget {
               Text(
                 value,
                 style: DdtTheme.style(
-                  fontSize: 14.sp,
+                  fontSize: DdtTypography.bodySize,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -220,7 +221,7 @@ class _SettingsRow extends StatelessWidget {
                 Text(
                   subtitle!,
                   style: DdtTheme.style(
-                    fontSize: 12.sp,
+                    fontSize: DdtTypography.labelSmallSize,
                     color: DdtTheme.taskCardTextSecondary(context),
                   ),
                 ),
@@ -250,14 +251,17 @@ class _ProfileRow extends StatelessWidget {
           Text(
             label,
             style: DdtTheme.style(
-              fontSize: 12.sp,
+              fontSize: DdtTypography.labelSmallSize,
               color: AppColors.primary.withValues(alpha: 0.6),
             ),
           ),
           SizedBox(height: 4.h),
           Text(
             value,
-            style: DdtTheme.style(fontSize: 14.sp, fontWeight: FontWeight.w600),
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

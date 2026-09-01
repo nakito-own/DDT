@@ -12,6 +12,7 @@ import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 import '../widgets/tasks_filters_panel.dart';
+import '../theme/ddt_typography.dart';
 
 class TasksListPage extends StatelessWidget {
   const TasksListPage({super.key});
@@ -113,7 +114,7 @@ class TasksListPage extends StatelessWidget {
                           child: Text(
                             'Задачи',
                             style: DdtTheme.style(
-                              fontSize: 16.sp,
+                              fontSize: DdtTypography.sectionTitleSize,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -131,7 +132,9 @@ class TasksListPage extends StatelessWidget {
                           ? Center(
                               child: Text(
                                 'Нет задач по выбранным фильтрам',
-                                style: DdtTheme.style(fontSize: 14.sp),
+                                style: DdtTheme.style(
+                                  fontSize: DdtTypography.bodySize,
+                                ),
                               ),
                             )
                           : ListView.separated(

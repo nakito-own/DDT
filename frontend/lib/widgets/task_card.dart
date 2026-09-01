@@ -8,6 +8,7 @@ import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import 'task_priority_badge.dart';
 import 'task_type_badge.dart';
+import '../theme/ddt_typography.dart';
 
 class TaskCard extends StatelessWidget {
   const TaskCard({
@@ -51,7 +52,7 @@ class TaskCard extends StatelessWidget {
                 child: Text(
                   task.title,
                   style: DdtTheme.style(
-                    fontSize: 14.sp,
+                    fontSize: DdtTypography.bodySize,
                     fontWeight: FontWeight.w600,
                     color: textPrimary,
                   ),
@@ -79,7 +80,7 @@ class TaskCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(
-                fontSize: 12.sp,
+                fontSize: DdtTypography.labelSmallSize,
                 color: textSecondary,
                 height: 1.3,
               ),
@@ -259,7 +260,7 @@ class _MetaItem extends StatelessWidget {
         Text(
           label,
           style: DdtTheme.style(
-            fontSize: 11.sp,
+            fontSize: DdtTypography.captionSize,
             fontWeight: FontWeight.w500,
             color: textColor,
           ),

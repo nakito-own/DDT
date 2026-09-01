@@ -7,8 +7,11 @@ import 'package:intl/intl.dart';
 import '../blocs/calendar/calendar_bloc.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_date_time_picker.dart';
+import '../utils/ddt_toast.dart';
+import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
 import 'ddt_tappable.dart';
+import '../theme/ddt_typography.dart';
 
 Future<bool?> showComposeEventPanel(BuildContext context) {
   return showDdtSidePanel<bool>(context, child: const ComposeEventPanel());
@@ -74,10 +77,9 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
     }
 
     if (!_end.isAfter(_start)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Время окончания должно быть позже начала'),
-        ),
+      DdtToast.show(
+        message: 'Время окончания должно быть позже начала',
+        type: ToastType.warning,
       );
       return;
     }
@@ -94,9 +96,7 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Событие создаётся...')));
+    DdtToast.show(message: 'Событие создаётся...', type: ToastType.info);
   }
 
   Widget _dateTile({
@@ -115,7 +115,10 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: DdtTheme.style(fontSize: 13.sp)),
+                Text(
+                  label,
+                  style: DdtTheme.style(fontSize: DdtTypography.labelSize),
+                ),
                 Text(format.format(value)),
               ],
             ),
@@ -158,9 +161,9 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
           child: ListView(
             padding: EdgeInsets.all(DdtTheme.spacing.w),
             children: [
-              TextFormField(
+              DdtAppInput(
+                label: 'Название',
                 controller: _subjectController,
-                decoration: DdtTheme.inputDecoration(labelText: 'Название'),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Укажите название события'
                     : null,
@@ -177,17 +180,12 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
                 onTap: () => _pickDateTime(isStart: false),
               ),
               SizedBox(height: 12.h),
-              TextFormField(
-                controller: _locationController,
-                decoration: DdtTheme.inputDecoration(labelText: 'Место'),
-              ),
+              DdtAppInput(label: 'Место', controller: _locationController),
               SizedBox(height: 12.h),
-              TextFormField(
+              DdtAppInput(
+                label: 'Описание',
                 controller: _bodyController,
-                decoration: DdtTheme.inputDecoration(
-                  labelText: 'Описание',
-                  alignLabelWithHint: true,
-                ),
+                type: InputType.multiline,
                 minLines: 4,
                 maxLines: 10,
               ),
@@ -197,7 +195,7 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
                   child: Text(
                     state.errorMessage!,
                     style: DdtTheme.style(
-                      fontSize: 13.sp,
+                      fontSize: DdtTypography.labelSize,
                       color: Colors.redAccent,
                     ),
                   ),

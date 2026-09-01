@@ -19,6 +19,7 @@ import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
 import 'task_comments_section.dart';
+import '../theme/ddt_typography.dart';
 
 enum TaskSidePanelMode { view, create }
 
@@ -257,17 +258,12 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
             child: Button(
               text: 'Отмена',
               type: ButtonType.outlined,
-              borderRadius: DdtTheme.radius,
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
           SizedBox(width: 12.w),
           Expanded(
-            child: Button(
-              text: 'Сохранить',
-              borderRadius: DdtTheme.radius,
-              onPressed: _submit,
-            ),
+            child: Button(text: 'Сохранить', onPressed: _submit),
           ),
         ],
       ),
@@ -280,7 +276,6 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               label: 'Название',
               hint: 'Введите название задачи',
               controller: _titleController,
-              borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
             DdtAppInput(
@@ -289,7 +284,6 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               controller: _descriptionController,
               type: InputType.multiline,
               maxLines: 4,
-              borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
             _TaskFormTableSections(
@@ -427,7 +421,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               Text(
                 'Ссылки не добавлены',
                 style: DdtTheme.style(
-                  fontSize: 13.sp,
+                  fontSize: DdtTypography.labelSize,
                   color: DdtTheme.sidePanelTextMuted(context),
                 ),
               )
@@ -612,17 +606,12 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
             child: Button(
               text: 'Отмена',
               type: ButtonType.outlined,
-              borderRadius: DdtTheme.radius,
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
           SizedBox(width: 12.w),
           Expanded(
-            child: Button(
-              text: 'Создать',
-              borderRadius: DdtTheme.radius,
-              onPressed: _submit,
-            ),
+            child: Button(text: 'Создать', onPressed: _submit),
           ),
         ],
       ),
@@ -636,7 +625,6 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               hint: 'Введите название задачи',
               controller: _titleController,
               autofocus: true,
-              borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
             DdtAppInput(
@@ -645,7 +633,6 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               controller: _descriptionController,
               type: InputType.multiline,
               maxLines: 4,
-              borderRadius: DdtTheme.radius,
             ),
             DdtTheme.verticalGap(),
             _TaskFormTableSections(
@@ -783,7 +770,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               Text(
                 'Ссылки не добавлены',
                 style: DdtTheme.style(
-                  fontSize: 13.sp,
+                  fontSize: DdtTypography.labelSize,
                   color: DdtTheme.sidePanelTextMuted(context),
                 ),
               )
@@ -804,7 +791,6 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               controller: _commentController,
               type: InputType.multiline,
               maxLines: 3,
-              borderRadius: DdtTheme.radius,
             ),
           ],
         ),
@@ -849,7 +835,7 @@ class _LinkDraftEditor extends StatelessWidget {
                 child: Text(
                   'Ссылка',
                   style: DdtTheme.style(
-                    fontSize: 13.sp,
+                    fontSize: DdtTypography.labelSize,
                     fontWeight: FontWeight.w600,
                     color: DdtTheme.sidePanelTextPrimary(context),
                   ),
@@ -870,14 +856,12 @@ class _LinkDraftEditor extends StatelessWidget {
             label: 'URL',
             hint: 'https://...',
             controller: draft.urlController,
-            borderRadius: DdtTheme.radius,
           ),
           SizedBox(height: 8.h),
           DdtAppInput(
             label: 'Название',
             hint: 'Необязательно',
             controller: draft.titleController,
-            borderRadius: DdtTheme.radius,
           ),
         ],
       ),
@@ -892,11 +876,8 @@ class _FormTableControl {
   static const double labelGap = 12;
   static const double labelColumnWidth = 128;
 
-  static EdgeInsetsGeometry padding() =>
-      EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h);
-
   static TextStyle textStyle(BuildContext context) => DdtTheme.style(
-    fontSize: 14.sp,
+    fontSize: DdtTypography.bodySize,
     color: DdtTheme.sidePanelTextSecondary(context),
   );
 
@@ -905,12 +886,11 @@ class _FormTableControl {
     String? hintText,
     Widget? suffixIcon,
   }) {
-    return InputDecoration(
+    return DdtTheme.inputDecoration(
+      context,
       hintText: hintText,
-      hintStyle: DdtTheme.inputHintStyle(context),
-      contentPadding: padding(),
-      isDense: true,
       suffixIcon: suffixIcon,
+      compact: true,
     );
   }
 }
@@ -970,7 +950,7 @@ class _TaskFormTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labelStyle = DdtTheme.style(
-      fontSize: 13.sp,
+      fontSize: DdtTypography.labelSize,
       fontWeight: FontWeight.w600,
       color: DdtTheme.sidePanelTextPrimary(context),
     );
@@ -1034,7 +1014,7 @@ class _CompactIconTextButton extends StatelessWidget {
       label: Text(
         label,
         style: DdtTheme.style(
-          fontSize: 12.sp,
+          fontSize: DdtTypography.labelSmallSize,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.primary,
         ),
@@ -1056,12 +1036,13 @@ class _FormTableTextInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    return DdtAppInput(
+      hint: hint,
       controller: controller,
+      variant: DdtInputVariant.compact,
+      type: InputType.number,
       inputFormatters: inputFormatters,
-      keyboardType: TextInputType.number,
-      style: _FormTableControl.textStyle(context),
-      decoration: _FormTableControl.decoration(context, hintText: hint),
+      textColor: DdtTheme.sidePanelTextSecondary(context),
     );
   }
 }
@@ -1157,7 +1138,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       title,
       style: DdtTheme.style(
-        fontSize: 14.sp,
+        fontSize: DdtTypography.bodySize,
         fontWeight: FontWeight.w700,
         color: DdtTheme.sidePanelTextPrimary(context),
       ),

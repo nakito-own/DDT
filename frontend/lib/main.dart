@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:toastification/toastification.dart';
 
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/calendar/calendar_bloc.dart';
@@ -15,6 +16,7 @@ import 'models/app_notification.dart';
 import 'router/app_router.dart';
 import 'services/session_token_storage.dart';
 import 'theme/ddt_theme.dart';
+import 'theme/ddt_typography.dart';
 import 'utils/browser_page_zoom.dart';
 import 'utils/ddt_date_time_picker.dart';
 import 'utils/ddt_toast.dart';
@@ -118,6 +120,12 @@ class _DdtAppState extends State<DdtApp> {
             listener: (context, notifState) {
               if (notifState.items.isEmpty) return;
               final latest = notifState.items.first;
+              DdtToast.show(
+                title: latest.title,
+                message: latest.body,
+                type: ToastType.info,
+                duration: const Duration(seconds: 5),
+              );
               switch (latest.category) {
                 case AppNotificationCategory.newMail:
                 case AppNotificationCategory.mailUpdated:
@@ -145,32 +153,46 @@ class _DdtAppState extends State<DdtApp> {
           builder: (context, child) => FlutterViewportSyncScope(
             child: BlocBuilder<ThemeBloc, ThemeState>(
               buildWhen: (previous, current) => previous.mode != current.mode,
-              builder: (context, themeState) => MaterialApp.router(
-                routerConfig: _appRouter.router,
-                scaffoldMessengerKey: rootScaffoldMessengerKey,
-                title: 'DDT',
-                locale: ddtPickerLocale,
-                supportedLocales: const [ddtPickerLocale],
-                localizationsDelegates: const [
-                  GlobalMaterialLocalizations.delegate,
-                  GlobalWidgetsLocalizations.delegate,
-                  GlobalCupertinoLocalizations.delegate,
-                ],
-                theme: DdtTheme.light(),
-                darkTheme: DdtTheme.dark(),
-                themeMode: themeState.mode,
-                builder: (context, child) {
-                  return Material(
-                    type: MaterialType.transparency,
-                    child: DefaultTextStyle(
-                      style: DdtTheme.style(
-                        color: DdtTheme.textPrimary(context),
+              builder: (context, themeState) => ToastificationWrapper(
+                config: ToastificationConfig(
+                  alignment: Alignment.topRight,
+                  itemWidth: 380,
+                  maxToastLimit: 5,
+                  animationDuration: const Duration(milliseconds: 320),
+                  marginBuilder: (context, alignment) => EdgeInsets.only(
+                    top:
+                        MediaQuery.paddingOf(context).top +
+                        DdtTheme.shellSizeOf(context, 88),
+                    right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+                  ),
+                ),
+                child: MaterialApp.router(
+                  routerConfig: _appRouter.router,
+                  title: 'DDT',
+                  locale: ddtPickerLocale,
+                  supportedLocales: const [ddtPickerLocale],
+                  localizationsDelegates: const [
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
+                  theme: DdtTheme.light(),
+                  darkTheme: DdtTheme.dark(),
+                  themeMode: themeState.mode,
+                  builder: (context, child) {
+                    return Material(
+                      type: MaterialType.transparency,
+                      child: DefaultTextStyle(
+                        style: DdtTypography.style(
+                          size: DdtTypography.bodySize,
+                          color: DdtTheme.textPrimary(context),
+                        ),
+                        child: child ?? const SizedBox.shrink(),
                       ),
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                  );
-                },
-                debugShowCheckedModeBanner: false,
+                    );
+                  },
+                  debugShowCheckedModeBanner: false,
+                ),
               ),
             ),
           ),

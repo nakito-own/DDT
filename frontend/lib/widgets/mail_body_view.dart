@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/ddt_theme.dart';
 import 'mail_html_document.dart';
 import 'mail_html_renderer.dart';
+import '../theme/ddt_typography.dart';
 
 class MailBodyView extends StatefulWidget {
   const MailBodyView({
@@ -55,7 +56,7 @@ class _MailBodyViewState extends State<MailBodyView>
       return Text(
         'Содержимое письма недоступно',
         style: DdtTheme.style(
-          fontSize: 14,
+          fontSize: DdtTypography.bodySize,
           color: DdtTheme.taskCardTextSecondary(context),
         ),
       );
@@ -84,7 +85,7 @@ class _MailBodyViewState extends State<MailBodyView>
     return SelectableText(
       content,
       style: DdtTheme.style(
-        fontSize: 14,
+        fontSize: DdtTypography.bodySize,
         height: 1.6,
         color: DdtTheme.taskCardTextPrimary(context),
       ),
