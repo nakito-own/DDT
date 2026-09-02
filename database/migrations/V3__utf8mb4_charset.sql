@@ -46,7 +46,3 @@ UPDATE task_comments
 SET text = CONVERT(CAST(CONVERT(text USING latin1) AS BINARY) USING utf8mb4) COLLATE utf8mb4_unicode_ci
 WHERE CONVERT(CAST(CONVERT(text USING latin1) AS BINARY) USING utf8mb4) COLLATE utf8mb4_unicode_ci REGEXP '[А-Яа-яЁё]'
   AND text NOT REGEXP '[А-Яа-яЁё]';
-
-UPDATE task_types SET name = 'Задача' WHERE id = 1;
-UPDATE task_types SET name = 'Баг' WHERE id = 2;
-UPDATE task_types SET name = 'Улучшение' WHERE id = 3;
