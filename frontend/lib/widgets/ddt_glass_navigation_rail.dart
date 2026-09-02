@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../models/app_section.dart';
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class DdtGlassNavigationRail extends StatelessWidget {
   const DdtGlassNavigationRail({
@@ -141,7 +141,7 @@ class _NavigationRailItemState extends State<_NavigationRailItem> {
               builder: (context, color, _) {
                 final resolvedColor = color ?? foregroundColor;
                 final labelStyle = DdtTheme.style(
-                  fontSize: 10.sp,
+                  fontSize: DdtTypography.microSize,
                   fontWeight: widget.isSelected
                       ? FontWeight.w600
                       : FontWeight.w500,

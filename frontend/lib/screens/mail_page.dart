@@ -9,11 +9,13 @@ import '../blocs/mail/mail_bloc.dart';
 import '../models/mail_inbox_options.dart';
 import '../models/mail_message.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
 import '../widgets/compose_mail_panel.dart';
 import '../widgets/ddt_context_menu.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
+import '../theme/ddt_typography.dart';
 
 class MailPage extends StatelessWidget {
   const MailPage({super.key});
@@ -29,12 +31,11 @@ class MailPage extends StatelessWidget {
       listener: (context, state) {
         final msg = state.archiveErrorMessage ?? state.downloadErrorMessage;
         if (msg == null) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
+        DdtToast.show(
+          message: msg,
+          type: ToastType.error,
+          title: 'Не удалось выполнить действие',
+          duration: const Duration(seconds: 4),
         );
       },
       child: Stack(
@@ -149,7 +150,9 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                           ? const CircularProgressIndicator()
                           : Text(
                               'Нет папок',
-                              style: DdtTheme.style(fontSize: 12.sp),
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.labelSmallSize,
+                              ),
                             ),
                     )
                   : ListView(
@@ -213,7 +216,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
     return Text(
       title,
       style: DdtTheme.style(
-        fontSize: 14.sp,
+        fontSize: DdtTypography.bodySize,
         fontWeight: FontWeight.w700,
         color: DdtTheme.taskCardTextPrimary(context),
       ),
@@ -480,7 +483,9 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: DdtTheme.style(
-                      fontSize: compact ? 12.sp : 12.5.sp,
+                      fontSize: compact
+                          ? DdtTypography.labelSmallSize
+                          : DdtTypography.labelSize,
                       fontWeight: isSelected
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -503,7 +508,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                     child: Text(
                       '${folder.unreadCount}',
                       style: DdtTheme.style(
-                        fontSize: 10.sp,
+                        fontSize: DdtTypography.microSize,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primary,
                       ),
@@ -513,7 +518,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                   Text(
                     '${folder.totalCount}',
                     style: DdtTheme.style(
-                      fontSize: 10.sp,
+                      fontSize: DdtTypography.microSize,
                       color: DdtTheme.taskCardTextSecondary(context),
                     ),
                   ),
@@ -746,7 +751,7 @@ class _MailListState extends State<_MailList> {
                             Text(
                               subtitle,
                               style: DdtTheme.style(
-                                fontSize: 13.sp,
+                                fontSize: DdtTypography.labelSize,
                                 color: DdtTheme.taskCardTextSecondary(context),
                               ),
                             ),
@@ -757,7 +762,7 @@ class _MailListState extends State<_MailList> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: DdtTheme.style(
-                                  fontSize: 11.sp,
+                                  fontSize: DdtTypography.captionSize,
                                   color: AppColors.error,
                                 ),
                               ),
@@ -881,7 +886,9 @@ class _MailListState extends State<_MailList> {
                             return Center(
                               child: Text(
                                 'В этой папке нет писем',
-                                style: DdtTheme.style(fontSize: 14.sp),
+                                style: DdtTheme.style(
+                                  fontSize: DdtTypography.bodySize,
+                                ),
                               ),
                             );
                           }
@@ -1094,7 +1101,7 @@ class _MailListFooter extends StatelessWidget {
               errorMessage!,
               textAlign: TextAlign.center,
               style: DdtTheme.style(
-                fontSize: 12.sp,
+                fontSize: DdtTypography.labelSmallSize,
                 color: DdtTheme.taskCardTextSecondary(context),
               ),
             ),
@@ -1116,7 +1123,7 @@ class _MailListFooter extends StatelessWidget {
           child: Text(
             'Прокрутите вниз, чтобы загрузить ещё',
             style: DdtTheme.style(
-              fontSize: 12.sp,
+              fontSize: DdtTypography.labelSmallSize,
               color: DdtTheme.taskCardTextSecondary(context),
             ),
           ),
@@ -1171,7 +1178,7 @@ class _MailDetail extends StatelessWidget {
             child: Center(
               child: Text(
                 'Выберите письмо',
-                style: DdtTheme.style(fontSize: 15.sp),
+                style: DdtTheme.style(fontSize: DdtTypography.bodyLargeSize),
               ),
             ),
           );
@@ -1214,7 +1221,7 @@ class _MailDetail extends StatelessWidget {
                         Text(
                           'Загрузка вложений…',
                           style: DdtTheme.style(
-                            fontSize: 13.sp,
+                            fontSize: DdtTypography.labelSize,
                             color: DdtTheme.taskCardTextSecondary(context),
                           ),
                         ),
@@ -1225,7 +1232,7 @@ class _MailDetail extends StatelessWidget {
                   Text(
                     'Не удалось загрузить список вложений',
                     style: DdtTheme.style(
-                      fontSize: 13.sp,
+                      fontSize: DdtTypography.labelSize,
                       color: DdtTheme.taskCardTextSecondary(context),
                     ),
                   ),
@@ -1310,7 +1317,7 @@ class _MailSenderChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(
-                fontSize: 11.sp,
+                fontSize: DdtTypography.captionSize,
                 fontWeight: fontWeight,
                 color: DdtTheme.taskCardTextSecondary(context),
               ),
@@ -1337,7 +1344,7 @@ class _MailDetailHeader extends StatelessWidget {
         Text(
           message.subject,
           style: DdtTheme.style(
-            fontSize: 20.sp,
+            fontSize: DdtTypography.pageTitleSize,
             fontWeight: FontWeight.w700,
             color: DdtTheme.taskCardTextPrimary(context),
           ),
@@ -1349,7 +1356,7 @@ class _MailDetailHeader extends StatelessWidget {
           Text(
             _dateFormat.format(message.datetimeReceived!.toLocal()),
             style: DdtTheme.style(
-              fontSize: 11.sp,
+              fontSize: DdtTypography.captionSize,
               color: DdtTheme.textMuted(context).withValues(alpha: 0.62),
             ),
           ),
@@ -1371,7 +1378,10 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(message, style: DdtTheme.style(fontSize: 14.sp)),
+          Text(
+            message,
+            style: DdtTheme.style(fontSize: DdtTypography.bodySize),
+          ),
           SizedBox(height: 12.h),
           Button(
             text: 'Повторить',
@@ -1443,7 +1453,7 @@ class _MailBulkActionBar extends StatelessWidget {
                   child: Text(
                     _countLabel,
                     style: DdtTheme.style(
-                      fontSize: 13.sp,
+                      fontSize: DdtTypography.labelSize,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary,
                     ),
@@ -1493,7 +1503,10 @@ class _MailBulkActionBar extends StatelessWidget {
               SizedBox(height: 4.h),
               Text(
                 errorMessage!,
-                style: DdtTheme.style(fontSize: 11.sp, color: AppColors.error),
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.captionSize,
+                  color: AppColors.error,
+                ),
               ),
             ],
           ],
@@ -1547,7 +1560,7 @@ class _BulkButton extends StatelessWidget {
                   Text(
                     label,
                     style: DdtTheme.style(
-                      fontSize: 12.sp,
+                      fontSize: DdtTypography.labelSmallSize,
                       color: color,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1654,7 +1667,7 @@ class _AttachmentChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DdtTheme.style(
-                  fontSize: 11.sp,
+                  fontSize: DdtTypography.captionSize,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1663,7 +1676,7 @@ class _AttachmentChip extends StatelessWidget {
             Text(
               attachment.displaySize,
               style: DdtTheme.style(
-                fontSize: 10.sp,
+                fontSize: DdtTypography.microSize,
                 color: DdtTheme.taskCardTextSecondary(context),
               ),
             ),
@@ -1859,7 +1872,7 @@ class MailListItem extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: DdtTheme.style(
-                              fontSize: 14.sp,
+                              fontSize: DdtTypography.bodySize,
                               fontWeight: isUnread
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -1889,7 +1902,7 @@ class MailListItem extends StatelessWidget {
                                   message.datetimeReceived!.toLocal(),
                                 ),
                                 style: DdtTheme.style(
-                                  fontSize: 10.sp,
+                                  fontSize: DdtTypography.microSize,
                                   fontWeight: isUnread
                                       ? FontWeight.w500
                                       : FontWeight.w400,
@@ -1919,7 +1932,7 @@ class MailListItem extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: DdtTheme.style(
-                          fontSize: 12.sp,
+                          fontSize: DdtTypography.labelSmallSize,
                           color: DdtTheme.textMuted(
                             context,
                           ).withValues(alpha: isUnread ? 0.82 : 0.68),

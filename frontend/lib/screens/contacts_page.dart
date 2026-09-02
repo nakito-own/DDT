@@ -6,6 +6,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
 import '../theme/ddt_theme.dart';
+import '../widgets/ddt_app_input.dart';
+import '../theme/ddt_typography.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({super.key});
@@ -37,10 +39,11 @@ class _ContactsPageState extends State<ContactsPage> {
         children: [
           Padding(
             padding: EdgeInsets.only(bottom: 12.h),
-            child: TextField(
-              decoration: DdtTheme.inputDecoration(
-                hintText: 'Поиск контактов',
-              ).copyWith(prefixIcon: const Icon(Icons.search)),
+            child: DdtAppInput(
+              hint: 'Поиск контактов',
+              type: InputType.search,
+              variant: DdtInputVariant.pill,
+              prefixIcon: Icons.search,
               onChanged: (value) =>
                   _bloc.add(ContactsSearchQueryChanged(value)),
             ),
@@ -83,7 +86,9 @@ class _ContactsPageState extends State<ContactsPage> {
                               Center(
                                 child: Text(
                                   'Контакты не найдены',
-                                  style: DdtTheme.style(fontSize: 15.sp),
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.bodyLargeSize,
+                                  ),
                                 ),
                               ),
                             ],
@@ -125,7 +130,7 @@ class ContactListItem extends StatelessWidget {
           Text(
             contact.displayName,
             style: DdtTheme.style(
-              fontSize: 15.sp,
+              fontSize: DdtTypography.bodyLargeSize,
               fontWeight: FontWeight.w700,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
@@ -133,7 +138,10 @@ class ContactListItem extends StatelessWidget {
           if (contact.emails.isNotEmpty) ...[
             SizedBox(height: 6.h),
             ...contact.emails.map(
-              (email) => Text(email, style: DdtTheme.style(fontSize: 13.sp)),
+              (email) => Text(
+                email,
+                style: DdtTheme.style(fontSize: DdtTypography.labelSize),
+              ),
             ),
           ],
           if (contact.phones.isNotEmpty) ...[
@@ -142,7 +150,7 @@ class ContactListItem extends StatelessWidget {
               (phone) => Text(
                 phone,
                 style: DdtTheme.style(
-                  fontSize: 13.sp,
+                  fontSize: DdtTypography.labelSize,
                   color: DdtTheme.taskCardTextSecondary(context),
                 ),
               ),

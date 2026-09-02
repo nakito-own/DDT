@@ -13,6 +13,7 @@ def _connect():
         user=settings.db_user,
         password=settings.db_password,
         database=settings.db_name,
+        charset="utf8mb4",
         cursorclass=DictCursor,
         autocommit=True,
     )

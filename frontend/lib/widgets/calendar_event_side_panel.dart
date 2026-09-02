@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
 import 'ddt_side_panel.dart';
+import '../theme/ddt_typography.dart';
 
 Future<void> showCalendarEventSidePanel(
   BuildContext context,
@@ -44,9 +46,10 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
     );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(_responseSuccessMessage(action))));
+    DdtToast.show(
+      message: _responseSuccessMessage(action),
+      type: ToastType.success,
+    );
   }
 
   String _responseSuccessMessage(CalendarEventResponseAction action) {
@@ -86,7 +89,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               Text(
                 _event.subject,
                 style: DdtTheme.style(
-                  fontSize: 22.sp,
+                  fontSize: DdtTypography.entityTitleSize,
                   fontWeight: pending ? FontWeight.w800 : FontWeight.w700,
                   color: textPrimary,
                 ),
@@ -179,7 +182,7 @@ class _ResponseStatusBadge extends StatelessWidget {
           Text(
             event.responseLabel,
             style: DdtTheme.style(
-              fontSize: 13.sp,
+              fontSize: DdtTypography.labelSize,
               fontWeight: pending ? FontWeight.w700 : FontWeight.w600,
               color: pending ? AppColors.primary : color,
             ),
@@ -300,7 +303,7 @@ class _InfoField extends StatelessWidget {
             Text(
               label,
               style: DdtTheme.style(
-                fontSize: 12.sp,
+                fontSize: DdtTypography.labelSmallSize,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
@@ -311,7 +314,7 @@ class _InfoField extends StatelessWidget {
         Text(
           value,
           style: DdtTheme.style(
-            fontSize: 15.sp,
+            fontSize: DdtTypography.bodyLargeSize,
             color: DdtTheme.sidePanelTextPrimary(context),
           ),
         ),

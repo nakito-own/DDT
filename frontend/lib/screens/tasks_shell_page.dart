@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 /// Оболочка раздела задач: управляет загрузкой и ошибками.
 ///
@@ -56,7 +57,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
                   Text(
                     'Не удалось загрузить задачи',
                     style: DdtTheme.style(
-                      fontSize: 16.sp,
+                      fontSize: DdtTypography.sectionTitleSize,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

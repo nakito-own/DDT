@@ -18,6 +18,7 @@ mysql_args=(
   --port="$DB_PORT"
   --user="$DB_USER"
   --database="$DB_NAME"
+  --default-character-set=utf8mb4
   --batch
   --skip-column-names
 )

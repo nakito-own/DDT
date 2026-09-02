@@ -13,6 +13,7 @@ import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_segmented_control.dart';
+import '../theme/ddt_typography.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -205,7 +206,10 @@ class _CalendarToolbar extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           ),
-          child: Text('Сегодня', style: DdtTheme.style(fontSize: 13.sp)),
+          child: Text(
+            'Сегодня',
+            style: DdtTheme.style(fontSize: DdtTypography.labelSize),
+          ),
         ),
         _NavButton(
           icon: CupertinoIcons.chevron_left,
@@ -222,7 +226,7 @@ class _CalendarToolbar extends StatelessWidget {
         Text(
           state.titleLabel,
           style: DdtTheme.style(
-            fontSize: 18.sp,
+            fontSize: DdtTypography.panelTitleSize,
             fontWeight: FontWeight.w700,
             color: textPrimary,
           ),
@@ -338,9 +342,8 @@ class _CalendarBody extends StatelessWidget {
                 weekdayLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Nunito Sans',
-                  fontSize: 12,
+                style: DdtTypography.style(
+                  size: DdtTypography.labelSmallSize,
                   fontWeight: FontWeight.w600,
                   color: textSecondary,
                   height: 1.0,
@@ -358,9 +361,8 @@ class _CalendarBody extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 '${day.day}',
-                style: TextStyle(
-                  fontFamily: 'Nunito Sans',
-                  fontSize: 13,
+                style: DdtTypography.style(
+                  size: DdtTypography.labelSize,
                   fontWeight: FontWeight.w700,
                   height: 1.0,
                   color: isToday ? Colors.white : textPrimary,
@@ -601,9 +603,8 @@ class _MonthCalendar extends StatelessWidget {
             final index = (dayOfMonth - 1) % 7;
             return _CalendarBody._weekDayFullLabels[index];
           },
-          headerStyle: TextStyle(
-            fontFamily: 'Nunito Sans',
-            fontSize: 11,
+          headerStyle: DdtTypography.style(
+            size: DdtTypography.captionSize,
             fontWeight: FontWeight.w600,
             color: textSecondary,
           ),

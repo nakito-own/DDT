@@ -8,6 +8,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 /// Single action inside [DdtContextMenu].
 class DdtContextMenuItem {
@@ -532,7 +533,7 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DdtTheme.style(
-                    fontSize: 13.sp,
+                    fontSize: DdtTypography.labelSize,
                     fontWeight: widget.item.isSelected
                         ? FontWeight.w600
                         : FontWeight.w500,

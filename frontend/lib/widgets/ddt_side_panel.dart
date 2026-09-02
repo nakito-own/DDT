@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 const Duration _kSidePanelDuration = Duration(milliseconds: 340);
 const Curve _kSidePanelCurve = Curves.easeInOutCubic;
@@ -121,7 +122,7 @@ class DdtSidePanelShell extends StatelessWidget {
                       child: Text(
                         title,
                         style: DdtTheme.style(
-                          fontSize: 18.sp,
+                          fontSize: DdtTypography.panelTitleSize,
                           fontWeight: FontWeight.w700,
                           color: DdtTheme.sidePanelTextPrimary(context),
                         ),

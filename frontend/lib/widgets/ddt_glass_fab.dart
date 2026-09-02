@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_typography.dart';
 
 class DdtGlassFab extends StatefulWidget {
   const DdtGlassFab({
@@ -50,7 +51,7 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
           Text(
             label,
             style: DdtTheme.style(
-              fontSize: 14.sp,
+              fontSize: DdtTypography.bodySize,
               fontWeight: FontWeight.w600,
               color: textPrimary,
             ),

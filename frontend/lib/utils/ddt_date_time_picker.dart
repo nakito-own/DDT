@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_theme.dart';
+import '../widgets/ddt_app_input.dart';
+import '../theme/ddt_typography.dart';
 
 /// Локаль для Material date/time picker: русский язык, понедельник — первый день недели.
 const ddtPickerLocale = Locale('ru', 'RU');
@@ -176,7 +178,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
               Text(
                 'Выберите дату и время',
                 style: DdtTheme.style(
-                  fontSize: 18.sp,
+                  fontSize: DdtTypography.panelTitleSize,
                   fontWeight: FontWeight.w700,
                   color: textPrimary,
                 ),
@@ -201,7 +203,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
               Text(
                 'Время',
                 style: DdtTheme.style(
-                  fontSize: 13.sp,
+                  fontSize: DdtTypography.labelSize,
                   fontWeight: FontWeight.w600,
                   color: textMuted,
                 ),
@@ -220,7 +222,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
                     child: Text(
                       ':',
                       style: DdtTheme.style(
-                        fontSize: 20.sp,
+                        fontSize: DdtTypography.pageTitleSize,
                         fontWeight: FontWeight.w600,
                         color: textPrimary,
                       ),
@@ -239,7 +241,7 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
                 Text(
                   _timeError!,
                   style: DdtTheme.style(
-                    fontSize: 12.sp,
+                    fontSize: DdtTypography.labelSmallSize,
                     color: AppColors.error,
                   ),
                 ),
@@ -271,17 +273,17 @@ class _TimeField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return DdtAppInput(
       controller: controller,
+      hint: '00',
+      variant: DdtInputVariant.compact,
+      type: InputType.number,
       textAlign: TextAlign.center,
-      keyboardType: TextInputType.number,
+      fillColor: fillColor,
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(2),
       ],
-      decoration: DdtTheme.inputDecoration(
-        hintText: '00',
-      ).copyWith(fillColor: fillColor),
     );
   }
 }

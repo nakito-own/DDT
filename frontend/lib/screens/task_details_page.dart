@@ -15,6 +15,7 @@ import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/task_comments_section.dart';
 import '../widgets/task_side_panel.dart';
+import '../theme/ddt_typography.dart';
 
 class TaskDetailsPage extends StatefulWidget {
   const TaskDetailsPage({super.key, required this.taskId, this.spaceId});
@@ -294,7 +295,7 @@ class _TaskHeader extends StatelessWidget {
               Text(
                 'Задача #${task.id}',
                 style: DdtTheme.style(
-                  fontSize: 12.sp,
+                  fontSize: DdtTypography.labelSmallSize,
                   color: DdtTheme.sidePanelTextMuted(context),
                 ),
               ),
@@ -302,7 +303,7 @@ class _TaskHeader extends StatelessWidget {
               Text(
                 task.title,
                 style: DdtTheme.style(
-                  fontSize: 22.sp,
+                  fontSize: DdtTypography.entityTitleSize,
                   fontWeight: FontWeight.w700,
                   color: DdtTheme.sidePanelTextPrimary(context),
                 ),
@@ -336,7 +337,7 @@ class _TaskDescription extends StatelessWidget {
         Text(
           'Описание',
           style: DdtTheme.style(
-            fontSize: 13.sp,
+            fontSize: DdtTypography.labelSize,
             fontWeight: FontWeight.w600,
             color: DdtTheme.sidePanelTextMuted(context),
           ),
@@ -345,7 +346,7 @@ class _TaskDescription extends StatelessWidget {
         SelectableText(
           isEmpty ? 'Описание не добавлено' : task.description,
           style: DdtTheme.style(
-            fontSize: 14.sp,
+            fontSize: DdtTypography.bodySize,
             height: 1.55,
             color: isEmpty
                 ? DdtTheme.sidePanelTextMuted(context)
@@ -371,7 +372,7 @@ class _TaskParametersPanel extends StatelessWidget {
         Text(
           'Параметры',
           style: DdtTheme.style(
-            fontSize: 13.sp,
+            fontSize: DdtTypography.labelSize,
             fontWeight: FontWeight.w600,
             color: DdtTheme.sidePanelTextMuted(context),
           ),
@@ -486,7 +487,7 @@ class _TaskParametersPanel extends StatelessWidget {
 
 TextStyle _tableValueStyle(BuildContext context, {bool muted = false}) {
   return DdtTheme.style(
-    fontSize: 13.sp,
+    fontSize: DdtTypography.labelSize,
     fontWeight: FontWeight.w500,
     color: muted
         ? DdtTheme.sidePanelTextMuted(context)
@@ -502,7 +503,7 @@ class _ParametersTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labelStyle = DdtTheme.style(
-      fontSize: 12.sp,
+      fontSize: DdtTypography.labelSmallSize,
       fontWeight: FontWeight.w600,
       color: DdtTheme.sidePanelTextMuted(context),
     );
@@ -576,7 +577,7 @@ class _LinkRow extends StatelessWidget {
             child: Text(
               link.title?.trim().isNotEmpty == true ? link.title! : link.url,
               style: DdtTheme.style(
-                fontSize: 13.sp,
+                fontSize: DdtTypography.labelSize,
                 fontWeight: FontWeight.w500,
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -624,7 +625,7 @@ class _ParameterBadge extends StatelessWidget {
       child: Text(
         label,
         style: DdtTheme.style(
-          fontSize: 12.sp,
+          fontSize: DdtTypography.labelSmallSize,
           fontWeight: FontWeight.w600,
           color: color,
         ),
