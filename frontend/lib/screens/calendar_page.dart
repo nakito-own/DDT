@@ -12,6 +12,7 @@ import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../theme/ddt_typography.dart';
 
@@ -97,13 +98,16 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<CalendarBloc, CalendarState>(
-      listenWhen: (previous, current) => previous.events != current.events,
+      listenWhen: (previous, current) =>
+          previous.events != current.events ||
+          (previous.isRefreshing && !current.isRefreshing),
       listener: (context, state) => _syncPlannerEvents(state.events),
       child: Stack(
         children: [
           BlocBuilder<CalendarBloc, CalendarState>(
             buildWhen: (previous, current) =>
                 previous.isLoading != current.isLoading ||
+                previous.isRefreshing != current.isRefreshing ||
                 previous.errorMessage != current.errorMessage ||
                 previous.events.isEmpty != current.events.isEmpty ||
                 previous.viewMode != current.viewMode ||
@@ -122,28 +126,22 @@ class _CalendarPageState extends State<CalendarPage> {
                 );
               }
 
-              return RefreshIndicator(
-                onRefresh: () async => context.read<CalendarBloc>().add(
-                  const CalendarEventsRefreshRequested(),
-                ),
-                child: DdtTheme.glass(
-                  context: context,
-                  padding: EdgeInsets.all(16.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _CalendarToolbar(state: state),
-                      SizedBox(height: 12.h),
-                      Expanded(
-                        child: _CalendarBody(
-                          state: state,
-                          eventsController: _eventsController,
-                          plannerInitialDate: _plannerInitialDate,
-                        ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _CalendarToolbar(state: state),
+                  SizedBox(height: 12.h),
+                  Expanded(
+                    child: DdtSectionRefreshOverlay(
+                      isRefreshing: state.isRefreshing,
+                      child: _CalendarBody(
+                        state: state,
+                        eventsController: _eventsController,
+                        plannerInitialDate: _plannerInitialDate,
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               );
             },
           ),

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -15,6 +17,12 @@ class DdtTheme {
   static const double inputHorizontalPadding = 12;
   static const double inputVerticalPadding = 10;
   static const double spacing = 16;
+  static const double scrollbarThickness = 6;
+  static const double scrollbarCrossAxisMargin = 2;
+  static const double scrollbarMainAxisMargin = 4;
+
+  /// Reserved space between scrollable content and the scrollbar track.
+  static const double scrollbarGutter = 12;
 
   static const Color lightBackground = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFFFFFFF);
@@ -405,10 +413,14 @@ class DdtTheme {
 
   static double sidePanelWidth(BuildContext context, {double? maxWidth}) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final limit = maxWidth ?? 676;
+    // The panel is inset from the right edge, so it can never be wider than the
+    // viewport minus that inset. The bound matters at high browser zoom, where
+    // the logical viewport can shrink below the preferred panel width.
+    final available = math.max(screenWidth - spacing, 0.0);
+    final limit = math.min(maxWidth ?? 676, available);
     final percentage = screenWidth * 0.494;
 
-    return percentage.clamp(416.0, limit);
+    return percentage.clamp(math.min(416.0, limit), limit);
   }
 
   static double sidePanelHeight(BuildContext context) {
@@ -501,6 +513,8 @@ class DdtTheme {
     milliseconds: 220,
   );
   static const Curve selectionAnimationCurve = Curves.easeOutCubic;
+  static const Duration refreshContentDuration = Duration(milliseconds: 280);
+  static const Duration refreshShimmerDuration = Duration(milliseconds: 1400);
 
   static const WidgetStateProperty<Color> _transparentOverlay =
       WidgetStatePropertyAll(Colors.transparent);
@@ -512,12 +526,41 @@ class DdtTheme {
     );
   }
 
+  static ScrollbarThemeData scrollbarThemeData() {
+    return ScrollbarThemeData(
+      thickness: const WidgetStatePropertyAll(scrollbarThickness),
+      radius: const Radius.circular(8),
+      crossAxisMargin: scrollbarCrossAxisMargin,
+      mainAxisMargin: scrollbarMainAxisMargin,
+      minThumbLength: 32,
+    );
+  }
+
+  static EdgeInsets scrollbarContentGutter(
+    BuildContext context,
+    AxisDirection direction,
+  ) {
+    // Only vertical scrollables reserve a gutter. Horizontal ones (calendar
+    // day headers, kanban) often have a tight max height, and a bottom inset
+    // overflows their inner layout.
+    final isVertical =
+        direction == AxisDirection.down || direction == AxisDirection.up;
+    if (!isVertical) {
+      return EdgeInsets.zero;
+    }
+
+    final gap = shellSizeOf(context, scrollbarGutter);
+    final isRtl = Directionality.maybeOf(context) == TextDirection.rtl;
+    return isRtl ? EdgeInsets.only(left: gap) : EdgeInsets.only(right: gap);
+  }
+
   static ThemeData _applyInteractionTheme(ThemeData theme) {
     return theme.copyWith(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       splashColor: Colors.transparent,
       hoverColor: Colors.transparent,
+      scrollbarTheme: scrollbarThemeData(),
       iconButtonTheme: IconButtonThemeData(
         style: _withoutMaterialOverlay(
           IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),

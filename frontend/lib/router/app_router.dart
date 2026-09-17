@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/app_section.dart';
+import '../screens/analytics_page.dart';
 import '../screens/calendar_page.dart';
 import '../screens/contacts_page.dart';
 import '../screens/ews_login_screen.dart';
@@ -66,57 +67,62 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           );
         },
         routes: [
-          // /tasks → redirect к kanban по умолчанию
           GoRoute(
             path: RoutePaths.tasks,
-            redirect: (context, state) => RoutePaths.tasksKanban,
-          ),
-
-          // ── Внутренняя оболочка задач с TasksShellPage ─────────────────────
-          // ShellRoute сохраняет TasksShellPage живым при переключении
-          // между kanban/list/gantt (initState не вызывается повторно).
-          ShellRoute(
-            pageBuilder: (context, state, child) =>
-                NoTransitionPage(child: TasksShellPage(child: child)),
+            redirect: (context, state) {
+              if (state.uri.path == RoutePaths.tasks) {
+                return RoutePaths.tasksKanban;
+              }
+              return null;
+            },
             routes: [
-              GoRoute(
-                path: RoutePaths.tasksKanban,
-                name: RoutePaths.nameTasksKanban,
-                pageBuilder: (context, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const KanbanBoardPage(),
-                ),
-              ),
-              GoRoute(
-                path: RoutePaths.tasksList,
-                name: RoutePaths.nameTasksList,
-                pageBuilder: (context, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const TasksListPage(),
-                ),
-              ),
-              GoRoute(
-                path: RoutePaths.tasksGantt,
-                name: RoutePaths.nameTasksGantt,
-                pageBuilder: (context, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const TasksGanttPage(),
-                ),
-              ),
-              GoRoute(
-                path: RoutePaths.taskDetails,
-                name: RoutePaths.nameTaskDetails,
-                pageBuilder: (context, state) {
-                  final taskId = int.tryParse(
-                    state.pathParameters['taskId'] ?? '',
-                  );
-                  return NoTransitionPage(
-                    key: state.pageKey,
-                    child: taskId == null
-                        ? const _NotFoundPage()
-                        : TaskDetailsPage(taskId: taskId),
-                  );
-                },
+              // ── Внутренняя оболочка задач с TasksShellPage ─────────────────
+              // ShellRoute сохраняет TasksShellPage живым при переключении
+              // между kanban/list/gantt (initState не вызывается повторно).
+              ShellRoute(
+                pageBuilder: (context, state, child) =>
+                    NoTransitionPage(child: TasksShellPage(child: child)),
+                routes: [
+                  GoRoute(
+                    path: 'kanban',
+                    name: RoutePaths.nameTasksKanban,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const KanbanBoardPage(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'list',
+                    name: RoutePaths.nameTasksList,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const TasksListPage(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'gantt',
+                    name: RoutePaths.nameTasksGantt,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const TasksGanttPage(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':taskKey',
+                    name: RoutePaths.nameTaskDetails,
+                    pageBuilder: (context, state) {
+                      final taskKey = state.pathParameters['taskKey'] ?? '';
+                      return NoTransitionPage(
+                        key: state.pageKey,
+                        child:
+                            taskKey.isEmpty ||
+                                RoutePaths.isReservedTaskSegment(taskKey)
+                            ? const _NotFoundPage()
+                            : TaskDetailsPage(taskKey: taskKey),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -144,6 +150,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             ),
           ),
           GoRoute(
+            path: RoutePaths.analytics,
+            name: RoutePaths.nameAnalytics,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const AnalyticsPage(),
+            ),
+          ),
+          GoRoute(
             path: RoutePaths.settings,
             name: RoutePaths.nameSettings,
             pageBuilder: (context, state) => NoTransitionPage(
@@ -154,32 +168,51 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.space,
             name: RoutePaths.nameSpace,
-            redirect: (context, state) => RoutePaths.spaceKanbanFor(1),
+            redirect: (context, state) =>
+                RoutePaths.spaceKanbanFor(RoutePaths.defaultSpaceKey),
+          ),
+          GoRoute(
+            path: RoutePaths.spaceRef,
+            name: RoutePaths.nameSpaceTaskDetails,
+            redirect: (context, state) {
+              final spaceKey = state.pathParameters['spaceKey'] ?? '';
+              if (RoutePaths.isTaskKey(spaceKey)) return null;
+              return RoutePaths.spaceKanbanFor(spaceKey);
+            },
+            pageBuilder: (context, state) {
+              final taskKey = state.pathParameters['spaceKey'] ?? '';
+              final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
+              return NoTransitionPage(
+                key: state.pageKey,
+                child: RoutePaths.isTaskKey(taskKey)
+                    ? BlocProvider(
+                        create: (_) =>
+                            TasksBloc(api: TasksApi(spaceKey: spaceKey))
+                              ..add(const TasksBoardLoadRequested()),
+                        child: TaskDetailsPage(
+                          taskKey: taskKey,
+                          spaceKey: spaceKey,
+                        ),
+                      )
+                    : const _NotFoundPage(),
+              );
+            },
           ),
           ShellRoute(
             pageBuilder: (context, state, child) {
-              final spaceId = int.tryParse(
-                state.pathParameters['spaceId'] ?? '',
-              );
-              if (spaceId == null) {
+              final spaceKey = state.pathParameters['spaceKey'] ?? '';
+              if (spaceKey.isEmpty || RoutePaths.isTaskKey(spaceKey)) {
                 return const NoTransitionPage(child: _NotFoundPage());
               }
               return NoTransitionPage(
-                key: ValueKey('space-$spaceId'),
+                key: ValueKey('space-$spaceKey'),
                 child: BlocProvider(
-                  create: (_) => TasksBloc(api: TasksApi(spaceId: spaceId)),
+                  create: (_) => TasksBloc(api: TasksApi(spaceKey: spaceKey)),
                   child: TasksShellPage(child: child),
                 ),
               );
             },
             routes: [
-              GoRoute(
-                path: RoutePaths.spaceRoot,
-                redirect: (context, state) {
-                  final spaceId = int.parse(state.pathParameters['spaceId']!);
-                  return RoutePaths.spaceKanbanFor(spaceId);
-                },
-              ),
               GoRoute(
                 path: RoutePaths.spaceKanban,
                 name: RoutePaths.nameSpaceKanban,
@@ -203,24 +236,6 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   key: state.pageKey,
                   child: const TasksGanttPage(),
                 ),
-              ),
-              GoRoute(
-                path: RoutePaths.spaceTaskDetails,
-                name: RoutePaths.nameSpaceTaskDetails,
-                pageBuilder: (context, state) {
-                  final spaceId = int.tryParse(
-                    state.pathParameters['spaceId'] ?? '',
-                  );
-                  final taskId = int.tryParse(
-                    state.pathParameters['taskId'] ?? '',
-                  );
-                  return NoTransitionPage(
-                    key: state.pageKey,
-                    child: spaceId == null || taskId == null
-                        ? const _NotFoundPage()
-                        : TaskDetailsPage(taskId: taskId, spaceId: spaceId),
-                  );
-                },
               ),
             ],
           ),

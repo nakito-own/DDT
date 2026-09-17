@@ -6,6 +6,8 @@ from exchangelib.protocol import BaseProtocol
 from urllib3.util import Retry
 from urllib3.util.ssl_ import create_urllib3_context
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 _configured = False
@@ -14,11 +16,13 @@ _configured = False
 class _EwsHttpAdapter(requests.adapters.HTTPAdapter):
     """HTTP adapter tuned for flaky corporate Exchange endpoints."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, pool_maxsize: int, **kwargs) -> None:
         kwargs.setdefault(
             "max_retries",
             Retry(total=0, connect=0, read=0, redirect=0, status=0),
         )
+        kwargs.setdefault("pool_connections", pool_maxsize)
+        kwargs.setdefault("pool_maxsize", pool_maxsize)
         super().__init__(*args, **kwargs)
 
     def init_poolmanager(self, *args, **kwargs):
@@ -33,6 +37,21 @@ def configure_ews_transport() -> None:
     if _configured:
         return
 
-    BaseProtocol.HTTP_ADAPTER_CLS = _EwsHttpAdapter
+    pool_maxsize = max(2, settings.ews_pool_maxsize)
+    connect_timeout = max(1.0, settings.ews_connect_timeout_seconds)
+    read_timeout = max(1.0, settings.ews_read_timeout_seconds)
+
+    class _ConfiguredEwsHttpAdapter(_EwsHttpAdapter):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, pool_maxsize=pool_maxsize, **kwargs)
+
+    BaseProtocol.HTTP_ADAPTER_CLS = _ConfiguredEwsHttpAdapter
+    BaseProtocol.TIMEOUT = (connect_timeout, read_timeout)
+    BaseProtocol.MAX_SESSIONS = pool_maxsize
     _configured = True
-    logger.debug("Configured exchangelib HTTP transport for EWS")
+    logger.info(
+        "Configured EWS transport (pool=%s, timeout connect=%ss read=%ss)",
+        pool_maxsize,
+        connect_timeout,
+        read_timeout,
+    )

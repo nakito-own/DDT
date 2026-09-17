@@ -8,8 +8,9 @@ from app.schemas.ews import (
     CalendarEventResponseRequest,
     CreateCalendarEventRequest,
 )
+from app.services.ews_runtime import run_ews
 from app.services.ews_service import EwsConnectionError, EwsNotFoundError, ews_service
-from app.services.session_service import SessionContext, session_service
+from app.services.session_service import SessionContext
 
 router = APIRouter()
 
@@ -21,8 +22,12 @@ async def calendar_events(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        events = ews_service.list_calendar_events(account, start=start, end=end)
+        events = await run_ews(
+            context,
+            ews_service.list_calendar_events,
+            start=start,
+            end=end,
+        )
     except EwsConnectionError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -43,9 +48,9 @@ async def create_calendar_event(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        event = ews_service.create_calendar_event(
-            account=account,
+        event = await run_ews(
+            context,
+            ews_service.create_calendar_event,
             subject=payload.subject,
             start=payload.start,
             end=payload.end,
@@ -81,9 +86,9 @@ async def respond_to_calendar_event(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        event = ews_service.respond_to_calendar_event(
-            account=account,
+        event = await run_ews(
+            context,
+            ews_service.respond_to_calendar_event,
             event_id=event_id,
             response=payload.response,
         )

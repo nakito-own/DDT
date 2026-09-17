@@ -43,15 +43,18 @@ class _SpaceAppBarActions extends StatefulWidget {
 class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
   late final Future<List<Space>> _spaces = spacesApi.fetchSpaces();
 
-  int? _spaceIdFromLocation(String location) {
-    final match = RegExp(r'^/space/(\d+)').firstMatch(location);
-    return int.tryParse(match?.group(1) ?? '');
+  String? _spaceKeyFromLocation(String location) {
+    final board = RegExp(r'^/space/([^/]+)/(kanban|list|gantt)$')
+        .firstMatch(location);
+    if (board != null) return board.group(1);
+    final task = RegExp(r'^/space/(.+)-\d+$').firstMatch(location);
+    return task?.group(1);
   }
 
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    final selectedSpaceId = _spaceIdFromLocation(location);
+    final selectedSpaceKey = _spaceKeyFromLocation(location);
     final activeMode = TasksViewMode.fromRoute(location);
 
     return Row(
@@ -63,7 +66,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
             final spaces = snapshot.data ?? const <Space>[];
             Space? selectedSpace;
             for (final space in spaces) {
-              if (space.id == selectedSpaceId) {
+              if (space.spaceKey == selectedSpaceKey) {
                 selectedSpace = space;
                 break;
               }
@@ -73,7 +76,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               tooltip: 'Выбрать пространство',
               label: selectedSpace?.name ?? 'ПРОСТРАНСТВО',
               icon: CupertinoIcons.chevron_down,
-              isLoading: snapshot.connectionState == ConnectionState.waiting,
+              isBusy: snapshot.connectionState == ConnectionState.waiting,
               contextMenuItems: spaces.isEmpty
                   ? null
                   : [
@@ -82,7 +85,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
                           icon: CupertinoIcons.square_grid_2x2,
                           label: space.name,
                           onTap: () => context.go(
-                            activeMode.routePathForSpace(space.id),
+                            activeMode.routePathForSpace(space.spaceKey),
                           ),
                         ),
                     ],
@@ -107,8 +110,8 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
           ],
           selected: activeMode,
           onChanged: (mode) {
-            if (selectedSpaceId != null) {
-              context.go(mode.routePathForSpace(selectedSpaceId));
+            if (selectedSpaceKey != null) {
+              context.go(mode.routePathForSpace(selectedSpaceKey));
             }
           },
         ),
@@ -184,7 +187,7 @@ class _MailAppBarActions extends StatelessWidget {
             _AppBarIconAction(
               tooltip: 'Обновить почту',
               icon: CupertinoIcons.arrow_clockwise,
-              isLoading: state.isLoading || state.isRefreshingInbox,
+              isBusy: state.isLoading || state.isRefreshingInbox,
               onPressed: () => context.read<MailBloc>().add(
                 const MailInboxRefreshRequested(showAnimation: true),
               ),
@@ -248,16 +251,18 @@ class _CalendarAppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CalendarBloc, CalendarState>(
-      buildWhen: (previous, current) => previous.isLoading != current.isLoading,
+      buildWhen: (previous, current) =>
+          previous.isLoading != current.isLoading ||
+          previous.isRefreshing != current.isRefreshing,
       builder: (context, state) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _AppBarIconAction(
             tooltip: 'Обновить календарь',
             icon: CupertinoIcons.arrow_clockwise,
-            isLoading: state.isLoading,
+            isBusy: state.isRefreshing || state.isLoading,
             onPressed: () => context.read<CalendarBloc>().add(
-              const CalendarEventsRefreshRequested(),
+              const CalendarEventsRefreshRequested(showAnimation: true),
             ),
           ),
           SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
@@ -331,7 +336,7 @@ class _AppBarIconAction extends StatefulWidget {
     this.onPressed,
     this.contextMenuItems,
     this.placement = DdtContextMenuPlacement.belowCenter,
-    this.isLoading = false,
+    this.isBusy = false,
     this.isActive = false,
   });
 
@@ -341,7 +346,7 @@ class _AppBarIconAction extends StatefulWidget {
   final VoidCallback? onPressed;
   final List<DdtContextMenuItem>? contextMenuItems;
   final DdtContextMenuPlacement placement;
-  final bool isLoading;
+  final bool isBusy;
   final bool isActive;
 
   @override
@@ -374,8 +379,8 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
         : (isDark ? Colors.white : AppColors.primary);
     final iconSize = DdtTheme.shellSizeOf(context, 20);
 
-    final onPressed = widget.isLoading ? null : _handlePressed;
-    final icon = widget.isLoading
+    final onPressed = widget.isBusy ? null : _handlePressed;
+    final icon = widget.isBusy
         ? SizedBox(
             width: iconSize,
             height: iconSize,

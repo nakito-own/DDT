@@ -13,22 +13,25 @@ class DdtShellLayout extends StatelessWidget {
     required this.selectedSection,
     required this.onSectionSelected,
     required this.child,
+    this.padContent = true,
   });
 
   final String title;
   final AppSection selectedSection;
   final ValueChanged<AppSection> onSectionSelected;
   final Widget child;
+  final bool padContent;
 
   @override
   Widget build(BuildContext context) {
+    final shellInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing);
+    final contentTopInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing / 2);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(
-            DdtTheme.shellSizeOf(context, DdtTheme.spacing),
-          ),
+          padding: EdgeInsets.all(shellInset),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -36,7 +39,7 @@ class DdtShellLayout extends StatelessWidget {
                 selectedSection: selectedSection,
                 onSectionSelected: onSectionSelected,
               ),
-              SizedBox(width: DdtTheme.shellSizeOf(context, DdtTheme.spacing)),
+              SizedBox(width: shellInset),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -47,10 +50,20 @@ class DdtShellLayout extends StatelessWidget {
                         section: selectedSection,
                       ),
                     ),
-                    SizedBox(
-                      height: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+                    SizedBox(height: contentTopInset),
+                    Expanded(
+                      child: padContent
+                          ? Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                shellInset,
+                                contentTopInset,
+                                shellInset,
+                                shellInset,
+                              ),
+                              child: child,
+                            )
+                          : child,
                     ),
-                    Expanded(child: RepaintBoundary(child: child)),
                   ],
                 ),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/app_section.dart';
+import '../router/route_paths.dart';
 import '../widgets/ddt_shell_layout.dart';
 
 /// Оболочка основного приложения: навигационный рейл + аппбар + контент.
@@ -24,10 +25,13 @@ class MainShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+
     return DdtShellLayout(
       title: selectedSection.label,
       selectedSection: selectedSection,
       onSectionSelected: (section) => context.go(section.routePath),
+      padContent: !RoutePaths.isKanbanRoute(location),
       child: child,
     );
   }

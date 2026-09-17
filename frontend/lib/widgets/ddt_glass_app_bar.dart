@@ -39,14 +39,16 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Row(
           children: [
             SizedBox(width: horizontalPadding),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.panelTitleSize,
-                fontWeight: FontWeight.w600,
-                color: foregroundColor,
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.panelTitleSize,
+                  fontWeight: FontWeight.w600,
+                  color: foregroundColor,
+                ),
               ),
             ),
             if (actions != null) ...[

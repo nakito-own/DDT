@@ -157,24 +157,20 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DdtTheme.glass(
-      context: context,
-      padding: EdgeInsets.all(20.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSize,
-              fontWeight: FontWeight.w600,
-              color: DdtTheme.taskCardTextPrimary(context),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: DdtTheme.style(
+            fontSize: DdtTypography.labelSize,
+            fontWeight: FontWeight.w600,
+            color: DdtTheme.taskCardTextPrimary(context),
           ),
-          SizedBox(height: 12.h),
-          child,
-        ],
-      ),
+        ),
+        SizedBox(height: 12.h),
+        child,
+      ],
     );
   }
 }

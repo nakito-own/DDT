@@ -4,7 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// The single typography scale used by the DDT interface.
 ///
-/// Values are design pixels and are scaled by ScreenUtil at the point of use.
+/// Values are design pixels. ScreenUtil scale factors are disabled, so `.sp`
+/// resolves 1:1 to logical (CSS) pixels and browser page zoom can magnify them.
 abstract final class DdtTypography {
   static const double micro = 10;
   static const double caption = 11;

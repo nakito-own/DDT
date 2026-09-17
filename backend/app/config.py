@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     ews_service_endpoint: str = ""
     ews_verify_max_attempts: int = 3
     ews_verify_retry_delay_seconds: float = 1.0
+    ews_connect_timeout_seconds: float = 15.0
+    ews_read_timeout_seconds: float = 60.0
+    ews_pool_maxsize: int = 8
+    ews_thread_pool_size: int = 12
+    ews_max_concurrent_operations: int = 6
     ews_credentials_key: str = ""
     ews_session_ttl_hours: int = 24
     ews_remember_ttl_days: int = 30
@@ -27,6 +32,12 @@ class Settings(BaseSettings):
     ews_notification_stream_timeout: int = 1
     ews_notification_poll_interval: int = 15
     ews_notification_pull_timeout: int = 10
+
+    google_sheets_spreadsheet_id: str = "1BNbGKCTTia0DQiM01AP1FYQe0paywTen56AQgCpz-tw"
+    google_sheets_sheet_name: str = "Заявки"
+    google_sheets_credentials_path: str = ""
+    google_sheets_credentials_json: str = ""
+    google_sheets_cache_ttl_seconds: int = 60
 
 
 settings = Settings()

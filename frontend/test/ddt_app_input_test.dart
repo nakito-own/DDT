@@ -1,8 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ddt_frontend/theme/ddt_scale.dart';
 import 'package:ddt_frontend/theme/ddt_theme.dart';
 import 'package:ddt_frontend/widgets/ddt_app_input.dart';
 
@@ -70,9 +70,7 @@ class _InputTestApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MediaQuery(
       data: const MediaQueryData(size: Size(1440, 900)),
-      child: ScreenUtilInit(
-        designSize: const Size(1440, 900),
-        minTextAdapt: true,
+      child: DdtScaleScope(
         builder: (_, _) => MaterialApp(
           theme: DdtTheme.light(),
           home: Scaffold(body: Center(child: child)),

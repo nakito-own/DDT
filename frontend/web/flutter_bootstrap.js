@@ -12,10 +12,6 @@ _flutter.loader.load({
 });
 
 window.addEventListener('flutter-first-frame', function () {
-  if (window.ddtSyncFlutterViewport) {
-    window.ddtSyncFlutterViewport();
-  }
-
   const splash = document.getElementById('ddt-splash');
   if (!splash) {
     return;

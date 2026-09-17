@@ -17,8 +17,9 @@ from app.schemas.ews import (
     SendMailRequest,
     SendMailResponse,
 )
+from app.services.ews_runtime import run_ews
 from app.services.ews_service import EwsConnectionError, EwsNotFoundError, MailDetail, ews_service
-from app.services.session_service import SessionContext, session_service
+from app.services.session_service import SessionContext
 
 router = APIRouter()
 
@@ -89,9 +90,8 @@ def _ews_http_error(exc: Exception) -> HTTPException:
 @router.get("/folders", response_model=MailFoldersResponse)
 async def mail_folders(context: SessionContext = Depends(get_current_session)):
     try:
-        account = session_service.get_account(context)
-        counts = ews_service.get_folder_counts(account)
-        folders = ews_service.list_mail_folders(account)
+        counts = await run_ews(context, ews_service.get_folder_counts)
+        folders = await run_ews(context, ews_service.list_mail_folders)
     except EwsConnectionError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -114,9 +114,9 @@ async def inbox(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        messages = ews_service.list_inbox_messages(
-            account,
+        messages = await run_ews(
+            context,
+            ews_service.list_inbox_messages,
             limit=limit,
             offset=offset,
             mail_filter=mail_filter,
@@ -140,9 +140,9 @@ async def download_attachment(
     context: SessionContext = Depends(get_current_session),
 ) -> StreamingResponse:
     try:
-        account = session_service.get_account(context)
-        content, filename, content_type = ews_service.get_attachment(
-            account,
+        content, filename, content_type = await run_ews(
+            context,
+            ews_service.get_attachment,
             message_id,
             attachment_id,
             folder_id=folder_id,
@@ -183,9 +183,12 @@ async def message_detail(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        message = ews_service.get_message(
-            account, message_id, mark_read=mark_read, folder_id=folder_id
+        message = await run_ews(
+            context,
+            ews_service.get_message,
+            message_id,
+            mark_read=mark_read,
+            folder_id=folder_id,
         )
     except EwsNotFoundError as exc:
         raise HTTPException(
@@ -208,9 +211,11 @@ async def mark_message_read(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        message = ews_service.mark_message_read(
-            account, message_id, folder_id=folder_id
+        message = await run_ews(
+            context,
+            ews_service.mark_message_read,
+            message_id,
+            folder_id=folder_id,
         )
     except EwsNotFoundError as exc:
         raise HTTPException(
@@ -232,13 +237,15 @@ async def send_mail(
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        account = session_service.get_account(context)
-        ews_service.send_message(
-            account=account,
-            to=[str(email) for email in payload.to],
-            cc=[str(email) for email in payload.cc],
-            subject=payload.subject,
-            body=payload.body,
+        await run_ews(
+            context,
+            lambda account: ews_service.send_message(
+                account=account,
+                to=[str(email) for email in payload.to],
+                cc=[str(email) for email in payload.cc],
+                subject=payload.subject,
+                body=payload.body,
+            ),
         )
     except (EwsConnectionError, EwsNotFoundError) as exc:
         raise _ews_http_error(exc) from exc
@@ -257,9 +264,9 @@ async def archive_messages(
     context: SessionContext = Depends(get_current_session),
 ) -> ArchiveMailResponse:
     try:
-        account = session_service.get_account(context)
-        archived_ids, errors = ews_service.archive_messages(
-            account,
+        archived_ids, errors = await run_ews(
+            context,
+            ews_service.archive_messages,
             message_ids=payload.message_ids,
             folder_id=payload.folder_id,
         )

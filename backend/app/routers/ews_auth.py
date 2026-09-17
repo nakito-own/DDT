@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from app.dependencies import bearer_scheme, get_current_session
 from app.schemas.ews import LoginRequest, LoginResponse, MeResponse, UserProfileResponse
+from app.services.ews_runtime import EwsOverloadedError, run_blocking, run_ews
 from app.services.ews_service import EwsAuthError, EwsConnectionError, ews_service
 from app.services.session_service import SessionContext, session_service, session_user_dict
 
@@ -22,12 +23,18 @@ def _build_me_response(context: SessionContext, *, connected: bool) -> MeRespons
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest):
     try:
-        token, context = session_service.create_session(
-            username=payload.username,
-            password=payload.password,
-            email=str(payload.email),
-            remember_me=payload.remember_me,
+        token, context = await run_blocking(
+            session_service.create_session,
+            payload.username,
+            payload.password,
+            str(payload.email),
+            payload.remember_me,
         )
+    except EwsOverloadedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     except EwsAuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -64,9 +71,8 @@ async def logout(
 async def me(context: SessionContext = Depends(get_current_session)):
     connected = False
     try:
-        account = session_service.get_account(context)
-        ews_service.verify_account(account)
-        session_service.refresh_user_profile(context)
+        await run_ews(context, ews_service.verify_account)
+        await run_blocking(session_service.refresh_user_profile, context)
         connected = True
     except EwsConnectionError:
         connected = False

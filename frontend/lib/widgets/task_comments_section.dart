@@ -85,9 +85,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
 
     setState(() => _isSending = true);
     try {
-      final comment = await TasksApi(
-        spaceId: widget.task.spaceId,
-      ).addComment(widget.task.id, text);
+      final comment = await TasksApi().addComment(widget.task.apiRef, text);
       if (!mounted) return;
 
       _controller.clear();

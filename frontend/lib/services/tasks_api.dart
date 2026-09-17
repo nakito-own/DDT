@@ -8,13 +8,15 @@ import '../models/task_type.dart';
 import 'api_client.dart';
 
 class TasksApi {
-  TasksApi({ApiClient? client, this.spaceId}) : _client = client ?? apiClient;
+  TasksApi({ApiClient? client, this.spaceKey}) : _client = client ?? apiClient;
 
   final ApiClient _client;
-  final int? spaceId;
+  final String? spaceKey;
 
   String get _tasksPath =>
-      spaceId == null ? '/api/tasks' : '/api/spaces/$spaceId/tasks';
+      spaceKey == null ? '/api/tasks' : '/api/spaces/$spaceKey/tasks';
+
+  String _itemPath(String taskRef) => '/api/tasks/$taskRef';
 
   Future<List<TaskType>> fetchTaskTypes() async {
     final response = await _client.get('/api/task-types');
@@ -28,8 +30,8 @@ class TasksApi {
     return ApiClient.decodeList(response).map(Task.fromJson).toList();
   }
 
-  Future<Task> fetchTask(int taskId) async {
-    final response = await _client.get('$_tasksPath/$taskId');
+  Future<Task> fetchTask(String taskRef) async {
+    final response = await _client.get(_itemPath(taskRef));
     _ensureSuccess(response);
     return Task.fromJson(ApiClient.decodeMap(response));
   }
@@ -48,6 +50,8 @@ class TasksApi {
     String? priority,
     List<TaskLink>? links,
     String? initialComment,
+    String? parentKey,
+    List<String>? childKeys,
   }) async {
     final response = await _client.post(
       _tasksPath,
@@ -75,38 +79,40 @@ class TasksApi {
               .toList(),
         if (initialComment != null && initialComment.trim().isNotEmpty)
           'initial_comment': initialComment.trim(),
+        if (parentKey != null && parentKey.isNotEmpty) 'parent_key': parentKey,
+        if (childKeys != null && childKeys.isNotEmpty) 'child_keys': childKeys,
       },
     );
     _ensureSuccess(response, expectedStatus: 201);
     return Task.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<Task> updateTask(int taskId, Map<String, dynamic> body) async {
-    final response = await _client.put('$_tasksPath/$taskId', body: body);
+  Future<Task> updateTask(String taskRef, Map<String, dynamic> body) async {
+    final response = await _client.put(_itemPath(taskRef), body: body);
     _ensureSuccess(response);
     return Task.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<Task> updateTaskStatus(int taskId, TaskStatus status) async {
+  Future<Task> updateTaskStatus(String taskRef, TaskStatus status) async {
     final response = await _client.patch(
-      '$_tasksPath/$taskId/status',
+      '${_itemPath(taskRef)}/status',
       body: {'status': status.value},
     );
     _ensureSuccess(response);
     return Task.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<TaskComment> addComment(int taskId, String text) async {
+  Future<TaskComment> addComment(String taskRef, String text) async {
     final response = await _client.post(
-      '$_tasksPath/$taskId/comments',
+      '${_itemPath(taskRef)}/comments',
       body: {'text': text},
     );
     _ensureSuccess(response, expectedStatus: 201);
     return TaskComment.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<void> deleteTask(int taskId) async {
-    final response = await _client.delete('$_tasksPath/$taskId');
+  Future<void> deleteTask(String taskRef) async {
+    final response = await _client.delete(_itemPath(taskRef));
     _ensureSuccess(response, expectedStatus: 204);
   }
 

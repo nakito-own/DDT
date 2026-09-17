@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.routers import (
+    analytics,
     ews_auth,
     ews_calendar,
     ews_contacts,
@@ -21,6 +22,7 @@ from app.routers import (
     users,
 )
 from app.services.ews_notification_service import ews_notification_service
+from app.services.ews_runtime import shutdown_ews_executor
 from app.services.notification_hub import notification_hub
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ async def lifespan(_app: FastAPI):
     notification_hub.set_loop(asyncio.get_running_loop())
     yield
     ews_notification_service.shutdown_all()
+    shutdown_ews_executor()
 
 
 app = FastAPI(title="DDT API", version="1.0.0", lifespan=lifespan)
@@ -83,3 +86,4 @@ app.include_router(
     prefix="/api/ews/notifications",
     tags=["ews-notifications"],
 )
+app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])

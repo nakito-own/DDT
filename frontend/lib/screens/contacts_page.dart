@@ -76,33 +76,29 @@ class _ContactsPageState extends State<ContactsPage> {
                 return RefreshIndicator(
                   onRefresh: () async =>
                       _bloc.add(const ContactsLoadRequested()),
-                  child: DdtTheme.glass(
-                    context: context,
-                    padding: EdgeInsets.all(16.w),
-                    child: state.contacts.isEmpty
-                        ? ListView(
-                            children: [
-                              SizedBox(height: 120.h),
-                              Center(
-                                child: Text(
-                                  'Контакты не найдены',
-                                  style: DdtTheme.style(
-                                    fontSize: DdtTypography.bodyLargeSize,
-                                  ),
+                  child: state.contacts.isEmpty
+                      ? ListView(
+                          children: [
+                            SizedBox(height: 120.h),
+                            Center(
+                              child: Text(
+                                'Контакты не найдены',
+                                style: DdtTheme.style(
+                                  fontSize: DdtTypography.bodyLargeSize,
                                 ),
                               ),
-                            ],
-                          )
-                        : ListView.separated(
-                            itemCount: state.contacts.length,
-                            separatorBuilder: (_, __) => SizedBox(height: 8.h),
-                            itemBuilder: (context, index) {
-                              return ContactListItem(
-                                contact: state.contacts[index],
-                              );
-                            },
-                          ),
-                  ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          itemCount: state.contacts.length,
+                          separatorBuilder: (_, __) => SizedBox(height: 8.h),
+                          itemBuilder: (context, index) {
+                            return ContactListItem(
+                              contact: state.contacts[index],
+                            );
+                          },
+                        ),
                 );
               },
             ),

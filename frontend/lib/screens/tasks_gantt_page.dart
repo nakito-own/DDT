@@ -234,39 +234,31 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         final activities = _buildActivities(state.filteredTasks);
 
         if (activities.isEmpty) {
-          return DdtTheme.glass(
-            context: context,
-            padding: EdgeInsets.all(24.w),
-            child: Center(
-              child: Text(
-                'Нет задач для отображения на диаграмме',
-                style: DdtTheme.style(fontSize: DdtTypography.bodySize),
-              ),
+          return Center(
+            child: Text(
+              'Нет задач для отображения на диаграмме',
+              style: DdtTheme.style(fontSize: DdtTypography.bodySize),
             ),
           );
         }
 
-        return DdtTheme.glass(
-          context: context,
-          padding: EdgeInsets.all(12.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildToolbar(),
-              SizedBox(height: 8.h),
-              Expanded(
-                child: Gantt(
-                  controller: _ganttController,
-                  theme: _ganttTheme(context),
-                  activities: activities,
-                  activitiesListFlex: 2,
-                  gridAreaFlex: 5,
-                  monthToText: ganttMonthLabel,
-                  onActivityChanged: _onActivityChanged,
-                ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildToolbar(),
+            SizedBox(height: 8.h),
+            Expanded(
+              child: Gantt(
+                controller: _ganttController,
+                theme: _ganttTheme(context),
+                activities: activities,
+                activitiesListFlex: 2,
+                gridAreaFlex: 5,
+                monthToText: ganttMonthLabel,
+                onActivityChanged: _onActivityChanged,
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );

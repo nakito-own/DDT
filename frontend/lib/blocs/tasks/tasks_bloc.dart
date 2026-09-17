@@ -50,7 +50,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
 
   final TasksApi _api;
   int _nextDraftId = -1;
-  int? get spaceId => _api.spaceId;
+  String? get spaceKey => _api.spaceKey;
 
   // ─── Board load / clear ───────────────────────────────────────────────────
 
@@ -190,6 +190,8 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         initialComment: draft.comments.isEmpty
             ? null
             : draft.comments.first.text,
+        parentKey: draft.parent?.key,
+        childKeys: draft.children.map((child) => child.key).toList(),
       );
       final columns = _replaceTaskInColumns(
         state.columns,
@@ -215,7 +217,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
   ) async {
     try {
       final saved = await _api.updateTask(
-        event.original.id,
+        event.original.apiRef,
         _buildUpdatePayload(event.original, event.updated),
       );
       final columns = _replaceTaskInColumns(
@@ -265,15 +267,24 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       from: event.from,
       to: event.to,
       updated: updatedLocal,
+      toIndex: event.toIndex,
     );
     emit(state.copyWith(columns: optimisticColumns));
 
+    if (event.from == event.to) {
+      return;
+    }
+
     try {
-      final saved = await _api.updateTask(event.task.id, {
+      final saved = await _api.updateTask(event.task.apiRef, {
         'status': event.to.value,
-        if (updatedLocal.timeStart != null)
+        if (event.to == TaskStatus.inProgress &&
+            event.task.timeStart == null &&
+            updatedLocal.timeStart != null)
           'time_start': updatedLocal.timeStart!.toUtc().toIso8601String(),
-        if (updatedLocal.timeEnd != null)
+        if (event.to == TaskStatus.done &&
+            event.task.timeEnd == null &&
+            updatedLocal.timeEnd != null)
           'time_end': updatedLocal.timeEnd!.toUtc().toIso8601String(),
       });
       final columns = _replaceTaskInColumns(
@@ -290,6 +301,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         from: event.to,
         to: event.from,
         updated: event.task,
+        toIndex: event.from == event.to ? event.toIndex : null,
       );
       emit(
         state.copyWith(
@@ -316,7 +328,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     emit(state.copyWith(columns: optimisticColumns));
 
     try {
-      await _api.deleteTask(event.task.id);
+      await _api.deleteTask(event.task.apiRef);
     } catch (error) {
       // Revert on failure
       final reverted = _copyColumns(state.columns);
@@ -343,10 +355,17 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     required TaskStatus from,
     required TaskStatus to,
     required Task updated,
+    int? toIndex,
   }) {
     final columns = _copyColumns(source);
     columns[from]?.removeWhere((item) => item.id == task.id);
-    columns[to] = [...(columns[to] ?? []), updated];
+    if (from != to) {
+      columns[to]?.removeWhere((item) => item.id == task.id);
+    }
+    final dest = columns[to] ?? <Task>[];
+    final index = (toIndex ?? dest.length).clamp(0, dest.length);
+    dest.insert(index, updated);
+    columns[to] = dest;
     return columns;
   }
 
@@ -369,13 +388,17 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         final savedIndex = column.indexWhere((item) => item.id == saved.id);
         if (savedIndex >= 0) {
           column[savedIndex] = saved;
-        } else {
-          column.add(saved);
-        }
+                    } else if (original.id < 0) {
+                      column.add(saved);
+                    }
       }
     } else {
+      final existed =
+          columns[oldStatus]?.any((item) => item.id == original.id) ?? false;
       columns[oldStatus]?.removeWhere((item) => item.id == original.id);
-      columns[newStatus] = [...(columns[newStatus] ?? []), saved];
+      if (existed || original.id < 0) {
+        columns[newStatus] = [...(columns[newStatus] ?? []), saved];
+      }
     }
     return columns;
   }
@@ -429,6 +452,19 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       original.deadline?.toUtc().toIso8601String(),
     );
     putIfChanged('priority', updated.priority?.value, original.priority?.value);
+    putIfChanged(
+      'parent_key',
+      updated.parent?.key ?? '',
+      original.parent?.key ?? '',
+    );
+
+    final originalChildKeys = original.children.map((child) => child.key).toList()
+      ..sort();
+    final updatedChildKeys = updated.children.map((child) => child.key).toList()
+      ..sort();
+    if (originalChildKeys.join(',') != updatedChildKeys.join(',')) {
+      payload['child_keys'] = updated.children.map((child) => child.key).toList();
+    }
 
     if (updated.links != null) {
       payload['links'] = updated.links!

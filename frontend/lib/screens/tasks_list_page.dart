@@ -60,7 +60,6 @@ class TasksListPage extends StatelessWidget {
       authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
-      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
       timeStart:
           created.timeStart ??
@@ -102,59 +101,60 @@ class TasksListPage extends StatelessWidget {
           children: [
             Expanded(
               flex: 7,
-              child: DdtTheme.glass(
-                context: context,
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Задачи',
-                            style: DdtTheme.style(
-                              fontSize: DdtTypography.sectionTitleSize,
-                              fontWeight: FontWeight.w700,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Задачи',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.sectionTitleSize,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Button(
-                          text: 'Создать',
-                          onPressed: () => _createTask(context),
-                          borderRadius: DdtTheme.radius,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12.h),
-                    Expanded(
-                      child: tasks.isEmpty
-                          ? Center(
-                              child: Text(
-                                'Нет задач по выбранным фильтрам',
-                                style: DdtTheme.style(
-                                  fontSize: DdtTypography.bodySize,
-                                ),
+                      ),
+                      Button(
+                        text: 'Создать',
+                        onPressed: () => _createTask(context),
+                        borderRadius: DdtTheme.radius,
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12.h),
+                  Expanded(
+                    child: tasks.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Нет задач по выбранным фильтрам',
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.bodySize,
                               ),
-                            )
-                          : ListView.separated(
-                              itemCount: tasks.length,
-                              separatorBuilder: (_, __) =>
-                                  SizedBox(height: 10.h),
-                              itemBuilder: (context, index) {
-                                final task = tasks[index];
-                                return TaskCard(
-                                  key: ValueKey(task.id),
-                                  task: task,
-                                  onTap: () => _openTask(context, task),
-                                  onDelete: () => _deleteTask(context, task),
-                                );
-                              },
                             ),
-                    ),
-                  ],
-                ),
+                          )
+                        : ListView.separated(
+                            itemCount: tasks.length,
+                            separatorBuilder: (_, __) =>
+                                SizedBox(height: 10.h),
+                            itemBuilder: (context, index) {
+                              final task = tasks[index];
+                              return TaskCard(
+                                key: ValueKey(task.id),
+                                task: task,
+                                onTap: () => _openTask(context, task),
+                                onDelete: () => _deleteTask(context, task),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
+            ),
+            SizedBox(width: 16.w),
+            Container(
+              width: 1,
+              color: DdtTheme.sidePanelDivider(context),
             ),
             SizedBox(width: 16.w),
             const Expanded(flex: 3, child: TasksFiltersPanel()),

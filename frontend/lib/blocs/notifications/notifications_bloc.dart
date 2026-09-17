@@ -86,15 +86,21 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     if (data is! Map<String, dynamic>) return;
 
     final notification = AppNotification.fromJson(data);
-    final updated = [notification, ...state.items];
+    final isSilentMailboxSync =
+        notification.category == AppNotificationCategory.mailUpdated;
+    final updated = isSilentMailboxSync
+        ? state.items
+        : [notification, ...state.items];
     final trimmed = updated.length > 50 ? updated.sublist(0, 50) : updated;
 
-    emit(state.copyWith(items: trimmed));
+    emit(state.copyWith(items: trimmed, lastIncoming: () => notification));
 
-    _browserNotifications.show(
-      title: notification.title,
-      body: notification.body,
-    );
+    if (!isSilentMailboxSync) {
+      _browserNotifications.show(
+        title: notification.title,
+        body: notification.body,
+      );
+    }
 
     onNotificationReceived?.call(notification);
   }
@@ -143,7 +149,7 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     NotificationsClearAllRequested event,
     Emitter<NotificationsState> emit,
   ) {
-    emit(state.copyWith(items: []));
+    emit(state.copyWith(items: [], lastIncoming: () => null));
   }
 
   Future<void> _onBrowserPermissionRequested(

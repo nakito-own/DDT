@@ -49,13 +49,27 @@ class TaskCard extends StatelessWidget {
               ),
               SizedBox(width: 8.w),
               Expanded(
-                child: Text(
-                  task.title,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.bodySize,
-                    fontWeight: FontWeight.w600,
-                    color: textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (task.key.isNotEmpty)
+                      Text(
+                        task.key,
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.labelSmallSize,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                    Text(
+                      task.title,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.bodySize,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (onDelete != null)

@@ -13,8 +13,22 @@ class ApiClient {
   ApiClient({SessionTokenStorage? storage})
     : _storage = storage ?? sessionTokenStorage;
 
+  static const defaultTimeout = Duration(seconds: 90);
+  static const loginTimeout = Duration(minutes: 2);
+
   final SessionTokenStorage _storage;
   void Function()? onUnauthorized;
+  bool _suppressUnauthorized = false;
+
+  /// Во время restore/me 401 не должен выбрасывать пользователя на логин.
+  Future<T> runSilentlyUnauthorized<T>(Future<T> Function() action) async {
+    _suppressUnauthorized = true;
+    try {
+      return await action();
+    } finally {
+      _suppressUnauthorized = false;
+    }
+  }
 
   Future<String?> getSessionToken() => _storage.read();
 
@@ -37,9 +51,12 @@ class ApiClient {
     String path, {
     Map<String, String>? query,
     bool auth = true,
+    Duration? timeout,
   }) async {
     final uri = Uri.parse('$apiUrl$path').replace(queryParameters: query);
-    final response = await http.get(uri, headers: await _headers(auth: auth));
+    final response = await http
+        .get(uri, headers: await _headers(auth: auth))
+        .timeout(timeout ?? defaultTimeout);
     if (auth) {
       _handleUnauthorized(response);
     }
@@ -51,13 +68,16 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, String>? query,
     bool auth = true,
+    Duration? timeout,
   }) async {
     final uri = Uri.parse('$apiUrl$path').replace(queryParameters: query);
-    final response = await http.post(
-      uri,
-      headers: await _headers(auth: auth),
-      body: body == null ? null : jsonEncode(body),
-    );
+    final response = await http
+        .post(
+          uri,
+          headers: await _headers(auth: auth),
+          body: body == null ? null : jsonEncode(body),
+        )
+        .timeout(timeout ?? defaultTimeout);
     if (auth) {
       _handleUnauthorized(response);
     }
@@ -111,6 +131,9 @@ class ApiClient {
   }
 
   void _handleUnauthorized(http.Response response) {
+    if (_suppressUnauthorized) {
+      return;
+    }
     if (response.statusCode == 401) {
       onUnauthorized?.call();
     }

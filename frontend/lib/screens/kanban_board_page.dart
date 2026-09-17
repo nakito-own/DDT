@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -18,8 +16,8 @@ import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 
-const _kanbanMotionDuration = Duration(milliseconds: 380);
-const _kanbanMotionCurve = Curves.easeInOutCubicEmphasized;
+const _kKanbanSlotDuration = Duration(milliseconds: 280);
+const _kKanbanSlotCurve = Curves.easeOutCubic;
 
 class KanbanBoardPage extends StatefulWidget {
   const KanbanBoardPage({super.key});
@@ -28,8 +26,7 @@ class KanbanBoardPage extends StatefulWidget {
   State<KanbanBoardPage> createState() => _KanbanBoardPageState();
 }
 
-class _KanbanBoardPageState extends State<KanbanBoardPage>
-    with TickerProviderStateMixin {
+class _KanbanBoardPageState extends State<KanbanBoardPage> {
   // Локальная мутируемая копия колонок для drag-drop анимаций.
   // BlocListener синхронизирует её с TasksBloc.state.columns.
   late Map<TaskStatus, List<Task>> _localColumns;
@@ -37,11 +34,14 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
   final Map<String, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
-  final Map<int, Offset> _dragOriginByTaskId = {};
   final Map<TaskStatus, GlobalKey<_KanbanTaskListState>> _taskListKeys = {
     for (final status in TaskStatus.values) status: GlobalKey(),
   };
-  int? _animatingTaskId;
+  int? _draggingTaskId;
+  TaskStatus? _draggingFromStatus;
+  int? _draggingFromIndex;
+  TaskStatus? _dropStatus;
+  int? _dropIndex;
   _PendingTaskDrop? _pendingDrop;
 
   @override
@@ -82,25 +82,69 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     return updated;
   }
 
-  void _applyMove(Task task, TaskStatus from, TaskStatus to) {
+  void _applyMove(Task task, TaskStatus from, TaskStatus to, int toIndex) {
     final fromColumn = _localColumns[from];
     final toColumn = _localColumns[to];
     if (fromColumn == null || toColumn == null) return;
 
     fromColumn.removeWhere((item) => item.id == task.id);
-    toColumn.add(_updatedTaskForColumn(task, to));
+    if (!identical(fromColumn, toColumn)) {
+      toColumn.removeWhere((item) => item.id == task.id);
+    }
+    final index = toIndex.clamp(0, toColumn.length);
+    toColumn.insert(index, _updatedTaskForColumn(task, to));
   }
 
-  void _registerTaskDrop(Task task, TaskStatus to) {
-    _pendingDrop = _PendingTaskDrop(task: task, to: to);
+  void _registerTaskDrop(Task task, TaskStatus to, int toIndex) {
+    _pendingDrop = _PendingTaskDrop(task: task, to: to, toIndex: toIndex);
   }
 
   void _onTaskDragStarted(TaskStatus status, int taskId) {
-    final cardContext = _taskCardKey(status, taskId).currentContext;
-    if (cardContext == null) return;
+    final column = _columnTasks(status);
+    final index = column.indexWhere((item) => item.id == taskId);
 
-    final box = cardContext.findRenderObject()! as RenderBox;
-    _dragOriginByTaskId[taskId] = box.localToGlobal(Offset.zero);
+    setState(() {
+      _draggingTaskId = taskId;
+      _draggingFromStatus = status;
+      _draggingFromIndex = index < 0 ? column.length : index;
+      _dropStatus = status;
+      _dropIndex = index < 0 ? column.length : index;
+    });
+  }
+
+  void _setDropPreview(TaskStatus status, int index) {
+    if (_dropStatus == status && _dropIndex == index) return;
+    setState(() {
+      _dropStatus = status;
+      _dropIndex = index;
+    });
+  }
+
+  void _clearDragPreview() {
+    _draggingTaskId = null;
+    _draggingFromStatus = null;
+    _draggingFromIndex = null;
+    _dropStatus = null;
+    _dropIndex = null;
+  }
+
+  int _insertIndexFor(TaskStatus status, Offset globalPosition) {
+    final tasks = _columnTasks(
+      status,
+    ).where((task) => task.id != _draggingTaskId).toList();
+    if (tasks.isEmpty) return 0;
+
+    for (var i = 0; i < tasks.length; i++) {
+      final cardContext = _taskCardKey(status, tasks[i].id).currentContext;
+      if (cardContext == null || !cardContext.mounted) continue;
+      final box = cardContext.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (globalPosition.dy < top + box.size.height / 2) {
+        return i;
+      }
+    }
+    return tasks.length;
   }
 
   void _showMoveToast(Task task, TaskStatus to) {
@@ -114,192 +158,47 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
   Future<void> _finishTaskDrag(Task task, DraggableDetails details) async {
     final pending = _pendingDrop;
     _pendingDrop = null;
-    final originTopLeft = _dragOriginByTaskId.remove(task.id);
-    final cardSize = _taskCardSizes[task.id];
 
-    if (!details.wasAccepted || pending == null || pending.task.id != task.id) {
-      if (!details.wasAccepted && originTopLeft != null && cardSize != null) {
-        await _animateTaskReturn(
-          task: task,
-          feedbackTopLeft: details.offset,
-          originTopLeft: originTopLeft,
-          cardSize: cardSize,
-        );
+    final from = _draggingFromStatus ?? task.status;
+    final fromIndex = _draggingFromIndex;
+    final accepted = details.wasAccepted || pending != null;
+    final to = pending?.to ?? (accepted ? _dropStatus : null);
+    final toIndex = pending?.toIndex ?? (accepted ? _dropIndex : null);
+
+    try {
+      if (to == null || toIndex == null) {
+        setState(() {
+          _syncFromBlocState(context.read<TasksBloc>().state);
+          _clearDragPreview();
+        });
+        return;
       }
-      return;
-    }
 
-    final from = task.status;
-    final to = pending.to;
-    if (from == to) return;
+      final unchanged = from == to && (fromIndex == null || fromIndex == toIndex);
+      if (unchanged) {
+        setState(() {
+          _syncFromBlocState(context.read<TasksBloc>().state);
+          _clearDragPreview();
+        });
+        return;
+      }
 
-    if (cardSize == null) {
-      setState(() => _applyMove(task, from, to));
+      setState(() {
+        _applyMove(task, from, to, toIndex);
+        _clearDragPreview();
+      });
+
       context.read<TasksBloc>().add(
-        TaskMoveRequested(task: task, from: from, to: to),
+        TaskMoveRequested(task: task, from: from, to: to, toIndex: toIndex),
       );
-      _showMoveToast(task, to);
-      return;
+      if (from != to) {
+        _showMoveToast(task, to);
+      }
+    } finally {
+      if (mounted && _draggingTaskId != null) {
+        setState(_clearDragPreview);
+      }
     }
-
-    await _animateTaskDrop(
-      task: task,
-      from: from,
-      to: to,
-      feedbackTopLeft: details.offset,
-      cardSize: cardSize,
-    );
-
-    if (!mounted) return;
-
-    context.read<TasksBloc>().add(
-      TaskMoveRequested(task: task, from: from, to: to),
-    );
-    _showMoveToast(task, to);
-  }
-
-  Future<void> _animateTaskReturn({
-    required Task task,
-    required Offset feedbackTopLeft,
-    required Offset originTopLeft,
-    required Size cardSize,
-  }) async {
-    setState(() => _animatingTaskId = task.id);
-
-    await _runCardFlightAnimation(
-      task: task,
-      startGlobalTopLeft: feedbackTopLeft,
-      endGlobalTopLeft: Future.value(originTopLeft),
-      cardSize: cardSize,
-    );
-
-    if (!mounted) return;
-    setState(() => _animatingTaskId = null);
-  }
-
-  Future<void> _animateTaskDrop({
-    required Task task,
-    required TaskStatus from,
-    required TaskStatus to,
-    required Offset feedbackTopLeft,
-    required Size cardSize,
-  }) async {
-    final updated = _updatedTaskForColumn(task, to);
-    final fromColumn = _localColumns[from];
-    final toColumn = _localColumns[to];
-    if (fromColumn == null || toColumn == null) return;
-
-    final fromIndex = fromColumn.indexWhere((item) => item.id == task.id);
-    if (fromIndex < 0) return;
-
-    final gap = fromIndex < fromColumn.length - 1 ? DdtTheme.spacing.h : 0;
-    final toIndex = toColumn.length;
-
-    setState(() {
-      fromColumn.removeAt(fromIndex);
-      toColumn.add(updated);
-      _animatingTaskId = task.id;
-    });
-
-    _taskListKeys[from]!.currentState?.removeTaskAt(
-      fromIndex,
-      slotHeight: cardSize.height + gap,
-    );
-
-    _taskListKeys[to]?.currentState?.insertTaskAt(toIndex);
-
-    await _runCardFlightAnimation(
-      task: task,
-      startGlobalTopLeft: feedbackTopLeft,
-      endGlobalTopLeft: _measureTaskCardTopLeft(to, task.id),
-      cardSize: cardSize,
-      displayTask: updated,
-    );
-
-    if (!mounted) return;
-    setState(() => _animatingTaskId = null);
-  }
-
-  Future<Offset?> _measureTaskCardTopLeft(TaskStatus status, int taskId) async {
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return null;
-
-    final targetContext = _taskCardKey(status, taskId).currentContext;
-    if (targetContext == null || !targetContext.mounted) return null;
-
-    final targetBox = targetContext.findRenderObject()! as RenderBox;
-    return targetBox.localToGlobal(Offset.zero);
-  }
-
-  Future<void> _runCardFlightAnimation({
-    required Task task,
-    required Offset startGlobalTopLeft,
-    required Future<Offset?> endGlobalTopLeft,
-    required Size cardSize,
-    Task? displayTask,
-  }) async {
-    final card = displayTask ?? task;
-    final theme = Theme.of(context);
-    final defaultTextStyle = DefaultTextStyle.of(context).style;
-    final overlay = Overlay.of(context, rootOverlay: true);
-    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
-
-    final startInOverlay = overlayBox.globalToLocal(startGlobalTopLeft);
-    var endInOverlay = startInOverlay;
-
-    final controller = AnimationController(
-      vsync: this,
-      duration: _kanbanMotionDuration,
-    );
-    final animation = CurvedAnimation(
-      parent: controller,
-      curve: _kanbanMotionCurve,
-    );
-
-    late OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (overlayContext) {
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, _) {
-            final t = animation.value;
-            final left = ui.lerpDouble(startInOverlay.dx, endInOverlay.dx, t)!;
-            final top = ui.lerpDouble(startInOverlay.dy, endInOverlay.dy, t)!;
-
-            return Positioned(
-              left: left,
-              top: top,
-              width: cardSize.width,
-              height: cardSize.height,
-              child: IgnorePointer(
-                child: Theme(
-                  data: theme,
-                  child: DefaultTextStyle(
-                    style: defaultTextStyle,
-                    child: TaskCard(task: card, isDragging: true),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    overlay.insert(entry);
-
-    final measuredEnd = await endGlobalTopLeft;
-    if (!mounted || measuredEnd == null) {
-      entry.remove();
-      controller.dispose();
-      return;
-    }
-
-    endInOverlay = overlayBox.globalToLocal(measuredEnd);
-    entry.markNeedsBuild();
-    await controller.forward();
-    entry.remove();
-    controller.dispose();
   }
 
   Future<void> _addTask(TaskStatus status) async {
@@ -328,7 +227,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
       authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
-      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
       timeStart:
           created.timeStart ??
@@ -351,20 +249,10 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     final index = column.indexWhere((item) => item.id == task.id);
     if (index < 0) return;
 
-    final cardSize = _taskCardSizes[task.id];
-    final gap = index < column.length - 1 ? DdtTheme.spacing.h : 0.0;
-
     // Оптимистично убираем из локальных колонок для быстрой реакции.
     setState(() {
       _localColumns[status]?.removeAt(index);
     });
-
-    if (cardSize != null) {
-      _taskListKeys[status]?.currentState?.removeTaskAt(
-        index,
-        slotHeight: cardSize.height + gap,
-      );
-    }
 
     context.read<TasksBloc>().add(
       TaskDeleteRequested(task: task, status: status),
@@ -386,7 +274,30 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
     context.read<TasksBloc>().add(
       TaskUpdateRequested(original: task, updated: updated),
     );
-    // BlocListener синхронизирует _localColumns после ответа сервера.
+  }
+
+  Widget _kanbanColumn(TaskStatus status) {
+    return _KanbanColumn(
+      key: ValueKey(status),
+      status: status,
+      tasks: _columnTasks(status),
+      taskListKey: _taskListKeys[status]!,
+      draggingTaskId: _draggingTaskId,
+      dropIndex: _dropStatus == status ? _dropIndex : null,
+      placeholderHeight: _draggingTaskId == null
+          ? 0
+          : (_taskCardSizes[_draggingTaskId]?.height ?? 96),
+      taskCardKey: _taskCardKey,
+      onRegisterCardSize: _registerTaskCardSize,
+      onRegisterDrop: _registerTaskDrop,
+      onDropPreview: _setDropPreview,
+      onResolveInsertIndex: _insertIndexFor,
+      onDragStarted: _onTaskDragStarted,
+      onDragEnd: _finishTaskDrag,
+      onAddTask: _addTask,
+      onDeleteTask: _deleteTask,
+      onOpenTask: _openTaskDetails,
+    );
   }
 
   @override
@@ -396,6 +307,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
           previous.columns != current.columns ||
           previous.taskTypes != current.taskTypes,
       listener: (context, state) {
+        if (_draggingTaskId != null) return;
         setState(() => _syncFromBlocState(state));
       },
       child: LayoutBuilder(
@@ -412,23 +324,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
                   index++
                 ) ...[
                   if (index > 0) DdtTheme.horizontalGap(),
-                  Expanded(
-                    child: _KanbanColumn(
-                      key: ValueKey(TaskStatus.values[index]),
-                      status: TaskStatus.values[index],
-                      tasks: _columnTasks(TaskStatus.values[index]),
-                      taskListKey: _taskListKeys[TaskStatus.values[index]]!,
-                      animatingTaskId: _animatingTaskId,
-                      taskCardKey: _taskCardKey,
-                      onRegisterCardSize: _registerTaskCardSize,
-                      onRegisterDrop: _registerTaskDrop,
-                      onDragStarted: _onTaskDragStarted,
-                      onDragEnd: _finishTaskDrag,
-                      onAddTask: _addTask,
-                      onDeleteTask: _deleteTask,
-                      onOpenTask: _openTaskDetails,
-                    ),
-                  ),
+                  Expanded(child: _kanbanColumn(TaskStatus.values[index])),
                 ],
               ],
             );
@@ -445,21 +341,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage>
 
                 return SizedBox(
                   width: 320.w,
-                  child: _KanbanColumn(
-                    key: ValueKey(status),
-                    status: status,
-                    tasks: _columnTasks(status),
-                    taskListKey: _taskListKeys[status]!,
-                    animatingTaskId: _animatingTaskId,
-                    taskCardKey: _taskCardKey,
-                    onRegisterCardSize: _registerTaskCardSize,
-                    onRegisterDrop: _registerTaskDrop,
-                    onDragStarted: _onTaskDragStarted,
-                    onDragEnd: _finishTaskDrag,
-                    onAddTask: _addTask,
-                    onDeleteTask: _deleteTask,
-                    onOpenTask: _openTaskDetails,
-                  ),
+                  child: _kanbanColumn(status),
                 );
               },
             ),
@@ -476,10 +358,14 @@ class _KanbanColumn extends StatefulWidget {
     required this.status,
     required this.tasks,
     required this.taskListKey,
-    required this.animatingTaskId,
+    required this.draggingTaskId,
+    required this.dropIndex,
+    required this.placeholderHeight,
     required this.taskCardKey,
     required this.onRegisterCardSize,
     required this.onRegisterDrop,
+    required this.onDropPreview,
+    required this.onResolveInsertIndex,
     required this.onDragStarted,
     required this.onDragEnd,
     required this.onAddTask,
@@ -490,10 +376,15 @@ class _KanbanColumn extends StatefulWidget {
   final TaskStatus status;
   final List<Task> tasks;
   final GlobalKey<_KanbanTaskListState> taskListKey;
-  final int? animatingTaskId;
+  final int? draggingTaskId;
+  final int? dropIndex;
+  final double placeholderHeight;
   final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
-  final void Function(Task task, TaskStatus to) onRegisterDrop;
+  final void Function(Task task, TaskStatus to, int toIndex) onRegisterDrop;
+  final void Function(TaskStatus status, int index) onDropPreview;
+  final int Function(TaskStatus status, Offset globalPosition)
+  onResolveInsertIndex;
   final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(TaskStatus status) onAddTask;
@@ -545,39 +436,49 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                 ),
                 SizedBox(height: DdtTheme.spacing.h),
                 Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _KanbanTaskList(
+                  child: DragTarget<Task>(
+                    onWillAcceptWithDetails: (_) => true,
+                    onMove: (details) {
+                      _setDragOver(true);
+                      widget.onDropPreview(
+                        widget.status,
+                        widget.onResolveInsertIndex(
+                          widget.status,
+                          details.offset,
+                        ),
+                      );
+                    },
+                    onLeave: (_) {
+                      _setDragOver(false);
+                    },
+                    onAcceptWithDetails: (details) {
+                      _setDragOver(false);
+                      widget.onRegisterDrop(
+                        details.data,
+                        widget.status,
+                        widget.dropIndex ??
+                            widget.onResolveInsertIndex(
+                              widget.status,
+                              details.offset,
+                            ),
+                      );
+                    },
+                    builder: (context, candidateData, rejectedData) {
+                      return _KanbanTaskList(
                         key: widget.taskListKey,
                         status: widget.status,
                         tasks: widget.tasks,
-                        animatingTaskId: widget.animatingTaskId,
+                        draggingTaskId: widget.draggingTaskId,
+                        dropIndex: widget.dropIndex,
+                        placeholderHeight: widget.placeholderHeight,
                         taskCardKey: widget.taskCardKey,
                         onRegisterCardSize: widget.onRegisterCardSize,
                         onDragStarted: widget.onDragStarted,
                         onDragEnd: widget.onDragEnd,
                         onDeleteTask: widget.onDeleteTask,
                         onOpenTask: widget.onOpenTask,
-                      ),
-                      Positioned.fill(
-                        child: DragTarget<Task>(
-                          onWillAcceptWithDetails: (details) {
-                            final accept = details.data.status != widget.status;
-                            _setDragOver(accept);
-                            return accept;
-                          },
-                          onLeave: (_) => _setDragOver(false),
-                          onAcceptWithDetails: (details) {
-                            _setDragOver(false);
-                            widget.onRegisterDrop(details.data, widget.status);
-                          },
-                          builder: (context, candidateData, rejectedData) {
-                            return const SizedBox.expand();
-                          },
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -679,7 +580,9 @@ class _KanbanTaskList extends StatefulWidget {
     super.key,
     required this.status,
     required this.tasks,
-    required this.animatingTaskId,
+    required this.draggingTaskId,
+    required this.dropIndex,
+    required this.placeholderHeight,
     required this.taskCardKey,
     required this.onRegisterCardSize,
     required this.onDragStarted,
@@ -690,7 +593,9 @@ class _KanbanTaskList extends StatefulWidget {
 
   final TaskStatus status;
   final List<Task> tasks;
-  final int? animatingTaskId;
+  final int? draggingTaskId;
+  final int? dropIndex;
+  final double placeholderHeight;
   final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
   final void Function(int taskId, Size size) onRegisterCardSize;
   final void Function(TaskStatus status, int taskId) onDragStarted;
@@ -703,81 +608,16 @@ class _KanbanTaskList extends StatefulWidget {
 }
 
 class _KanbanTaskListState extends State<_KanbanTaskList> {
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  late int _animatedItemCount;
-
-  @override
-  void initState() {
-    super.initState();
-    _animatedItemCount = widget.tasks.length;
-  }
-
-  @override
-  void didUpdateWidget(covariant _KanbanTaskList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _syncAnimatedItemCount(oldWidget.tasks);
-  }
-
-  void insertTaskAt(int index) {
-    _listKey.currentState!.insertItem(index, duration: Duration.zero);
-    _animatedItemCount++;
-  }
-
-  void removeTaskAt(int index, {required double slotHeight}) {
-    _listKey.currentState!.removeItem(
-      index,
-      (context, animation) =>
-          _KanbanSlotCollapse(animation: animation, height: slotHeight),
-      duration: _kanbanMotionDuration,
-    );
-    _animatedItemCount--;
-  }
-
-  void _syncAnimatedItemCount(List<Task> previousTasks) {
-    final listState = _listKey.currentState;
-    if (listState == null) return;
-
-    while (_animatedItemCount > widget.tasks.length) {
-      _animatedItemCount--;
-      final gap = _animatedItemCount < previousTasks.length - 1
-          ? DdtTheme.spacing.h
-          : 0.0;
-      listState.removeItem(
-        _animatedItemCount,
-        (context, animation) =>
-            _KanbanSlotCollapse(animation: animation, height: 120.0 + gap),
-        duration: _kanbanMotionDuration,
-      );
-    }
-
-    while (_animatedItemCount < widget.tasks.length) {
-      listState.insertItem(
-        _animatedItemCount,
-        duration: const Duration(milliseconds: 280),
-      );
-      _animatedItemCount++;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
       children: [
-        AnimatedList(
-          key: _listKey,
-          initialItemCount: widget.tasks.length,
-          itemBuilder: (context, index, animation) {
-            final task = widget.tasks[index];
-
-            return _buildTaskItem(
-              task: task,
-              index: index,
-              animation: animation,
-            );
-          },
+        ListView(
+          clipBehavior: Clip.none,
+          children: _buildChildren(),
         ),
-        if (widget.tasks.isEmpty)
+        if (widget.tasks.isEmpty && widget.dropIndex == null)
           Center(
             child: Text(
               'Перетащите задачу сюда',
@@ -792,16 +632,97 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
     );
   }
 
+  List<Widget> _buildChildren() {
+    final draggingId = widget.draggingTaskId;
+    final dropIndex = draggingId == null ? null : widget.dropIndex;
+    final draggingInThisList =
+        draggingId != null && widget.tasks.any((task) => task.id == draggingId);
+    final slot = widget.placeholderHeight;
+    final spacing = DdtTheme.spacing.h;
+    final gapSize = slot + spacing;
+
+    if (widget.tasks.isEmpty) {
+      if (dropIndex == null) return const [];
+      return [
+        _DropPlaceholder(
+          key: const ValueKey('drop-placeholder'),
+          height: slot,
+          animateFromZero: true,
+        ),
+      ];
+    }
+
+    var dragVisibleIndex = 0;
+    if (draggingInThisList) {
+      for (final task in widget.tasks) {
+        if (task.id == draggingId) break;
+        dragVisibleIndex++;
+      }
+    }
+
+    final remainingCount = draggingInThisList
+        ? widget.tasks.length - 1
+        : widget.tasks.length;
+    final holeStaysOnDragSlot =
+        draggingInThisList && dropIndex == dragVisibleIndex;
+    final showEndGap =
+        dropIndex != null &&
+        dropIndex == remainingCount &&
+        !holeStaysOnDragSlot;
+
+    final children = <Widget>[];
+    var visibleIndex = 0;
+
+    for (final task in widget.tasks) {
+      if (task.id == draggingId) {
+        children.add(
+          _buildTaskItem(
+            task: task,
+            isDraggingItem: true,
+            gapBefore: 0,
+            gapAfter: 0,
+            slotHeight: holeStaysOnDragSlot ? slot : 0,
+          ),
+        );
+        continue;
+      }
+
+      final isLastRemaining = visibleIndex == remainingCount - 1;
+      final gapBefore =
+          dropIndex != null &&
+              dropIndex == visibleIndex &&
+              !holeStaysOnDragSlot
+          ? gapSize
+          : 0.0;
+      final gapAfter = showEndGap && isLastRemaining ? gapSize : 0.0;
+
+      children.add(
+        _buildTaskItem(
+          task: task,
+          isDraggingItem: false,
+          gapBefore: gapBefore,
+          gapAfter: gapAfter,
+          slotHeight: null,
+        ),
+      );
+      visibleIndex++;
+    }
+
+    return children;
+  }
+
   Widget _buildTaskItem({
     required Task task,
-    required int index,
-    required Animation<double> animation,
+    required bool isDraggingItem,
+    required double gapBefore,
+    required double gapAfter,
+    required double? slotHeight,
   }) {
     final card = _DraggableTaskCard(
-      key: ValueKey(task.id),
       cardKey: widget.taskCardKey(widget.status, task.id),
-      isHidden: widget.animatingTaskId == task.id,
       task: task,
+      placeholderHeight: widget.placeholderHeight,
+      freezeSize: isDraggingItem,
       onSizeChanged: (size) => widget.onRegisterCardSize(task.id, size),
       onDragStarted: () => widget.onDragStarted(widget.status, task.id),
       onDragEnd: (details) => widget.onDragEnd(task, details),
@@ -809,52 +730,58 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       onTap: () => widget.onOpenTask(task),
     );
 
-    final animatedCard = SizeTransition(
-      sizeFactor: CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-      ),
-      axisAlignment: -1,
-      child: FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        child: card,
-      ),
-    );
+    // Snap closed on drop so the arriving card does not sit on top of a
+    // still-closing gap (that double offset made cards below jump).
+    final duration = widget.draggingTaskId == null
+        ? Duration.zero
+        : _kKanbanSlotDuration;
 
-    if (index >= widget.tasks.length - 1) {
-      return animatedCard;
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        animatedCard,
-        SizeTransition(
-          sizeFactor: CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          ),
-          axisAlignment: -1,
-          child: FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            ),
-            child: DdtTheme.verticalGap(),
+    Widget body = card;
+    if (isDraggingItem) {
+      final collapsed = (slotHeight ?? 0) <= 0;
+      body = ClipRect(
+        child: AnimatedContainer(
+          duration: duration,
+          curve: _kKanbanSlotCurve,
+          height: collapsed ? 0 : slotHeight! + DdtTheme.spacing.h,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: DdtTheme.spacing.h),
+            child: card,
           ),
         ),
-      ],
+      );
+    }
+
+    return Padding(
+      key: ValueKey(task.id),
+      padding: EdgeInsets.only(bottom: isDraggingItem ? 0 : DdtTheme.spacing.h),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedContainer(
+            duration: duration,
+            curve: _kKanbanSlotCurve,
+            height: gapBefore,
+          ),
+          body,
+          AnimatedContainer(
+            duration: duration,
+            curve: _kKanbanSlotCurve,
+            height: gapAfter,
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _DraggableTaskCard extends StatefulWidget {
   const _DraggableTaskCard({
-    super.key,
     required this.cardKey,
-    required this.isHidden,
     required this.task,
+    required this.placeholderHeight,
+    required this.freezeSize,
     required this.onSizeChanged,
     required this.onDragStarted,
     required this.onDragEnd,
@@ -863,8 +790,9 @@ class _DraggableTaskCard extends StatefulWidget {
   });
 
   final GlobalKey cardKey;
-  final bool isHidden;
   final Task task;
+  final double placeholderHeight;
+  final bool freezeSize;
   final ValueChanged<Size> onSizeChanged;
   final VoidCallback onDragStarted;
   final ValueChanged<DraggableDetails> onDragEnd;
@@ -879,6 +807,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
   Size? _cardSize;
 
   void _updateCardSize() {
+    if (widget.freezeSize) return;
     final renderBox =
         widget.cardKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return;
@@ -897,79 +826,143 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
     final theme = Theme.of(context);
     final defaultTextStyle = DefaultTextStyle.of(context).style;
 
-    final card = IgnorePointer(
-      ignoring: widget.isHidden,
-      child: Opacity(
-        opacity: widget.isHidden ? 0 : 1,
-        child: TaskCard(
-          key: widget.cardKey,
-          task: widget.task,
-          onDelete: widget.onDelete,
-          onTap: widget.onTap,
-        ),
-      ),
-    );
+    final placeholderHeight = _cardSize?.height ?? widget.placeholderHeight;
 
-    return RepaintBoundary(
-      child: Draggable<Task>(
-        data: widget.task,
-        rootOverlay: true,
-        onDragStarted: widget.onDragStarted,
-        onDragEnd: widget.onDragEnd,
-        feedback: _cardSize == null
-            ? const SizedBox.shrink()
-            : Theme(
-                data: theme,
-                child: DefaultTextStyle(
-                  style: defaultTextStyle,
-                  child: SizedBox(
-                    width: _cardSize!.width,
-                    height: _cardSize!.height,
-                    child: TaskCard(task: widget.task, isDragging: true),
+    return KeyedSubtree(
+      key: widget.cardKey,
+      child: RepaintBoundary(
+        child: Draggable<Task>(
+          data: widget.task,
+          rootOverlay: true,
+          onDragStarted: widget.onDragStarted,
+          onDragEnd: widget.onDragEnd,
+          childWhenDragging: _DropPlaceholder(
+            height: placeholderHeight,
+            includeSpacing: false,
+          ),
+          feedback: _cardSize == null
+              ? const SizedBox.shrink()
+              : IgnorePointer(
+                  child: Theme(
+                    data: theme,
+                    child: DefaultTextStyle(
+                      style: defaultTextStyle,
+                      child: SizedBox(
+                        width: _cardSize!.width,
+                        height: _cardSize!.height,
+                        child: TaskCard(
+                          task: widget.task,
+                          isDragging: true,
+                          onDelete: widget.onDelete,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-        childWhenDragging: Opacity(
-          opacity: 0.35,
-          child: TaskCard(task: widget.task),
+          child: TaskCard(
+            task: widget.task,
+            onDelete: widget.onDelete,
+            onTap: widget.onTap,
+          ),
         ),
-        child: card,
       ),
     );
   }
 }
 
-class _KanbanSlotCollapse extends StatelessWidget {
-  const _KanbanSlotCollapse({required this.animation, required this.height});
+class _DropPlaceholder extends StatelessWidget {
+  const _DropPlaceholder({
+    super.key,
+    required this.height,
+    this.includeSpacing = true,
+    this.animateFromZero = false,
+  });
 
-  final Animation<double> animation;
   final double height;
+  final bool includeSpacing;
+  final bool animateFromZero;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) {
-        final heightFactor = _kanbanMotionCurve
-            .transform(animation.value)
-            .clamp(0.0, 1.0);
+    final color = AppColors.primary;
+    final slot = _AnimatedDropSlot(
+      height: height,
+      animateFromZero: animateFromZero,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: DdtTheme.radius,
+          color: color.withValues(alpha: 0.08),
+          border: Border.all(color: color.withValues(alpha: 0.28)),
+        ),
+      ),
+    );
 
-        return ClipRect(
-          child: Align(
-            alignment: Alignment.topCenter,
-            heightFactor: heightFactor,
-            child: child,
-          ),
-        );
-      },
-      child: SizedBox(width: double.infinity, height: height),
+    if (!includeSpacing) return slot;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: DdtTheme.spacing.h),
+      child: slot,
+    );
+  }
+}
+
+class _AnimatedDropSlot extends StatefulWidget {
+  const _AnimatedDropSlot({
+    required this.height,
+    required this.animateFromZero,
+    required this.child,
+  });
+
+  final double height;
+  final bool animateFromZero;
+  final Widget child;
+
+  @override
+  State<_AnimatedDropSlot> createState() => _AnimatedDropSlotState();
+}
+
+class _AnimatedDropSlotState extends State<_AnimatedDropSlot> {
+  late double _height = widget.animateFromZero ? 0 : widget.height;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.animateFromZero) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _height = widget.height);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedDropSlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.height != widget.height) {
+      _height = widget.height;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedContainer(
+        duration: _kKanbanSlotDuration,
+        curve: _kKanbanSlotCurve,
+        height: _height,
+        child: widget.child,
+      ),
     );
   }
 }
 
 class _PendingTaskDrop {
-  const _PendingTaskDrop({required this.task, required this.to});
+  const _PendingTaskDrop({
+    required this.task,
+    required this.to,
+    required this.toIndex,
+  });
 
   final Task task;
   final TaskStatus to;
+  final int toIndex;
 }

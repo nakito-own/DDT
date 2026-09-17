@@ -18,10 +18,10 @@ import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 
 class TaskDetailsPage extends StatefulWidget {
-  const TaskDetailsPage({super.key, required this.taskId, this.spaceId});
+  const TaskDetailsPage({super.key, required this.taskKey, this.spaceKey});
 
-  final int taskId;
-  final int? spaceId;
+  final String taskKey;
+  final String? spaceKey;
 
   @override
   State<TaskDetailsPage> createState() => _TaskDetailsPageState();
@@ -41,8 +41,8 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   @override
   void didUpdateWidget(covariant TaskDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.taskId != widget.taskId ||
-        oldWidget.spaceId != widget.spaceId) {
+    if (oldWidget.taskKey != widget.taskKey ||
+        oldWidget.spaceKey != widget.spaceKey) {
       _loadTask();
     }
   }
@@ -54,15 +54,18 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     });
 
     try {
-      final task = await TasksApi(
-        spaceId: widget.spaceId,
-      ).fetchTask(widget.taskId);
+      final task = await TasksApi().fetchTask(widget.taskKey);
       if (!mounted) return;
       setState(() {
         _task = task;
         _isLoading = false;
       });
       context.read<TasksBloc>().add(TaskServerSnapshotReceived(task));
+      if (task.spaceId == null &&
+          task.key.isNotEmpty &&
+          GoRouterState.of(context).uri.path != RoutePaths.task(task.key)) {
+        context.go(RoutePaths.task(task.key));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -97,7 +100,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         Task? findTask(TasksState state) {
           for (final tasks in state.columns.values) {
             for (final task in tasks) {
-              if (task.id == widget.taskId) return task;
+              if (task.apiRef == widget.taskKey ||
+                  task.key == widget.taskKey ||
+                  task.id.toString() == widget.taskKey) {
+                return task;
+              }
             }
           }
           return null;
@@ -107,7 +114,10 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
       },
       listener: (context, state) {
         final index = state.allTasks.indexWhere(
-          (task) => task.id == widget.taskId,
+          (task) =>
+              task.apiRef == widget.taskKey ||
+              task.key == widget.taskKey ||
+              task.id.toString() == widget.taskKey,
         );
         if (index >= 0 && mounted) {
           setState(() => _task = state.allTasks[index]);
@@ -162,59 +172,59 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760;
 
-        return DdtTheme.glass(
-          context: context,
-          padding: EdgeInsets.zero,
-          child: wide
-              ? Row(
+        return wide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _TaskMainContent(
+                      task: task,
+                      onEdit: _editTask,
+                      onTaskChanged: (updated) {
+                        setState(() => _task = updated);
+                      },
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    color: DdtTheme.sidePanelDivider(context),
+                  ),
+                  _TaskParametersPanel(task: task, pinned: true),
+                ],
+              )
+            : SingleChildScrollView(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: _TaskMainContent(
-                        task: task,
-                        onEdit: _editTask,
-                        onTaskChanged: (updated) {
-                          setState(() => _task = updated);
-                        },
-                      ),
+                    _TaskHeader(task: task, onEdit: _editTask),
+                    SizedBox(height: 16.h),
+                    _TaskDescription(task: task),
+                    SizedBox(height: 20.h),
+                    _TaskParametersPanel(task: task, pinned: false),
+                    SizedBox(height: 24.h),
+                    TaskCommentsSection(
+                      key: ValueKey('task-comments-${task.id}'),
+                      task: task,
+                      inputAtTop: true,
+                      onTaskChanged: (updated) {
+                        setState(() => _task = updated);
+                      },
                     ),
-                    Container(
-                      width: 1,
-                      color: DdtTheme.sidePanelDivider(context),
-                    ),
-                    _TaskParametersPanel(task: task, pinned: true),
                   ],
-                )
-              : SingleChildScrollView(
-                  padding: EdgeInsets.all(20.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _TaskHeader(task: task, onEdit: _editTask),
-                      SizedBox(height: 16.h),
-                      _TaskDescription(task: task),
-                      SizedBox(height: 20.h),
-                      _TaskParametersPanel(task: task, pinned: false),
-                      SizedBox(height: 24.h),
-                      TaskCommentsSection(
-                        key: ValueKey('task-comments-${task.id}'),
-                        task: task,
-                        inputAtTop: true,
-                        onTaskChanged: (updated) {
-                          setState(() => _task = updated);
-                        },
-                      ),
-                    ],
-                  ),
                 ),
-        );
+              );
       },
     );
   }
 
-  String get _backRoute => widget.spaceId == null
-      ? RoutePaths.tasksKanban
-      : RoutePaths.spaceKanbanFor(widget.spaceId!);
+  String get _backRoute {
+    final spaceKey = widget.spaceKey ?? _task?.spaceKey;
+    if (spaceKey != null && spaceKey.isNotEmpty) {
+      return RoutePaths.spaceKanbanFor(spaceKey);
+    }
+    return RoutePaths.tasksKanban;
+  }
 }
 
 class _TaskMainContent extends StatelessWidget {
@@ -277,15 +287,23 @@ class _TaskHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          tooltip: 'Назад к задачам',
-          onPressed: () => context.go(
-            task.spaceId == null
-                ? RoutePaths.tasksKanban
-                : RoutePaths.spaceKanbanFor(task.spaceId!),
+        // Avoid IconButton.tooltip (OverlayPortal): navigating/resizing while
+        // the tooltip is open trips Flutter's `size == theater.size` assert.
+        Semantics(
+          button: true,
+          label: 'Назад к задачам',
+          child: IconButton(
+            onPressed: () {
+              Tooltip.dismissAllToolTips();
+              context.go(
+                task.spaceKey != null && task.spaceKey!.isNotEmpty
+                    ? RoutePaths.spaceKanbanFor(task.spaceKey!)
+                    : RoutePaths.tasksKanban,
+              );
+            },
+            icon: const Icon(CupertinoIcons.back),
+            visualDensity: VisualDensity.compact,
           ),
-          icon: const Icon(CupertinoIcons.back),
-          visualDensity: VisualDensity.compact,
         ),
         SizedBox(width: 4.w),
         Expanded(
@@ -293,7 +311,7 @@ class _TaskHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Задача #${task.id}',
+                'Задача ${task.displayKey}',
                 style: DdtTheme.style(
                   fontSize: DdtTypography.labelSmallSize,
                   color: DdtTheme.sidePanelTextMuted(context),
@@ -452,6 +470,24 @@ class _TaskParametersPanel extends StatelessWidget {
               ),
             ),
             _ParameterTableRow(
+              label: 'Родитель',
+              value: task.parent == null
+                  ? const _MutedValue(text: 'Нет')
+                  : _TaskKeyLink(taskKey: task.parent!.key, title: task.parent!.title),
+            ),
+            _ParameterTableRow(
+              label: 'Дочерние',
+              value: task.children.isEmpty
+                  ? const _MutedValue(text: 'Нет')
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final child in task.children)
+                          _TaskKeyLink(taskKey: child.key, title: child.title),
+                      ],
+                    ),
+            ),
+            _ParameterTableRow(
               label: 'Дедлайн',
               value: Text(
                 task.deadline == null
@@ -552,6 +588,31 @@ class _ParameterTableRow {
   final String label;
   final Widget value;
   final bool isLast;
+}
+
+class _TaskKeyLink extends StatelessWidget {
+  const _TaskKeyLink({required this.taskKey, required this.title});
+
+  final String taskKey;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: taskKey.isEmpty ? null : () => context.go(RoutePaths.task(taskKey)),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 2.h),
+        child: Text(
+          title.isEmpty ? taskKey : '$taskKey · $title',
+          style: DdtTheme.style(
+            fontSize: DdtTypography.labelSize,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _LinkRow extends StatelessWidget {

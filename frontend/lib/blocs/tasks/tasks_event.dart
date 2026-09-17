@@ -113,20 +113,22 @@ final class TaskServerSnapshotReceived extends TasksEvent {
   List<Object?> get props => [task];
 }
 
-/// Переместить задачу между колонками (optimistic move).
+/// Переместить задачу между колонками или внутри колонки (optimistic move).
 final class TaskMoveRequested extends TasksEvent {
   const TaskMoveRequested({
     required this.task,
     required this.from,
     required this.to,
+    this.toIndex,
   });
 
   final Task task;
   final TaskStatus from;
   final TaskStatus to;
+  final int? toIndex;
 
   @override
-  List<Object?> get props => [task, from, to];
+  List<Object?> get props => [task, from, to, toIndex];
 }
 
 /// Удалить задачу.

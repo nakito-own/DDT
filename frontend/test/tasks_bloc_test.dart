@@ -30,7 +30,9 @@ void main() {
 
   test('personal and space blocs keep independent task collections', () async {
     final personalBloc = TasksBloc(api: _FakeTasksApi(createdId: 10));
-    final spaceBloc = TasksBloc(api: _FakeTasksApi(createdId: 20, spaceId: 2));
+    final spaceBloc = TasksBloc(
+      api: _FakeTasksApi(createdId: 20, spaceKey: 'TEST', taskSpaceId: 2),
+    );
     addTearDown(personalBloc.close);
     addTearDown(spaceBloc.close);
 
@@ -65,9 +67,10 @@ Task _draft(String title, {int? spaceId}) {
 }
 
 class _FakeTasksApi extends TasksApi {
-  _FakeTasksApi({required this.createdId, super.spaceId});
+  _FakeTasksApi({required this.createdId, super.spaceKey, this.taskSpaceId});
 
   final int createdId;
+  final int? taskSpaceId;
 
   @override
   Future<List<TaskType>> fetchTaskTypes() async => const [];
@@ -90,9 +93,12 @@ class _FakeTasksApi extends TasksApi {
     String? priority,
     List<TaskLink>? links,
     String? initialComment,
+    String? parentKey,
+    List<String>? childKeys,
   }) async {
     return Task(
       id: createdId,
+      key: spaceKey == null ? 'user-$createdId' : '$spaceKey-$createdId',
       title: title,
       status: status,
       typeId: typeId,
@@ -104,7 +110,7 @@ class _FakeTasksApi extends TasksApi {
       timeEnd: timeEnd,
       deadline: deadline,
       links: links,
-      spaceId: spaceId,
+      spaceId: taskSpaceId,
     );
   }
 }

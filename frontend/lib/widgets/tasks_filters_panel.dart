@@ -57,10 +57,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
     final dividerColor = DdtTheme.sidePanelDivider(context);
 
-    return DdtTheme.glass(
-      context: context,
-      padding: EdgeInsets.all(16.w),
-      child: BlocConsumer<TasksBloc, TasksState>(
+    return BlocConsumer<TasksBloc, TasksState>(
         listenWhen: (previous, current) =>
             previous.searchQuery != current.searchQuery,
         listener: (context, state) => _syncSearchFromBloc(state.searchQuery),
@@ -235,7 +232,6 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
             ],
           );
         },
-      ),
     );
   }
 }

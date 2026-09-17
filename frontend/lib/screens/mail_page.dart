@@ -13,6 +13,7 @@ import '../utils/ddt_toast.dart';
 import '../widgets/compose_mail_panel.dart';
 import '../widgets/ddt_context_menu.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
 import '../theme/ddt_typography.dart';
@@ -59,18 +60,13 @@ class MailPage extends StatelessWidget {
                 );
               }
 
-              return RefreshIndicator(
-                onRefresh: () async => context.read<MailBloc>().add(
-                  const MailInboxRefreshRequested(showAnimation: true),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(flex: 8, child: const _MailList()),
-                    SizedBox(width: 16.w),
-                    Expanded(flex: 7, child: const _MailDetail()),
-                  ],
-                ),
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 8, child: const _MailList()),
+                  SizedBox(width: 16.w),
+                  Expanded(flex: 7, child: const _MailDetail()),
+                ],
               );
             },
           ),
@@ -722,14 +718,11 @@ class _MailListState extends State<_MailList> {
             _scheduleLoadMoreIfNotScrollable();
           }
         },
-        child: DdtTheme.glass(
-          context: context,
-          padding: EdgeInsets.fromLTRB(12.w, 12.h, 16.w, 16.h),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header row ──────────────────────────────────────────────
-              BlocBuilder<MailBloc, MailState>(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header row ──────────────────────────────────────────────
+            BlocBuilder<MailBloc, MailState>(
                 buildWhen: (previous, current) =>
                     previous.folders != current.folders ||
                     previous.filter != current.filter ||
@@ -770,18 +763,6 @@ class _MailListState extends State<_MailList> {
                           ],
                         ),
                       ),
-                      if (state.isRefreshingInbox)
-                        Padding(
-                          padding: EdgeInsets.only(right: 6.w),
-                          child: SizedBox(
-                            width: 16.w,
-                            height: 16.w,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary.withValues(alpha: 0.85),
-                            ),
-                          ),
-                        ),
                       _MailListMenuButton(
                         tooltip: 'Фильтр',
                         icon: CupertinoIcons.line_horizontal_3_decrease,
@@ -878,16 +859,19 @@ class _MailListState extends State<_MailList> {
                           final messages = state.messages;
 
                           if (messages.isEmpty) {
-                            if (state.isLoading || state.isRefreshingInbox) {
+                            if (state.isLoading) {
                               return const Center(
                                 child: CircularProgressIndicator(),
                               );
                             }
-                            return Center(
-                              child: Text(
-                                'В этой папке нет писем',
-                                style: DdtTheme.style(
-                                  fontSize: DdtTypography.bodySize,
+                            return DdtSectionRefreshOverlay(
+                              isRefreshing: state.isRefreshingInbox,
+                              child: Center(
+                                child: Text(
+                                  'В этой папке нет писем',
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.bodySize,
+                                  ),
                                 ),
                               ),
                             );
@@ -895,7 +879,6 @@ class _MailListState extends State<_MailList> {
 
                           final showFooter =
                               state.isLoadingMore ||
-                              state.isRefreshingInbox ||
                               state.hasMoreMessages ||
                               state.loadMoreErrorMessage != null;
 
@@ -912,9 +895,7 @@ class _MailListState extends State<_MailList> {
                             itemBuilder: (context, index) {
                               if (index >= messages.length) {
                                 return _MailListFooter(
-                                  isLoading:
-                                      state.isLoadingMore ||
-                                      state.isRefreshingInbox,
+                                  isLoading: state.isLoadingMore,
                                   hasMore: state.hasMoreMessages,
                                   errorMessage: state.loadMoreErrorMessage,
                                   onRetry: () => context.read<MailBloc>().add(
@@ -933,9 +914,11 @@ class _MailListState extends State<_MailList> {
 
                           return Stack(
                             children: [
-                              _MailListRefreshAnimation(
-                                isRefreshing: state.isRefreshingInbox,
-                                child: listView,
+                              Positioned.fill(
+                                child: DdtSectionRefreshOverlay(
+                                  isRefreshing: state.isRefreshingInbox,
+                                  child: listView,
+                                ),
                               ),
                               Positioned(
                                 right: 12.w,
@@ -980,34 +963,7 @@ class _MailListState extends State<_MailList> {
               ),
             ],
           ),
-        ),
       ),
-    );
-  }
-}
-
-class _MailListRefreshAnimation extends StatelessWidget {
-  const _MailListRefreshAnimation({
-    required this.isRefreshing,
-    required this.child,
-  });
-
-  final bool isRefreshing;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(child: child),
-        if (isRefreshing)
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LinearProgressIndicator(minHeight: 2),
-          ),
-      ],
     );
   }
 }
@@ -1172,14 +1128,10 @@ class _MailDetail extends StatelessWidget {
       builder: (context, state) {
         final message = _messageForDetail(state);
         if (message == null) {
-          return DdtTheme.glass(
-            context: context,
-            padding: EdgeInsets.all(20.w),
-            child: Center(
-              child: Text(
-                'Выберите письмо',
-                style: DdtTheme.style(fontSize: DdtTypography.bodyLargeSize),
-              ),
+          return Center(
+            child: Text(
+              'Выберите письмо',
+              style: DdtTheme.style(fontSize: DdtTypography.bodyLargeSize),
             ),
           );
         }

@@ -7,6 +7,7 @@ enum AppSection {
   mail(label: 'Почта', icon: CupertinoIcons.mail),
   calendar(label: 'Календарь', icon: CupertinoIcons.calendar),
   contacts(label: 'Контакты', icon: CupertinoIcons.person_2),
+  analytics(label: 'Аналитика', icon: CupertinoIcons.chart_bar),
   space(label: 'Пространство', icon: CupertinoIcons.square_grid_2x2),
   automations(label: 'Автоматизации', icon: CupertinoIcons.bolt_horizontal),
   linkArchive(label: 'Архив ссылок', icon: CupertinoIcons.link),
@@ -23,6 +24,7 @@ enum AppSection {
     AppSection.mail => RoutePaths.mail,
     AppSection.calendar => RoutePaths.calendar,
     AppSection.contacts => RoutePaths.contacts,
+    AppSection.analytics => RoutePaths.analytics,
     AppSection.space => RoutePaths.space,
     AppSection.automations => RoutePaths.automations,
     AppSection.linkArchive => RoutePaths.linkArchive,
@@ -38,6 +40,7 @@ enum AppSection {
     if (location.startsWith(RoutePaths.mail)) return AppSection.mail;
     if (location.startsWith(RoutePaths.calendar)) return AppSection.calendar;
     if (location.startsWith(RoutePaths.contacts)) return AppSection.contacts;
+    if (location.startsWith(RoutePaths.analytics)) return AppSection.analytics;
     if (location.startsWith(RoutePaths.space)) return AppSection.space;
     if (location.startsWith(RoutePaths.automations)) {
       return AppSection.automations;

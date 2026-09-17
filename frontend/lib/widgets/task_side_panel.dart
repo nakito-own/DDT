@@ -2,13 +2,16 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
+import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_comment.dart';
 import '../models/task_link.dart';
 import '../models/task_priority.dart';
+import '../models/task_ref.dart';
 import '../models/task_status.dart';
 import '../models/task_type.dart';
 import '../router/route_paths.dart';
@@ -30,6 +33,7 @@ Future<Task?> showTaskSidePanel(
   TaskStatus initialStatus = TaskStatus.todo,
   required List<TaskType> taskTypes,
   int? defaultAuthorId,
+  List<Task>? relatedTasks,
 }) {
   return showDdtSidePanel<Task>(
     context,
@@ -39,6 +43,7 @@ Future<Task?> showTaskSidePanel(
       initialStatus: initialStatus,
       taskTypes: taskTypes,
       defaultAuthorId: defaultAuthorId,
+      relatedTasks: relatedTasks ?? context.read<TasksBloc>().state.allTasks,
     ),
   );
 }
@@ -51,6 +56,7 @@ class TaskSidePanel extends StatelessWidget {
     this.initialStatus = TaskStatus.todo,
     required this.taskTypes,
     this.defaultAuthorId,
+    this.relatedTasks = const [],
   });
 
   final TaskSidePanelMode mode;
@@ -58,6 +64,7 @@ class TaskSidePanel extends StatelessWidget {
   final TaskStatus initialStatus;
   final List<TaskType> taskTypes;
   final int? defaultAuthorId;
+  final List<Task> relatedTasks;
 
   @override
   Widget build(BuildContext context) {
@@ -66,10 +73,15 @@ class TaskSidePanel extends StatelessWidget {
         initialStatus: initialStatus,
         taskTypes: taskTypes,
         defaultAuthorId: defaultAuthorId,
+        relatedTasks: relatedTasks,
       );
     }
 
-    return TaskSidePanelDetails(task: task!, taskTypes: taskTypes);
+    return TaskSidePanelDetails(
+      task: task!,
+      taskTypes: taskTypes,
+      relatedTasks: relatedTasks,
+    );
   }
 }
 
@@ -78,10 +90,12 @@ class TaskSidePanelDetails extends StatefulWidget {
     super.key,
     required this.task,
     required this.taskTypes,
+    this.relatedTasks = const [],
   });
 
   final Task task;
   final List<TaskType> taskTypes;
+  final List<Task> relatedTasks;
 
   @override
   State<TaskSidePanelDetails> createState() => _TaskSidePanelDetailsState();
@@ -102,6 +116,8 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   late DateTime? _timeStart;
   late DateTime? _timeEnd;
   late DateTime? _deadline;
+  late TaskRef? _parent;
+  late List<TaskRef> _children;
   final List<_LinkDraft> _links = [];
 
   @override
@@ -129,6 +145,8 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     _timeStart = task.timeStart;
     _timeEnd = task.timeEnd;
     _deadline = task.deadline;
+    _parent = task.parent;
+    _children = List<TaskRef>.of(task.children);
 
     for (final link in task.links ?? const <TaskLink>[]) {
       final draft = _LinkDraft();
@@ -165,6 +183,52 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     return null;
   }
 
+  List<Task> get _relationCandidates {
+    return widget.relatedTasks
+        .where(
+          (task) =>
+              task.id != widget.task.id && task.key.isNotEmpty && task.id > 0,
+        )
+        .toList();
+  }
+
+  TaskRef _toRef(Task task) {
+    return TaskRef(
+      id: task.id,
+      key: task.key,
+      title: task.title,
+      status: task.status,
+    );
+  }
+
+  void _setParentKey(String? key) {
+    setState(() {
+      if (key == null || key.isEmpty) {
+        _parent = null;
+        return;
+      }
+      for (final task in _relationCandidates) {
+        if (task.key == key) {
+          _parent = _toRef(task);
+          _children.removeWhere((child) => child.key == key);
+          return;
+        }
+      }
+    });
+  }
+
+  void _addChildKey(String? key) {
+    if (key == null || key.isEmpty) return;
+    if (_children.any((child) => child.key == key)) return;
+    if (_parent?.key == key) return;
+    for (final task in _relationCandidates) {
+      if (task.key == key) {
+        setState(() => _children = [..._children, _toRef(task)]);
+        return;
+      }
+    }
+  }
+
   void _submit() {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -198,6 +262,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
 
     final task = Task(
       id: widget.task.id,
+      key: widget.task.key,
       title: title,
       status: _status,
       typeId: type?.id,
@@ -206,6 +271,12 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
       authorId: _parseUserId(_authorController.text),
       executorId: _parseUserId(_executorController.text),
       responsibleId: _parseUserId(_responsibleController.text),
+      ownerId: widget.task.ownerId,
+      spaceId: widget.task.spaceId,
+      spaceKey: widget.task.spaceKey,
+      parentId: _parent?.id,
+      parent: _parent,
+      children: _children,
       timeSet: _timeSet,
       timeStart: _timeStart,
       timeEnd: _timeEnd,
@@ -240,13 +311,11 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
           tooltip: 'Открыть задачу',
           onPressed: () {
             final router = GoRouter.of(context);
+            final location = RoutePaths.task(widget.task.apiRef);
             Navigator.of(context).pop();
-            final spaceId = widget.task.spaceId;
-            router.go(
-              spaceId == null
-                  ? RoutePaths.task(widget.task.id)
-                  : RoutePaths.spaceTask(spaceId, widget.task.id),
-            );
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              router.go(location);
+            });
           },
           icon: Icon(CupertinoIcons.link, size: 18.sp),
           visualDensity: VisualDensity.compact,
@@ -367,6 +436,78 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     ),
                   ),
+                  _TaskFormTableRow(
+                    label: 'Родитель',
+                    child: _DropdownControl<String?>(
+                      value: _parent?.key,
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Нет'),
+                        ),
+                        for (final task in _relationCandidates)
+                          if (!_children.any((child) => child.key == task.key))
+                            DropdownMenuItem<String?>(
+                              value: task.key,
+                              child: Text(
+                                '${task.key} · ${task.title}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                      ],
+                      onChanged: _setParentKey,
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Дочерние',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _DropdownControl<String?>(
+                          value: null,
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Добавить задачу'),
+                            ),
+                            for (final task in _relationCandidates)
+                              if (task.key != _parent?.key &&
+                                  !_children.any(
+                                    (child) => child.key == task.key,
+                                  ))
+                                DropdownMenuItem<String?>(
+                                  value: task.key,
+                                  child: Text(
+                                    '${task.key} · ${task.title}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                          ],
+                          onChanged: _addChildKey,
+                        ),
+                        if (_children.isNotEmpty) ...[
+                          SizedBox(height: 8.h),
+                          Wrap(
+                            spacing: 8.w,
+                            runSpacing: 8.h,
+                            children: [
+                              for (final child in _children)
+                                InputChip(
+                                  label: Text(child.key),
+                                  onDeleted: () {
+                                    setState(
+                                      () => _children.removeWhere(
+                                        (item) => item.key == child.key,
+                                      ),
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
                 [
                   _TaskFormTableRow(
@@ -454,11 +595,13 @@ class TaskSidePanelCreateForm extends StatefulWidget {
     required this.initialStatus,
     required this.taskTypes,
     this.defaultAuthorId,
+    this.relatedTasks = const [],
   });
 
   final TaskStatus initialStatus;
   final List<TaskType> taskTypes;
   final int? defaultAuthorId;
+  final List<Task> relatedTasks;
 
   @override
   State<TaskSidePanelCreateForm> createState() =>
@@ -490,6 +633,8 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   DateTime? _timeStart;
   DateTime? _timeEnd;
   DateTime? _deadline;
+  TaskRef? _parent;
+  List<TaskRef> _children = [];
   final List<_LinkDraft> _links = [];
 
   @override
@@ -518,6 +663,49 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
       if (type.id == typeId) return type;
     }
     return null;
+  }
+
+  List<Task> get _relationCandidates {
+    return widget.relatedTasks
+        .where((task) => task.key.isNotEmpty && task.id > 0)
+        .toList();
+  }
+
+  TaskRef _toRef(Task task) {
+    return TaskRef(
+      id: task.id,
+      key: task.key,
+      title: task.title,
+      status: task.status,
+    );
+  }
+
+  void _setParentKey(String? key) {
+    setState(() {
+      if (key == null || key.isEmpty) {
+        _parent = null;
+        return;
+      }
+      for (final task in _relationCandidates) {
+        if (task.key == key) {
+          _parent = _toRef(task);
+          _children.removeWhere((child) => child.key == key);
+          return;
+        }
+      }
+    });
+  }
+
+  void _addChildKey(String? key) {
+    if (key == null || key.isEmpty) return;
+    if (_children.any((child) => child.key == key)) return;
+    if (_parent?.key == key) return;
+    for (final task in _relationCandidates) {
+      if (task.key == key) {
+        setState(() => _children = [..._children, _toRef(task)]);
+        return;
+      }
+    }
   }
 
   void _submit() {
@@ -578,6 +766,8 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
       timeEnd: _timeEnd,
       deadline: _deadline,
       priority: _priority,
+      parent: _parent,
+      children: _children,
       links: taskLinks,
       comments: comments,
     );
@@ -714,6 +904,78 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                       hint: 'ID, необязательно',
                       controller: _responsibleController,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Родитель',
+                    child: _DropdownControl<String?>(
+                      value: _parent?.key,
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Нет'),
+                        ),
+                        for (final task in _relationCandidates)
+                          if (!_children.any((child) => child.key == task.key))
+                            DropdownMenuItem<String?>(
+                              value: task.key,
+                              child: Text(
+                                '${task.key} · ${task.title}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                      ],
+                      onChanged: _setParentKey,
+                    ),
+                  ),
+                  _TaskFormTableRow(
+                    label: 'Дочерние',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _DropdownControl<String?>(
+                          value: null,
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Добавить задачу'),
+                            ),
+                            for (final task in _relationCandidates)
+                              if (task.key != _parent?.key &&
+                                  !_children.any(
+                                    (child) => child.key == task.key,
+                                  ))
+                                DropdownMenuItem<String?>(
+                                  value: task.key,
+                                  child: Text(
+                                    '${task.key} · ${task.title}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                          ],
+                          onChanged: _addChildKey,
+                        ),
+                        if (_children.isNotEmpty) ...[
+                          SizedBox(height: 8.h),
+                          Wrap(
+                            spacing: 8.w,
+                            runSpacing: 8.h,
+                            children: [
+                              for (final child in _children)
+                                InputChip(
+                                  label: Text(child.key),
+                                  onDeleted: () {
+                                    setState(
+                                      () => _children.removeWhere(
+                                        (item) => item.key == child.key,
+                                      ),
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
