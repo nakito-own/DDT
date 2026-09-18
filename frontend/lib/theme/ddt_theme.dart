@@ -169,7 +169,7 @@ class DdtTheme {
         : lightTextPrimary;
 
     return DropdownMenuThemeData(
-      textStyle: TextStyle(color: textColor),
+      textStyle: typography.bodyMedium?.copyWith(color: textColor),
       menuStyle: MenuStyle(
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
@@ -211,13 +211,16 @@ class DdtTheme {
     BuildContext context, {
     bool addShadow = true,
     double? radius,
+    bool showBorder = true,
   }) {
     final isDark = _isDark(context);
 
     return BoxDecoration(
       color: shellSurfaceColor(context),
       borderRadius: BorderRadius.circular(radius ?? borderRadius.r),
-      border: Border.all(color: shellSurfaceBorderColor(context)),
+      border: showBorder
+          ? Border.all(color: shellSurfaceBorderColor(context))
+          : null,
       boxShadow: addShadow
           ? [
               BoxShadow(
@@ -238,12 +241,17 @@ class DdtTheme {
     double? height,
     EdgeInsetsGeometry? padding,
     bool addShadow = true,
+    bool showBorder = true,
   }) {
     return Container(
       width: width,
       height: height,
       padding: padding,
-      decoration: shellSurfaceDecoration(context, addShadow: addShadow),
+      decoration: shellSurfaceDecoration(
+        context,
+        addShadow: addShadow,
+        showBorder: showBorder,
+      ),
       child: child,
     );
   }
@@ -369,6 +377,11 @@ class DdtTheme {
     );
   }
 
+  static Color sidePanelSurfaceColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? const Color(0xFF1C1C1E) : Colors.white;
+  }
+
   static GlassContainer sidePanelGlass({
     required BuildContext context,
     required Widget child,
@@ -383,11 +396,9 @@ class DdtTheme {
       width: double.infinity,
       height: double.infinity,
       padding: EdgeInsets.zero,
-      blurIntensity: 3,
-      backgroundOpacity: isDark ? 0.82 : 0.9,
-      backgroundColor: isDark
-          ? const Color(0xFF1C1C1E).withValues(alpha: 0.9)
-          : Colors.white.withValues(alpha: 0.94),
+      blurIntensity: 0,
+      backgroundOpacity: 1,
+      backgroundColor: sidePanelSurfaceColor(context),
       borderColor: glassBorderColor(brightness),
       borderOpacity: glassBorderOpacity(brightness) * 0.55,
       borderWidth: 1,
@@ -457,9 +468,13 @@ class DdtTheme {
         onSurfaceVariant: darkTextSecondary,
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-        labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextMuted),
-        hintStyle: TextStyle(color: darkTextMuted),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: darkTextSecondary,
+        ),
+        floatingLabelStyle: theme.textTheme.bodySmall?.copyWith(
+          color: darkTextMuted,
+        ),
+        hintStyle: theme.textTheme.bodyMedium?.copyWith(color: darkTextMuted),
         fillColor: darkInputFill,
       ),
       dropdownMenuTheme: dropdownMenuThemeData(
@@ -590,6 +605,10 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
+        iconTheme: IconThemeData(
+          size: 20,
+          color: lightTextSecondary,
+        ),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: lightBackground,
@@ -600,7 +619,7 @@ class DdtTheme {
           outline: lightBorderStrong,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle: GoogleFonts.nunitoSans(
+          titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -624,6 +643,7 @@ class DdtTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            textStyle: typography.labelLarge,
             shape: shape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
@@ -634,6 +654,7 @@ class DdtTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: lightTextPrimary,
+            textStyle: typography.labelLarge,
             side: BorderSide(color: AppColors.primary, width: 1.5),
             shape: shape,
             padding: EdgeInsets.symmetric(
@@ -642,23 +663,26 @@ class DdtTheme {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            textStyle: typography.labelLarge,
+          ),
+        ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: lightInputFill,
           constraints: const BoxConstraints(minHeight: inputControlHeight),
           contentPadding: inputContentPadding(),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          labelStyle: TextStyle(
+          labelStyle: typography.bodyMedium?.copyWith(
             color: lightTextSecondary,
-            fontSize: DdtTypography.bodySize,
           ),
-          floatingLabelStyle: TextStyle(
+          floatingLabelStyle: typography.bodySmall?.copyWith(
             color: lightTextMuted,
-            fontSize: DdtTypography.labelSmallSize,
           ),
-          hintStyle: TextStyle(
+          hintStyle: typography.bodyMedium?.copyWith(
             color: lightTextMuted.withValues(alpha: 0.62),
-            fontSize: DdtTypography.bodySize,
           ),
           border: _outlineBorder(
             borderRadius: radius,
@@ -699,6 +723,10 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
+        iconTheme: IconThemeData(
+          size: 20,
+          color: darkTextSecondary,
+        ),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: darkBackground,
@@ -709,7 +737,7 @@ class DdtTheme {
           outline: darkBorderStrong,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle: GoogleFonts.nunitoSans(
+          titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -732,6 +760,7 @@ class DdtTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            textStyle: typography.labelLarge,
             shape: shape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
@@ -742,6 +771,7 @@ class DdtTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: darkTextPrimary,
+            textStyle: typography.labelLarge,
             side: BorderSide(color: AppColors.primary, width: 1.5),
             shape: shape,
             padding: EdgeInsets.symmetric(
@@ -750,23 +780,26 @@ class DdtTheme {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.accent,
+            textStyle: typography.labelLarge,
+          ),
+        ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: darkInputFill,
           constraints: const BoxConstraints(minHeight: inputControlHeight),
           contentPadding: inputContentPadding(),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          labelStyle: TextStyle(
+          labelStyle: typography.bodyMedium?.copyWith(
             color: darkTextSecondary,
-            fontSize: DdtTypography.bodySize,
           ),
-          floatingLabelStyle: TextStyle(
+          floatingLabelStyle: typography.bodySmall?.copyWith(
             color: darkTextMuted,
-            fontSize: DdtTypography.labelSmallSize,
           ),
-          hintStyle: TextStyle(
+          hintStyle: typography.bodyMedium?.copyWith(
             color: darkTextMuted.withValues(alpha: 0.62),
-            fontSize: DdtTypography.bodySize,
           ),
           border: _outlineBorder(
             borderRadius: radius,

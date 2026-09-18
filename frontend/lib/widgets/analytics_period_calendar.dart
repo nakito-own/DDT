@@ -1,11 +1,12 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import 'ddt_context_menu.dart';
+import '../widgets/ddt_icon.dart';
 
 Future<void> showAnalyticsPeriodCalendar({
   required BuildContext context,
@@ -136,7 +137,7 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
                       _visibleMonth.month - 1,
                     );
                   }),
-                  icon: Icon(CupertinoIcons.chevron_left, size: 16.sp),
+                  icon: DdtIcon(DdtIcons.chevronLeft, size: 16.sp),
                 ),
                 Expanded(
                   child: Text(
@@ -157,7 +158,7 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
                       _visibleMonth.month + 1,
                     );
                   }),
-                  icon: Icon(CupertinoIcons.chevron_right, size: 16.sp),
+                  icon: DdtIcon(DdtIcons.chevronRight, size: 16.sp),
                 ),
               ],
             ),

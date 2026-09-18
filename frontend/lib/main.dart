@@ -27,6 +27,7 @@ const _themeStorageBox = 'ddt_storage';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DdtTypography.ensureLoaded();
 
   await BoltKit.initialize(
     primaryColor: const Color(0xFF1976D2),

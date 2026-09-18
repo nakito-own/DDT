@@ -31,7 +31,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
   final notifier = _AuthRouterNotifier(authBloc);
 
   final router = GoRouter(
-    initialLocation: RoutePaths.tasksKanban,
+    initialLocation: RoutePaths.tasksList,
     refreshListenable: notifier,
     redirect: (BuildContext context, GoRouterState state) {
       final isAuthenticated = notifier.isAuthenticated;
@@ -41,7 +41,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
       if (!isAuthenticated && !isLoginRoute) return RoutePaths.login;
 
       // Авторизованный пользователь на логине → в приложение
-      if (isAuthenticated && isLoginRoute) return RoutePaths.tasksKanban;
+      if (isAuthenticated && isLoginRoute) return RoutePaths.tasksList;
 
       return null;
     },
@@ -71,7 +71,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             path: RoutePaths.tasks,
             redirect: (context, state) {
               if (state.uri.path == RoutePaths.tasks) {
-                return RoutePaths.tasksKanban;
+                return RoutePaths.tasksList;
               }
               return null;
             },
@@ -169,7 +169,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             path: RoutePaths.space,
             name: RoutePaths.nameSpace,
             redirect: (context, state) =>
-                RoutePaths.spaceKanbanFor(RoutePaths.defaultSpaceKey),
+                RoutePaths.spaceListFor(RoutePaths.defaultSpaceKey),
           ),
           GoRoute(
             path: RoutePaths.spaceRef,
@@ -177,7 +177,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             redirect: (context, state) {
               final spaceKey = state.pathParameters['spaceKey'] ?? '';
               if (RoutePaths.isTaskKey(spaceKey)) return null;
-              return RoutePaths.spaceKanbanFor(spaceKey);
+              return RoutePaths.spaceListFor(spaceKey);
             },
             pageBuilder: (context, state) {
               final taskKey = state.pathParameters['spaceKey'] ?? '';
@@ -248,12 +248,17 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             ),
           ),
           GoRoute(
-            path: RoutePaths.linkArchive,
-            name: RoutePaths.nameLinkArchive,
+            path: RoutePaths.notes,
+            name: RoutePaths.nameNotes,
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderPage(section: AppSection.linkArchive),
+              child: _PlaceholderPage(section: AppSection.notes),
             ),
+          ),
+          GoRoute(
+            path: RoutePaths.linkArchive,
+            name: RoutePaths.nameLinkArchive,
+            redirect: (context, state) => RoutePaths.notes,
           ),
         ],
       ),
@@ -385,7 +390,7 @@ class _NotFoundPage extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             TextButton(
-              onPressed: () => context.go(RoutePaths.tasksKanban),
+              onPressed: () => context.go(RoutePaths.tasksList),
               child: const Text('На главную'),
             ),
           ],

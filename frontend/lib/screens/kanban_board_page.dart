@@ -1,8 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
@@ -15,6 +15,7 @@ import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 const _kKanbanSlotDuration = Duration(milliseconds: 280);
 const _kKanbanSlotCurve = Curves.easeOutCubic;
@@ -436,7 +437,9 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                 ),
                 SizedBox(height: DdtTheme.spacing.h),
                 Expanded(
-                  child: DragTarget<Task>(
+                  child: ClipRRect(
+                    borderRadius: DdtTheme.radius,
+                    child: DragTarget<Task>(
                     onWillAcceptWithDetails: (_) => true,
                     onMove: (details) {
                       _setDragOver(true);
@@ -479,6 +482,7 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                         onOpenTask: widget.onOpenTask,
                       );
                     },
+                  ),
                   ),
                 ),
               ],
@@ -567,7 +571,7 @@ class _KanbanColumnHeader extends StatelessWidget {
         IconButton(
           tooltip: 'Добавить задачу',
           onPressed: () => onAddTask(status),
-          icon: Icon(CupertinoIcons.add, size: 20.sp, color: AppColors.primary),
+          icon: DdtIcon(DdtIcons.add, size: 20.sp, color: AppColors.primary),
           visualDensity: VisualDensity.compact,
         ),
       ],
@@ -614,7 +618,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       fit: StackFit.expand,
       children: [
         ListView(
-          clipBehavior: Clip.none,
+          clipBehavior: Clip.hardEdge,
           children: _buildChildren(),
         ),
         if (widget.tasks.isEmpty && widget.dropIndex == null)

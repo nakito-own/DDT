@@ -1,8 +1,10 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
+import '../theme/ddt_icons.dart';
 
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 /// Единый чекбокс приложения с общей анимацией и визуальными состояниями.
 class DdtCheckbox extends StatelessWidget {
@@ -53,11 +55,17 @@ class DdtCheckbox extends StatelessWidget {
               ]
             : null,
       ),
+      alignment: Alignment.center,
       child: AnimatedScale(
         scale: value ? 1 : 0,
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOutBack,
-        child: const Icon(Icons.check_rounded, size: 15, color: Colors.white),
+        child: DdtIcon(
+          DdtIcons.check,
+          size: 12,
+          color: Colors.white,
+          fitParent: true,
+        ),
       ),
     );
 

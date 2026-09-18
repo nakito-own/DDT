@@ -22,35 +22,43 @@ class DdtShellLayout extends StatelessWidget {
   final Widget child;
   final bool padContent;
 
+  static const double _railAreaLeftInset = 8;
+
   @override
   Widget build(BuildContext context) {
     final shellInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing);
     final contentTopInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing / 2);
+    final railLeftInset = DdtTheme.shellSizeOf(context, _railAreaLeftInset);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(shellInset),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              DdtGlassNavigationRail(
-                selectedSection: selectedSection,
-                onSectionSelected: onSectionSelected,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(railLeftInset).copyWith(bottom: 0),
+              child: DdtGlassAppBar(
+                title: title,
+                actions: DdtAppBarSectionActions(section: selectedSection),
               ),
-              SizedBox(width: shellInset),
-              Expanded(
-                child: Column(
+            ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  railLeftInset,
+                  contentTopInset,
+                  shellInset,
+                  shellInset,
+                ),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    DdtGlassAppBar(
-                      title: title,
-                      actions: DdtAppBarSectionActions(
-                        section: selectedSection,
-                      ),
+                    DdtGlassNavigationRail(
+                      selectedSection: selectedSection,
+                      onSectionSelected: onSectionSelected,
                     ),
-                    SizedBox(height: contentTopInset),
+                    SizedBox(width: contentTopInset),
                     Expanded(
                       child: padContent
                           ? Padding(
@@ -67,8 +75,8 @@ class DdtShellLayout extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

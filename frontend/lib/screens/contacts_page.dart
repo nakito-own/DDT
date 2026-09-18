@@ -2,6 +2,7 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
@@ -43,7 +44,7 @@ class _ContactsPageState extends State<ContactsPage> {
               hint: 'Поиск контактов',
               type: InputType.search,
               variant: DdtInputVariant.pill,
-              prefixIcon: Icons.search,
+              prefixIcon: DdtIcons.search,
               onChanged: (value) =>
                   _bloc.add(ContactsSearchQueryChanged(value)),
             ),

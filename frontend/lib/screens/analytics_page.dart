@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/analytics/analytics_bloc.dart';
 import '../models/analytics_dashboard.dart';
@@ -13,6 +13,7 @@ import '../theme/ddt_typography.dart';
 import '../widgets/analytics_charts.dart';
 import '../widgets/analytics_filters_panel.dart';
 import '../widgets/ddt_section_refresh.dart';
+import '../widgets/ddt_icon.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
@@ -184,8 +185,8 @@ class _AnalyticsDashboardView extends StatelessWidget {
                     IconButton(
                       tooltip: 'Обновить',
                       onPressed: onRefresh,
-                      icon: Icon(
-                        CupertinoIcons.arrow_clockwise,
+                      icon: DdtIcon(
+                        DdtIcons.refresh,
                         color: AppColors.primary,
                         size: 22.sp,
                       ),

@@ -24,8 +24,8 @@ enum TasksViewMode {
 
   /// Определяет активный режим по текущему URL-пути.
   static TasksViewMode fromRoute(String location) {
-    if (location.endsWith('/list')) return TasksViewMode.list;
+    if (location.endsWith('/kanban')) return TasksViewMode.kanban;
     if (location.endsWith('/gantt')) return TasksViewMode.gantt;
-    return TasksViewMode.kanban;
+    return TasksViewMode.list;
   }
 }

@@ -1,7 +1,7 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../models/task.dart';
 import '../theme/ddt_theme.dart';
@@ -9,6 +9,7 @@ import '../utils/task_formatters.dart';
 import 'task_priority_badge.dart';
 import 'task_type_badge.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class TaskCard extends StatelessWidget {
   const TaskCard({
@@ -42,8 +43,8 @@ class TaskCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                CupertinoIcons.line_horizontal_3,
+              DdtIcon(
+                DdtIcons.dragHandle,
                 size: 18.sp,
                 color: iconMuted,
               ),
@@ -76,8 +77,8 @@ class TaskCard extends StatelessWidget {
                 IconButton(
                   tooltip: 'Удалить',
                   onPressed: onDelete,
-                  icon: Icon(
-                    CupertinoIcons.xmark,
+                  icon: DdtIcon(
+                    DdtIcons.close,
                     size: 18.sp,
                     color: textSecondary,
                   ),
@@ -228,25 +229,25 @@ class _TaskCardMeta extends StatelessWidget {
       children: [
         if (task.deadline != null)
           _MetaItem(
-            icon: CupertinoIcons.calendar,
+            icon: DdtIcons.calendar,
             label: formatTaskDate(task.deadline!),
             color: overdue ? AppColors.error : textSecondary,
           ),
         if (task.executorId != null)
           _MetaItem(
-            icon: CupertinoIcons.person,
+            icon: DdtIcons.user,
             label: formatUserRef(task.executorId, fallback: '—'),
             color: textSecondary,
           ),
         if (task.links?.isNotEmpty ?? false)
           _MetaItem(
-            icon: CupertinoIcons.link,
+            icon: DdtIcons.link,
             label: '${task.links!.length}',
             color: textSecondary,
           ),
         if (task.comments.isNotEmpty)
           _MetaItem(
-            icon: CupertinoIcons.chat_bubble,
+            icon: DdtIcons.comment,
             label: '${task.comments.length}',
             color: textSecondary,
           ),
@@ -258,7 +259,7 @@ class _TaskCardMeta extends StatelessWidget {
 class _MetaItem extends StatelessWidget {
   const _MetaItem({required this.icon, required this.label, this.color});
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final Color? color;
 
@@ -269,7 +270,7 @@ class _MetaItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14.sp, color: textColor),
+        DdtIcon(icon, size: 14.sp, color: textColor),
         SizedBox(width: 4.w),
         Text(
           label,

@@ -19,7 +19,7 @@ abstract final class RoutePaths {
 
   /// Полный URL задачи: личная — `/tasks/<username>-id`, пространство — `/space/<spacekey>-id`.
   static String forTask({required String taskKey, int? spaceId, String? spaceKey}) {
-    if (taskKey.isEmpty) return tasksKanban;
+    if (taskKey.isEmpty) return tasksList;
     final inSpace = spaceId != null || (spaceKey != null && spaceKey.isNotEmpty);
     return inSpace ? spaceTask(taskKey) : task(taskKey);
   }
@@ -41,6 +41,9 @@ abstract final class RoutePaths {
   static String spaceGanttFor(String spaceKey) => '/space/$spaceKey/gantt';
   static String spaceTask(String taskKey) => '/space/$taskKey';
   static const automations = '/automations';
+  static const notes = '/notes';
+
+  /// Legacy path; redirects to [notes].
   static const linkArchive = '/link-archive';
 
   static final taskKeyPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*-\d+$');
@@ -75,6 +78,9 @@ abstract final class RoutePaths {
   static const nameSpaceGantt = 'space-gantt';
   static const nameSpaceTaskDetails = 'space-task-details';
   static const nameAutomations = 'automations';
+  static const nameNotes = 'notes';
+
+  /// Legacy route name; redirects to [nameNotes].
   static const nameLinkArchive = 'link-archive';
 
   static bool isKanbanRoute(String location) => location.endsWith('/kanban');

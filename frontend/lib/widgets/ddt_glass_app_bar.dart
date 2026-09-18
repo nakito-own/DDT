@@ -1,8 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/notifications/notifications_bloc.dart';
@@ -11,6 +11,7 @@ import '../models/user_profile.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   const DdtGlassAppBar({super.key, required this.title, this.actions});
@@ -39,16 +40,14 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Row(
           children: [
             SizedBox(width: horizontalPadding),
-            Flexible(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.panelTitleSize,
-                  fontWeight: FontWeight.w600,
-                  color: foregroundColor,
-                ),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.panelTitleSize,
+                fontWeight: FontWeight.w600,
+                color: foregroundColor,
               ),
             ),
             if (actions != null) ...[
@@ -103,8 +102,8 @@ class _NotificationBellButton extends StatelessWidget {
               icon: Badge(
                 isLabelVisible: unread > 0,
                 label: Text('$unread'),
-                child: Icon(
-                  CupertinoIcons.bell,
+                child: DdtIcon(
+                  DdtIcons.bell,
                   color: foregroundColor,
                   size: DdtTheme.shellSizeOf(context, 24),
                 ),
@@ -206,15 +205,15 @@ class _NotificationTile extends StatelessWidget {
   final AppNotification item;
   final VoidCallback onTap;
 
-  IconData get _icon {
+  FaIconData get _icon {
     switch (item.category) {
       case AppNotificationCategory.newMail:
       case AppNotificationCategory.mailUpdated:
-        return CupertinoIcons.mail_solid;
+        return DdtIcons.mail;
       case AppNotificationCategory.calendarUpdated:
-        return CupertinoIcons.calendar;
+        return DdtIcons.calendar;
       case AppNotificationCategory.system:
-        return CupertinoIcons.bell_fill;
+        return DdtIcons.bell;
     }
   }
 
@@ -236,7 +235,7 @@ class _NotificationTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(_icon, size: 18.sp, color: AppColors.primary),
+              DdtIcon(_icon, size: 18.sp, color: AppColors.primary),
               SizedBox(width: 10.w),
               Expanded(
                 child: Column(
@@ -341,8 +340,8 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          CupertinoIcons.person_crop_circle,
+                        DdtIcon(
+                          DdtIcons.userCircle,
                           size: DdtTheme.shellSizeOf(context, 18),
                           color: email != null ? AppColors.primary : mutedColor,
                         ),
@@ -463,8 +462,8 @@ class _ProfilePanelHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          CupertinoIcons.person_crop_circle_fill,
+        DdtIcon(
+          DdtIcons.userCircle,
           size: 36.sp,
           color: AppColors.primary,
         ),

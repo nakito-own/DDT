@@ -6,7 +6,7 @@ final class TasksState extends Equatable {
     this.taskTypes = const [],
     this.isLoading = false,
     this.errorMessage,
-    this.viewMode = TasksViewMode.kanban,
+    this.viewMode = TasksViewMode.list,
     this.searchQuery = '',
     this.statusFilters = const {},
     this.priorityFilter,

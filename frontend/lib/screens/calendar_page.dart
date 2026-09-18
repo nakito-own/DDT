@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
@@ -15,6 +15,7 @@ import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -150,7 +151,7 @@ class _CalendarPageState extends State<CalendarPage> {
             bottom: 24.h,
             child: DdtGlassFab(
               onPressed: () => showComposeEventPanel(context),
-              icon: Icons.add,
+              icon: DdtIcons.add,
               label: 'Событие',
             ),
           ),
@@ -210,13 +211,13 @@ class _CalendarToolbar extends StatelessWidget {
           ),
         ),
         _NavButton(
-          icon: CupertinoIcons.chevron_left,
+          icon: DdtIcons.chevronLeft,
           onPressed: () => context.read<CalendarBloc>().add(
             const CalendarGoPreviousRequested(),
           ),
         ),
         _NavButton(
-          icon: CupertinoIcons.chevron_right,
+          icon: DdtIcons.chevronRight,
           onPressed: () =>
               context.read<CalendarBloc>().add(const CalendarGoNextRequested()),
         ),
@@ -235,17 +236,17 @@ class _CalendarToolbar extends StatelessWidget {
             DdtSegmentedControlSegment(
               value: CalendarViewMode.day,
               label: 'День',
-              icon: CupertinoIcons.time,
+              icon: DdtIcons.clock,
             ),
             DdtSegmentedControlSegment(
               value: CalendarViewMode.week,
               label: 'Неделя',
-              icon: CupertinoIcons.calendar,
+              icon: DdtIcons.calendar,
             ),
             DdtSegmentedControlSegment(
               value: CalendarViewMode.month,
               label: 'Месяц',
-              icon: CupertinoIcons.calendar_badge_plus,
+              icon: DdtIcons.calendarPlus,
             ),
           ],
           selected: state.viewMode,
@@ -260,7 +261,7 @@ class _CalendarToolbar extends StatelessWidget {
 class _NavButton extends StatelessWidget {
   const _NavButton({required this.icon, required this.onPressed});
 
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onPressed;
 
   @override
@@ -268,7 +269,7 @@ class _NavButton extends StatelessWidget {
     return IconButton(
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
-      icon: Icon(icon, size: 20.sp),
+      icon: DdtIcon(icon, size: 20.sp),
     );
   }
 }

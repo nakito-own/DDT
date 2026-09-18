@@ -1,10 +1,10 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
@@ -16,6 +16,7 @@ import '../utils/task_formatters.dart';
 import '../widgets/task_comments_section.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class TaskDetailsPage extends StatefulWidget {
   const TaskDetailsPage({super.key, required this.taskKey, this.spaceKey});
@@ -137,8 +138,8 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              CupertinoIcons.exclamationmark_triangle,
+            DdtIcon(
+              DdtIcons.warning,
               size: 36.sp,
               color: Theme.of(context).colorScheme.error,
             ),
@@ -221,9 +222,9 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   String get _backRoute {
     final spaceKey = widget.spaceKey ?? _task?.spaceKey;
     if (spaceKey != null && spaceKey.isNotEmpty) {
-      return RoutePaths.spaceKanbanFor(spaceKey);
+      return RoutePaths.spaceListFor(spaceKey);
     }
-    return RoutePaths.tasksKanban;
+    return RoutePaths.tasksList;
   }
 }
 
@@ -297,11 +298,11 @@ class _TaskHeader extends StatelessWidget {
               Tooltip.dismissAllToolTips();
               context.go(
                 task.spaceKey != null && task.spaceKey!.isNotEmpty
-                    ? RoutePaths.spaceKanbanFor(task.spaceKey!)
-                    : RoutePaths.tasksKanban,
+                    ? RoutePaths.spaceListFor(task.spaceKey!)
+                    : RoutePaths.tasksList,
               );
             },
-            icon: const Icon(CupertinoIcons.back),
+            icon: DdtIcon(DdtIcons.back),
             visualDensity: VisualDensity.compact,
           ),
         ),
@@ -628,8 +629,8 @@ class _LinkRow extends StatelessWidget {
       borderRadius: DdtTheme.radius,
       child: Row(
         children: [
-          Icon(
-            CupertinoIcons.link,
+          DdtIcon(
+            DdtIcons.link,
             size: 14.sp,
             color: Theme.of(context).colorScheme.primary,
           ),
@@ -646,8 +647,8 @@ class _LinkRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Icon(
-            CupertinoIcons.arrow_up_right,
+          DdtIcon(
+            DdtIcons.arrowUpRight,
             size: 12.sp,
             color: DdtTheme.sidePanelTextMuted(context),
           ),

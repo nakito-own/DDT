@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../theme/ddt_theme.dart';
@@ -12,6 +13,7 @@ import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
 import 'ddt_tappable.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 Future<bool?> showComposeEventPanel(BuildContext context) {
   return showDdtSidePanel<bool>(context, child: const ComposeEventPanel());
@@ -123,7 +125,7 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
               ],
             ),
           ),
-          const Icon(Icons.calendar_today_outlined),
+          DdtIcon(DdtIcons.calendarDay),
         ],
       ),
     );

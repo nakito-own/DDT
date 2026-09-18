@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../services/api_client.dart';
@@ -138,14 +139,14 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                             ],
                             DdtAppInput(
                               hint: 'Login',
-                              prefixIcon: Icons.person_outline_rounded,
+                              prefixIcon: DdtIcons.user,
                               controller: _usernameController,
                               enabled: !isBusy,
                             ),
                             SizedBox(height: 12.h),
                             DdtAppInput(
                               hint: 'Email',
-                              prefixIcon: Icons.mail_outline_rounded,
+                              prefixIcon: DdtIcons.mail,
                               controller: _emailController,
                               enabled: !isBusy,
                               type: InputType.email,
@@ -153,7 +154,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                             SizedBox(height: 12.h),
                             DdtAppInput(
                               hint: 'Password',
-                              prefixIcon: Icons.lock_outline_rounded,
+                              prefixIcon: DdtIcons.lock,
                               controller: _passwordController,
                               enabled: !isBusy,
                               type: InputType.password,

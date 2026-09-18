@@ -7,6 +7,11 @@ import 'package:google_fonts/google_fonts.dart';
 /// Values are design pixels. ScreenUtil scale factors are disabled, so `.sp`
 /// resolves 1:1 to logical (CSS) pixels and browser page zoom can magnify them.
 abstract final class DdtTypography {
+  /// Loads Golos Text before the first frame (avoids a Roboto flash on web).
+  static Future<void> ensureLoaded() {
+    return GoogleFonts.pendingFonts([GoogleFonts.golosText()]);
+  }
+
   static const double micro = 10;
   static const double caption = 11;
   static const double labelSmall = 12;
@@ -38,7 +43,7 @@ abstract final class DdtTypography {
     double? height,
     TextDecoration? decoration,
   }) {
-    return GoogleFonts.nunitoSans(
+    return GoogleFonts.golosText(
       fontSize: size,
       fontWeight: fontWeight,
       color: color,
@@ -48,7 +53,7 @@ abstract final class DdtTypography {
   }
 
   static TextTheme textTheme(TextTheme base) {
-    final theme = GoogleFonts.nunitoSansTextTheme(base);
+    final theme = GoogleFonts.golosTextTextTheme(base);
     return theme.copyWith(
       displayLarge: theme.displayLarge?.copyWith(
         fontSize: displaySize,

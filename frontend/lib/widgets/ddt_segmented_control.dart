@@ -2,8 +2,10 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class DdtSegmentedControlSegment<T> {
   const DdtSegmentedControlSegment({
@@ -14,7 +16,7 @@ class DdtSegmentedControlSegment<T> {
 
   final T value;
   final String label;
-  final IconData? icon;
+  final FaIconData? icon;
 }
 
 /// Segmented selector styled for DDT glass UI.
@@ -132,7 +134,11 @@ class _DdtSegmentedControlItemState<T>
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.segment.icon != null) ...[
-                Icon(widget.segment.icon, size: 14.sp, color: foregroundColor),
+                DdtIcon(
+                  widget.segment.icon!,
+                  size: 14.sp,
+                  color: foregroundColor,
+                ),
                 SizedBox(width: 5.w),
               ],
               Text(

@@ -99,65 +99,42 @@ class TasksListPage extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              flex: 7,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Задачи',
-                          style: DdtTheme.style(
-                            fontSize: DdtTypography.sectionTitleSize,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      Button(
-                        text: 'Создать',
-                        onPressed: () => _createTask(context),
-                        borderRadius: DdtTheme.radius,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 12.h),
-                  Expanded(
-                    child: tasks.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Нет задач по выбранным фильтрам',
-                              style: DdtTheme.style(
-                                fontSize: DdtTypography.bodySize,
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: tasks.length,
-                            separatorBuilder: (_, __) =>
-                                SizedBox(height: 10.h),
-                            itemBuilder: (context, index) {
-                              final task = tasks[index];
-                              return TaskCard(
-                                key: ValueKey(task.id),
-                                task: task,
-                                onTap: () => _openTask(context, task),
-                                onDelete: () => _deleteTask(context, task),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+            SizedBox(
+              width: kTasksFiltersPanelWidth.w,
+              child: TasksFiltersPanel(
+                onCreatePressed: () => _createTask(context),
               ),
             ),
-            SizedBox(width: 16.w),
+            SizedBox(width: 12.w),
             Container(
               width: 1,
               color: DdtTheme.sidePanelDivider(context),
             ),
-            SizedBox(width: 16.w),
-            const Expanded(flex: 3, child: TasksFiltersPanel()),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: tasks.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Нет задач по выбранным фильтрам',
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.bodySize,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: tasks.length,
+                      separatorBuilder: (_, _) => SizedBox(height: 10.h),
+                      itemBuilder: (context, index) {
+                        final task = tasks[index];
+                        return TaskCard(
+                          key: ValueKey(task.id),
+                          task: task,
+                          onTap: () => _openTask(context, task),
+                          onDelete: () => _deleteTask(context, task),
+                        );
+                      },
+                    ),
+            ),
           ],
         );
       },

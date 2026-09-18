@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../theme/ddt_typography.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../blocs/mail/mail_bloc.dart';
@@ -15,6 +15,7 @@ import '../theme/ddt_theme.dart';
 import 'compose_mail_panel.dart';
 import 'ddt_context_menu.dart';
 import 'ddt_segmented_control.dart';
+import '../widgets/ddt_icon.dart';
 
 class DdtAppBarSectionActions extends StatelessWidget {
   const DdtAppBarSectionActions({super.key, required this.section});
@@ -75,14 +76,14 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
             return _AppBarIconAction(
               tooltip: 'Выбрать пространство',
               label: selectedSpace?.name ?? 'ПРОСТРАНСТВО',
-              icon: CupertinoIcons.chevron_down,
+              icon: DdtIcons.chevronDown,
               isBusy: snapshot.connectionState == ConnectionState.waiting,
               contextMenuItems: spaces.isEmpty
                   ? null
                   : [
                       for (final space in spaces)
                         DdtContextMenuItem(
-                          icon: CupertinoIcons.square_grid_2x2,
+                          icon: DdtIcons.grid,
                           label: space.name,
                           onTap: () => context.go(
                             activeMode.routePathForSpace(space.spaceKey),
@@ -118,7 +119,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
         SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
         _AppBarIconAction(
           tooltip: 'Архив',
-          icon: CupertinoIcons.archivebox,
+          icon: DdtIcons.archive,
           onPressed: () {},
         ),
       ],
@@ -161,7 +162,7 @@ class _TasksAppBarActions extends StatelessWidget {
         SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
         _AppBarIconAction(
           tooltip: 'Архив',
-          icon: CupertinoIcons.archivebox,
+          icon: DdtIcons.archive,
           onPressed: () {},
         ),
       ],
@@ -186,7 +187,7 @@ class _MailAppBarActions extends StatelessWidget {
           children: [
             _AppBarIconAction(
               tooltip: 'Обновить почту',
-              icon: CupertinoIcons.arrow_clockwise,
+              icon: DdtIcons.refresh,
               isBusy: state.isLoading || state.isRefreshingInbox,
               onPressed: () => context.read<MailBloc>().add(
                 const MailInboxRefreshRequested(showAnimation: true),
@@ -195,7 +196,7 @@ class _MailAppBarActions extends StatelessWidget {
             SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
             _AppBarIconAction(
               tooltip: selectionActive ? 'Отменить выделение' : 'Выделить',
-              icon: CupertinoIcons.checkmark_circle,
+              icon: DdtIcons.checkCircle,
               isActive: selectionActive,
               onPressed: () {
                 final bloc = context.read<MailBloc>();
@@ -209,7 +210,7 @@ class _MailAppBarActions extends StatelessWidget {
             SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
             _AppBarTextAction(
               label: 'Написать',
-              icon: Icons.edit_outlined,
+              icon: DdtIcons.edit,
               filled: true,
               onPressed: () => showComposeMailPanel(context),
             ),
@@ -225,22 +226,22 @@ class _CalendarAppBarActions extends StatelessWidget {
 
   static const _addCalendarMenuItems = [
     DdtContextMenuItem(
-      icon: CupertinoIcons.calendar,
+      icon: DdtIcons.calendar,
       label: 'Дополнительный календарь',
       onTap: _noop,
     ),
     DdtContextMenuItem(
-      icon: CupertinoIcons.doc,
+      icon: DdtIcons.fileLines,
       label: 'Из файла',
       onTap: _noop,
     ),
     DdtContextMenuItem(
-      icon: CupertinoIcons.globe,
+      icon: DdtIcons.globe,
       label: 'Из интернета',
       onTap: _noop,
     ),
     DdtContextMenuItem(
-      icon: CupertinoIcons.book,
+      icon: DdtIcons.book,
       label: 'Из каталога',
       onTap: _noop,
     ),
@@ -259,7 +260,7 @@ class _CalendarAppBarActions extends StatelessWidget {
         children: [
           _AppBarIconAction(
             tooltip: 'Обновить календарь',
-            icon: CupertinoIcons.arrow_clockwise,
+            icon: DdtIcons.refresh,
             isBusy: state.isRefreshing || state.isLoading,
             onPressed: () => context.read<CalendarBloc>().add(
               const CalendarEventsRefreshRequested(showAnimation: true),
@@ -268,7 +269,7 @@ class _CalendarAppBarActions extends StatelessWidget {
           SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
           const _AppBarIconAction(
             tooltip: 'Добавить календарь',
-            icon: CupertinoIcons.calendar_badge_plus,
+            icon: DdtIcons.calendarPlus,
             contextMenuItems: _addCalendarMenuItems,
           ),
         ],
@@ -286,7 +287,7 @@ class _AppBarTextAction extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onPressed;
   final bool filled;
 
@@ -315,7 +316,7 @@ class _AppBarTextAction extends StatelessWidget {
             : null,
         visualDensity: VisualDensity.compact,
       ),
-      icon: Icon(icon, size: DdtTheme.shellSizeOf(context, 16)),
+      icon: DdtIcon(icon, size: DdtTheme.shellSizeOf(context, 16)),
       label: Text(
         label,
         style: DdtTheme.style(
@@ -341,7 +342,7 @@ class _AppBarIconAction extends StatefulWidget {
   });
 
   final String tooltip;
-  final IconData icon;
+  final FaIconData icon;
   final String? label;
   final VoidCallback? onPressed;
   final List<DdtContextMenuItem>? contextMenuItems;
@@ -389,7 +390,7 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
               color: foregroundColor.withValues(alpha: 0.7),
             ),
           )
-        : Icon(widget.icon, color: foregroundColor, size: iconSize);
+        : DdtIcon(widget.icon, color: foregroundColor, size: iconSize);
 
     return KeyedSubtree(
       key: _anchorKey,

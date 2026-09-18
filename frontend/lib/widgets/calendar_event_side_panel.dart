@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
@@ -11,6 +11,7 @@ import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import 'ddt_side_panel.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 Future<void> showCalendarEventSidePanel(
   BuildContext context,
@@ -101,7 +102,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               SizedBox(height: 20.h),
               if (_event.start != null)
                 _InfoField(
-                  icon: CupertinoIcons.time,
+                  icon: DdtIcons.clock,
                   label: 'Начало',
                   value: _dateFormat.format(_event.start!.toLocal()),
                   color: textSecondary,
@@ -109,7 +110,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               if (_event.end != null) ...[
                 SizedBox(height: 14.h),
                 _InfoField(
-                  icon: CupertinoIcons.time_solid,
+                  icon: DdtIcons.clock,
                   label: 'Окончание',
                   value: _dateFormat.format(_event.end!.toLocal()),
                   color: textSecondary,
@@ -118,7 +119,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               if (_event.location != null && _event.location!.isNotEmpty) ...[
                 SizedBox(height: 14.h),
                 _InfoField(
-                  icon: CupertinoIcons.location,
+                  icon: DdtIcons.location,
                   label: 'Место',
                   value: _event.location!,
                   color: textSecondary,
@@ -127,7 +128,7 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               if (_event.organizer != null && _event.organizer!.isNotEmpty) ...[
                 SizedBox(height: 14.h),
                 _InfoField(
-                  icon: CupertinoIcons.person,
+                  icon: DdtIcons.user,
                   label: 'Организатор',
                   value: _event.organizer!,
                   color: textSecondary,
@@ -286,7 +287,7 @@ class _InfoField extends StatelessWidget {
     required this.color,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final String value;
   final Color color;
@@ -298,7 +299,7 @@ class _InfoField extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 15.sp, color: color),
+            DdtIcon(icon, size: 15.sp, color: color),
             SizedBox(width: 6.w),
             Text(
               label,

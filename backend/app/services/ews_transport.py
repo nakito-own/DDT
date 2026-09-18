@@ -43,6 +43,8 @@ def configure_ews_transport() -> None:
 
     class _ConfiguredEwsHttpAdapter(_EwsHttpAdapter):
         def __init__(self, *args, **kwargs) -> None:
+            # exchangelib 5.x also passes pool_maxsize; drop it so we apply settings.
+            kwargs.pop("pool_maxsize", None)
             super().__init__(*args, pool_maxsize=pool_maxsize, **kwargs)
 
     BaseProtocol.HTTP_ADAPTER_CLS = _ConfiguredEwsHttpAdapter

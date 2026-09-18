@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class DdtGlassFab extends StatefulWidget {
   const DdtGlassFab({
@@ -16,7 +18,7 @@ class DdtGlassFab extends StatefulWidget {
   });
 
   final VoidCallback onPressed;
-  final IconData icon;
+  final FaIconData icon;
   final String? label;
 
   @override
@@ -45,7 +47,7 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(widget.icon, size: 20.sp, color: AppColors.primary),
+        DdtIcon(widget.icon, size: 20.sp, color: AppColors.primary),
         if (label != null) ...[
           SizedBox(width: 8.w),
           Text(

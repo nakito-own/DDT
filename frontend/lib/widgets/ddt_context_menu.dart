@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../theme/ddt_icons.dart';
 
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 /// Single action inside [DdtContextMenu].
 class DdtContextMenuItem {
@@ -21,7 +23,7 @@ class DdtContextMenuItem {
     this.isSelected = false,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final VoidCallback onTap;
   final bool isDestructive;
@@ -519,7 +521,7 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
           ),
           child: Row(
             children: [
-              Icon(
+              DdtIcon(
                 widget.item.icon,
                 size: 18.sp,
                 color: widget.item.enabled
@@ -543,8 +545,8 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
               ),
               if (widget.item.isSelected) ...[
                 SizedBox(width: 8.w),
-                Icon(
-                  Icons.check_rounded,
+                DdtIcon(
+                  DdtIcons.check,
                   size: 16.sp,
                   color: AppColors.primary.withValues(alpha: 0.95),
                 ),

@@ -36,6 +36,16 @@ void main() {
       );
 
       expect(textTheme.bodyMedium?.fontSize, DdtTypography.bodySize);
+      expect(
+        textTheme.bodyMedium?.fontFamily?.toLowerCase(),
+        contains('golos'),
+        reason: 'Theme text should use Golos Text from google_fonts',
+      );
+      expect(
+        DdtTypography.style(size: DdtTypography.bodySize).fontFamily
+            ?.toLowerCase(),
+        contains('golos'),
+      );
       expect(textTheme.labelSmall?.fontSize, DdtTypography.captionSize);
       expect(textTheme.titleLarge?.fontSize, DdtTypography.sectionTitleSize);
       expect(textTheme.headlineLarge?.fontSize, DdtTypography.entityTitleSize);

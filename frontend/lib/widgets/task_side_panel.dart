@@ -1,10 +1,10 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
@@ -23,6 +23,7 @@ import 'ddt_app_input.dart';
 import 'ddt_side_panel.dart';
 import 'task_comments_section.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 enum TaskSidePanelMode { view, create }
 
@@ -317,7 +318,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               router.go(location);
             });
           },
-          icon: Icon(CupertinoIcons.link, size: 18.sp),
+          icon: DdtIcon(DdtIcons.link, size: 18.sp),
           visualDensity: VisualDensity.compact,
         ),
       ],
@@ -553,7 +554,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                 Expanded(child: _SectionTitle(title: 'Ссылки')),
                 _CompactIconTextButton(
                   label: 'Добавить',
-                  icon: CupertinoIcons.add,
+                  icon: DdtIcons.add,
                   onPressed: _addLinkDraft,
                 ),
               ],
@@ -1023,7 +1024,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                 Expanded(child: _SectionTitle(title: 'Ссылки')),
                 _CompactIconTextButton(
                   label: 'Добавить',
-                  icon: CupertinoIcons.add,
+                  icon: DdtIcons.add,
                   onPressed: _addLinkDraft,
                 ),
               ],
@@ -1106,7 +1107,7 @@ class _LinkDraftEditor extends StatelessWidget {
               IconButton(
                 tooltip: 'Удалить ссылку',
                 onPressed: onRemove,
-                icon: Icon(CupertinoIcons.trash, size: 14.sp),
+                icon: DdtIcon(DdtIcons.trash, size: 14.sp),
                 iconSize: 14.sp,
                 padding: EdgeInsets.all(4.w),
                 constraints: BoxConstraints(minWidth: 24.w, minHeight: 24.h),
@@ -1259,7 +1260,7 @@ class _CompactIconTextButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onPressed;
 
   @override
@@ -1272,7 +1273,7 @@ class _CompactIconTextButton extends StatelessWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
       ),
-      icon: Icon(icon, size: 14.sp),
+      icon: DdtIcon(icon, size: 14.sp),
       label: Text(
         label,
         style: DdtTheme.style(
@@ -1343,8 +1344,8 @@ class _FormTableDateTimeControl extends StatelessWidget {
               ? IconButton(
                   tooltip: 'Очистить',
                   onPressed: () => onChanged(null),
-                  icon: Icon(
-                    CupertinoIcons.xmark_circle_fill,
+                  icon: DdtIcon(
+                    DdtIcons.closeCircle,
                     size: 18.sp,
                     color: DdtTheme.sidePanelTextMuted(context),
                   ),

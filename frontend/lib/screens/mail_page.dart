@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/mail/mail_bloc.dart';
 import '../models/mail_inbox_options.dart';
@@ -17,6 +17,7 @@ import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class MailPage extends StatelessWidget {
   const MailPage({super.key});
@@ -75,7 +76,7 @@ class MailPage extends StatelessWidget {
             bottom: 24.h,
             child: DdtGlassFab(
               onPressed: () => showComposeMailPanel(context),
-              icon: Icons.edit_outlined,
+              icon: DdtIcons.edit,
               label: 'Написать',
             ),
           ),
@@ -247,8 +248,8 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                 turns: isExpanded ? 0.25 : 0,
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeInOutCubic,
-                child: Icon(
-                  CupertinoIcons.chevron_right,
+                child: DdtIcon(
+                  DdtIcons.chevronRight,
                   size: 11.sp,
                   color: DdtTheme.taskCardTextSecondary(context),
                 ),
@@ -390,8 +391,8 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
   }
 
   Widget _buildFolderIcon(BuildContext context, {required bool isSelected}) {
-    return Icon(
-      isSelected ? Icons.folder_open_outlined : Icons.folder_outlined,
+    return DdtIcon(
+      isSelected ? DdtIcons.folderOpen : DdtIcons.folder,
       size: 11.sp,
       color: isSelected
           ? AppColors.primary
@@ -460,8 +461,8 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                         turns: isExpanded ? 0.25 : 0,
                         duration: const Duration(milliseconds: 180),
                         curve: Curves.easeInOutCubic,
-                        child: Icon(
-                          CupertinoIcons.chevron_right,
+                        child: DdtIcon(
+                          DdtIcons.chevronRight,
                           size: 11.sp,
                           color: DdtTheme.taskCardTextSecondary(context),
                         ),
@@ -643,7 +644,7 @@ class _MailListState extends State<_MailList> {
   List<DdtContextMenuItem> _filterMenuItems(MailInboxFilter selected) {
     final bloc = context.read<MailBloc>();
 
-    DdtContextMenuItem item(MailInboxFilter filter, IconData icon) {
+    DdtContextMenuItem item(MailInboxFilter filter, FaIconData icon) {
       return DdtContextMenuItem(
         icon: icon,
         label: filter.label,
@@ -658,17 +659,17 @@ class _MailListState extends State<_MailList> {
     }
 
     return [
-      item(MailInboxFilter.all, CupertinoIcons.tray),
-      item(MailInboxFilter.toMe, CupertinoIcons.person),
-      item(MailInboxFilter.flagged, CupertinoIcons.flag),
-      item(MailInboxFilter.mentions, CupertinoIcons.at),
+      item(MailInboxFilter.all, DdtIcons.inbox),
+      item(MailInboxFilter.toMe, DdtIcons.user),
+      item(MailInboxFilter.flagged, DdtIcons.flag),
+      item(MailInboxFilter.mentions, DdtIcons.at),
     ];
   }
 
   List<DdtContextMenuItem> _sortMenuItems(MailInboxSort selected) {
     final bloc = context.read<MailBloc>();
 
-    DdtContextMenuItem item(MailInboxSort sort, IconData icon) {
+    DdtContextMenuItem item(MailInboxSort sort, FaIconData icon) {
       return DdtContextMenuItem(
         icon: icon,
         label: sort.label,
@@ -683,13 +684,13 @@ class _MailListState extends State<_MailList> {
     }
 
     return [
-      item(MailInboxSort.dateAsc, CupertinoIcons.arrow_up),
-      item(MailInboxSort.dateDesc, CupertinoIcons.arrow_down),
-      item(MailInboxSort.fromAddress, CupertinoIcons.person_crop_circle),
-      item(MailInboxSort.toAddress, CupertinoIcons.envelope),
-      item(MailInboxSort.subject, CupertinoIcons.textformat),
-      item(MailInboxSort.attachments, CupertinoIcons.paperclip),
-      item(MailInboxSort.importance, CupertinoIcons.exclamationmark_triangle),
+      item(MailInboxSort.dateAsc, DdtIcons.arrowUp),
+      item(MailInboxSort.dateDesc, DdtIcons.arrowDown),
+      item(MailInboxSort.fromAddress, DdtIcons.userCircle),
+      item(MailInboxSort.toAddress, DdtIcons.mail),
+      item(MailInboxSort.subject, DdtIcons.subject),
+      item(MailInboxSort.attachments, DdtIcons.paperclip),
+      item(MailInboxSort.importance, DdtIcons.warning),
     ];
   }
 
@@ -765,14 +766,14 @@ class _MailListState extends State<_MailList> {
                       ),
                       _MailListMenuButton(
                         tooltip: 'Фильтр',
-                        icon: CupertinoIcons.line_horizontal_3_decrease,
+                        icon: DdtIcons.filter,
                         items: _filterMenuItems(state.filter),
                         placement: DdtContextMenuPlacement.belowEnd,
                       ),
                       SizedBox(width: 4.w),
                       _MailListMenuButton(
                         tooltip: 'Сортировка',
-                        icon: CupertinoIcons.arrow_up_arrow_down,
+                        icon: DdtIcons.sort,
                         items: _sortMenuItems(state.sort),
                         placement: DdtContextMenuPlacement.belowEnd,
                       ),
@@ -884,6 +885,11 @@ class _MailListState extends State<_MailList> {
 
                           final listView = ListView.separated(
                             controller: _scrollController,
+                            clipBehavior: Clip.none,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 3.w,
+                              vertical: 2.h,
+                            ),
                             cacheExtent: 480,
                             itemCount: messages.length + (showFooter ? 1 : 0),
                             separatorBuilder: (context, index) {
@@ -948,7 +954,7 @@ class _MailListState extends State<_MailList> {
                                     message: 'Наверх',
                                     child: DdtGlassFab(
                                       onPressed: _scrollToTop,
-                                      icon: CupertinoIcons.arrow_up,
+                                      icon: DdtIcons.arrowUp,
                                     ),
                                   ),
                                 ),
@@ -977,7 +983,7 @@ class _MailListMenuButton extends StatefulWidget {
   });
 
   final String tooltip;
-  final IconData icon;
+  final FaIconData icon;
   final List<DdtContextMenuItem> items;
   final DdtContextMenuPlacement placement;
 
@@ -1010,7 +1016,7 @@ class _MailListMenuButtonState extends State<_MailListMenuButton> {
         padding: EdgeInsets.all(4.w),
         constraints: BoxConstraints(minWidth: 32.w, minHeight: 32.w),
         onPressed: _openMenu,
-        icon: Icon(
+        icon: DdtIcon(
           widget.icon,
           color: foregroundColor.withValues(alpha: 0.85),
           size: 18.sp,
@@ -1255,10 +1261,11 @@ class _MailSenderChip extends StatelessWidget {
               shape: BoxShape.circle,
               color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
             ),
-            child: Icon(
-              CupertinoIcons.person_fill,
+            child: DdtIcon(
+              DdtIcons.user,
               size: 10.sp,
               color: AppColors.primary,
+              fitParent: true,
             ),
           ),
           SizedBox(width: 4.w),
@@ -1414,7 +1421,7 @@ class _MailBulkActionBar extends StatelessWidget {
                 // Select all / Deselect all
                 _BulkButton(
                   label: allSelected ? 'Снять все' : 'Все',
-                  icon: allSelected ? Icons.deselect : Icons.select_all,
+                  icon: allSelected ? DdtIcons.deselect : DdtIcons.selectAll,
                   enabled: !isArchiving,
                   onTap: onSelectAll,
                 ),
@@ -1422,7 +1429,7 @@ class _MailBulkActionBar extends StatelessWidget {
                 // Mark as read
                 _BulkButton(
                   label: 'Прочитано',
-                  icon: Icons.drafts_outlined,
+                  icon: DdtIcons.drafts,
                   enabled: !isArchiving,
                   onTap: onMarkRead,
                 ),
@@ -1430,7 +1437,7 @@ class _MailBulkActionBar extends StatelessWidget {
                 // Archive
                 _BulkButton(
                   label: 'В архив',
-                  icon: Icons.archive_outlined,
+                  icon: DdtIcons.archive,
                   enabled: !isArchiving,
                   isLoading: isArchiving,
                   onTap: onArchive,
@@ -1443,8 +1450,8 @@ class _MailBulkActionBar extends StatelessWidget {
                   padding: EdgeInsets.all(4.w),
                   constraints: BoxConstraints(minWidth: 28.w, minHeight: 28.w),
                   onPressed: isArchiving ? null : onClear,
-                  icon: Icon(
-                    Icons.close,
+                  icon: DdtIcon(
+                    DdtIcons.close,
                     size: 16.sp,
                     color: AppColors.primary,
                   ),
@@ -1478,7 +1485,7 @@ class _BulkButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onTap;
   final bool enabled;
   final bool isLoading;
@@ -1507,7 +1514,7 @@ class _BulkButton extends StatelessWidget {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 14.sp, color: color),
+                  DdtIcon(icon, size: 14.sp, color: color),
                   SizedBox(width: 4.w),
                   Text(
                     label,
@@ -1559,30 +1566,30 @@ class _AttachmentChip extends StatelessWidget {
   final MailAttachment attachment;
   final VoidCallback onTap;
 
-  IconData _iconFor(String contentType) {
+  FaIconData _iconFor(String contentType) {
     final type = contentType.toLowerCase();
-    if (type.startsWith('image/')) return Icons.image_outlined;
-    if (type == 'application/pdf') return Icons.picture_as_pdf_outlined;
-    if (type.startsWith('audio/')) return Icons.audio_file_outlined;
-    if (type.startsWith('video/')) return Icons.video_file_outlined;
+    if (type.startsWith('image/')) return DdtIcons.fileImage;
+    if (type == 'application/pdf') return DdtIcons.filePdf;
+    if (type.startsWith('audio/')) return DdtIcons.fileAudio;
+    if (type.startsWith('video/')) return DdtIcons.fileVideo;
     if (type.contains('zip') ||
         type.contains('rar') ||
         type.contains('tar') ||
         type.contains('7z')) {
-      return Icons.folder_zip_outlined;
+      return DdtIcons.fileZip;
     }
-    if (type.startsWith('text/')) return Icons.text_snippet_outlined;
+    if (type.startsWith('text/')) return DdtIcons.fileLines;
     if (type.contains('word') ||
         type.contains('document') ||
         type.contains('msword')) {
-      return Icons.description_outlined;
+      return DdtIcons.file;
     }
     if (type.contains('excel') ||
         type.contains('spreadsheet') ||
         type.contains('sheet')) {
-      return Icons.table_chart_outlined;
+      return DdtIcons.fileTable;
     }
-    return Icons.attach_file;
+    return DdtIcons.paperclip;
   }
 
   @override
@@ -1606,7 +1613,7 @@ class _AttachmentChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            DdtIcon(
               _iconFor(attachment.contentType),
               size: 14.sp,
               color: DdtTheme.taskCardTextSecondary(context),
@@ -1671,6 +1678,76 @@ class _MailListRowConnector extends StatelessWidget {
   }
 }
 
+/// Selection ring drawn outside [child] so inner padding stays fixed.
+class _MailListOutwardBorder extends StatelessWidget {
+  const _MailListOutwardBorder({
+    required this.width,
+    required this.color,
+    required this.borderRadius,
+    required this.child,
+  });
+
+  final double width;
+  final Color color;
+  final BorderRadius borderRadius;
+  final Widget child;
+
+  BorderRadius _expandedRadius(double ringWidth) {
+    return BorderRadius.only(
+      topLeft: Radius.elliptical(
+        borderRadius.topLeft.x + ringWidth,
+        borderRadius.topLeft.y + ringWidth,
+      ),
+      topRight: Radius.elliptical(
+        borderRadius.topRight.x + ringWidth,
+        borderRadius.topRight.y + ringWidth,
+      ),
+      bottomLeft: Radius.elliptical(
+        borderRadius.bottomLeft.x + ringWidth,
+        borderRadius.bottomLeft.y + ringWidth,
+      ),
+      bottomRight: Radius.elliptical(
+        borderRadius.bottomRight.x + ringWidth,
+        borderRadius.bottomRight.y + ringWidth,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      duration: DdtTheme.selectionAnimationDuration,
+      curve: DdtTheme.selectionAnimationCurve,
+      tween: Tween<double>(end: width),
+      builder: (context, ringWidth, child) {
+        if (ringWidth <= 0) return child!;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: -ringWidth,
+              top: -ringWidth,
+              right: -ringWidth,
+              bottom: -ringWidth,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: _expandedRadius(ringWidth),
+                    border: Border.all(color: color, width: ringWidth),
+                  ),
+                ),
+              ),
+            ),
+            child!,
+          ],
+        );
+      },
+      child: child,
+    );
+  }
+}
+
 class MailListItem extends StatelessWidget {
   const MailListItem({
     super.key,
@@ -1701,37 +1778,48 @@ class MailListItem extends StatelessWidget {
     final Color backgroundColor;
     final Color borderColor;
     final double borderWidth;
+    final Color? outwardBorderColor;
+    final double outwardBorderWidth;
+
+    final neutralBorder = DdtTheme.glassBorderColor(
+      brightness,
+    ).withValues(alpha: 0.12);
 
     if (isChecked) {
       backgroundColor = AppColors.primary.withValues(
         alpha: isDark ? 0.18 : 0.11,
       );
-      borderColor = AppColors.primary.withValues(alpha: 0.7);
-      borderWidth = 1.5;
+      borderColor = neutralBorder;
+      borderWidth = 1;
+      outwardBorderColor = AppColors.primary.withValues(alpha: 0.7);
+      outwardBorderWidth = 1.5;
     } else if (selected) {
       backgroundColor = AppColors.primary.withValues(
         alpha: isDark ? 0.22 : 0.14,
       );
-      borderColor = AppColors.primary;
-      borderWidth = 2;
+      borderColor = neutralBorder;
+      borderWidth = 1;
+      outwardBorderColor = AppColors.primary;
+      outwardBorderWidth = 2;
     } else if (isUnread) {
       backgroundColor = AppColors.primary.withValues(
-        alpha: isDark ? 0.1 : 0.06,
+        alpha: isDark ? 0.17 : 0.12,
       );
-      borderColor = AppColors.primary.withValues(alpha: 0.55);
-      borderWidth = 1.5;
+      borderColor = neutralBorder;
+      borderWidth = 1;
+      outwardBorderColor = null;
+      outwardBorderWidth = 0;
     } else {
       backgroundColor = Colors.transparent;
-      borderColor = DdtTheme.glassBorderColor(
-        brightness,
-      ).withValues(alpha: 0.12);
+      borderColor = neutralBorder;
       borderWidth = 1;
+      outwardBorderColor = null;
+      outwardBorderWidth = 0;
     }
 
     final showCheckbox = selectionModeActive || isChecked;
 
-    return RepaintBoundary(
-      child: DdtTappable(
+    final item = DdtTappable(
         onTap: onTap,
         enableHoverFill: true,
         borderRadius: borderRadius,
@@ -1748,18 +1836,9 @@ class MailListItem extends StatelessWidget {
             : null,
         child: ClipRRect(
           borderRadius: borderRadius,
-          child: Stack(
-            children: [
-              if (isUnread && !selected && !isChecked && !showCheckbox)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(width: 4.w, color: AppColors.primary),
-                ),
-              Padding(
+          child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  isUnread && !selected && !showCheckbox ? 16.w : 12.w,
+                  12.w,
                   12.h,
                   12.w,
                   12.h,
@@ -1797,10 +1876,11 @@ class MailListItem extends StatelessWidget {
                                       : Colors.transparent,
                                 ),
                                 child: isChecked
-                                    ? Icon(
-                                        Icons.check,
+                                    ? DdtIcon(
+                                        DdtIcons.check,
                                         size: 11.sp,
                                         color: Colors.white,
+                                        fitParent: true,
                                       )
                                     : null,
                               ),
@@ -1819,10 +1899,9 @@ class MailListItem extends StatelessWidget {
                             ),
                           ),
                         Expanded(
-                          child: Text(
-                            message.subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: AnimatedDefaultTextStyle(
+                            duration: DdtTheme.selectionAnimationDuration,
+                            curve: DdtTheme.selectionAnimationCurve,
                             style: DdtTheme.style(
                               fontSize: DdtTypography.bodySize,
                               fontWeight: isUnread
@@ -1832,6 +1911,11 @@ class MailListItem extends StatelessWidget {
                                   ? AppColors.primary
                                   : DdtTheme.taskCardTextPrimary(context),
                             ),
+                            child: Text(
+                              message.subject,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                         Row(
@@ -1840,8 +1924,8 @@ class MailListItem extends StatelessWidget {
                             if (message.hasAttachments)
                               Padding(
                                 padding: EdgeInsets.only(left: 4.w, right: 2.w),
-                                child: Icon(
-                                  Icons.attach_file,
+                                child: DdtIcon(
+                                  DdtIcons.paperclip,
                                   size: 13.sp,
                                   color: DdtTheme.taskCardTextSecondary(
                                     context,
@@ -1893,10 +1977,16 @@ class MailListItem extends StatelessWidget {
                     ],
                   ],
                 ),
-              ),
-            ],
           ),
         ),
+    );
+
+    return RepaintBoundary(
+      child: _MailListOutwardBorder(
+        width: outwardBorderWidth,
+        color: outwardBorderColor ?? Colors.transparent,
+        borderRadius: borderRadius,
+        child: item,
       ),
     );
   }

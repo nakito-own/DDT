@@ -1,33 +1,32 @@
-import 'package:flutter/cupertino.dart';
-
 import '../router/route_paths.dart';
+import '../theme/ddt_icons.dart';
 
 enum AppSection {
-  tasks(label: 'Задачи', icon: CupertinoIcons.checkmark_square),
-  mail(label: 'Почта', icon: CupertinoIcons.mail),
-  calendar(label: 'Календарь', icon: CupertinoIcons.calendar),
-  contacts(label: 'Контакты', icon: CupertinoIcons.person_2),
-  analytics(label: 'Аналитика', icon: CupertinoIcons.chart_bar),
-  space(label: 'Пространство', icon: CupertinoIcons.square_grid_2x2),
-  automations(label: 'Автоматизации', icon: CupertinoIcons.bolt_horizontal),
-  linkArchive(label: 'Архив ссылок', icon: CupertinoIcons.link),
-  settings(label: 'Настройки', icon: CupertinoIcons.settings);
+  tasks(label: 'Задачи', icon: DdtIcons.tasks),
+  mail(label: 'Почта', icon: DdtIcons.mail),
+  calendar(label: 'Календарь', icon: DdtIcons.calendar),
+  contacts(label: 'Контакты', icon: DdtIcons.contacts),
+  analytics(label: 'Аналитика', icon: DdtIcons.analytics),
+  space(label: 'Пространство', icon: DdtIcons.grid),
+  automations(label: 'Автоматизации', icon: DdtIcons.automations),
+  notes(label: 'Заметки', icon: DdtIcons.penToSquare),
+  settings(label: 'Настройки', icon: DdtIcons.settings);
 
   const AppSection({required this.label, required this.icon});
 
   final String label;
-  final IconData icon;
+  final FaIconData icon;
 
   /// URL-путь этой секции для GoRouter.
   String get routePath => switch (this) {
-    AppSection.tasks => RoutePaths.tasksKanban,
+    AppSection.tasks => RoutePaths.tasksList,
     AppSection.mail => RoutePaths.mail,
     AppSection.calendar => RoutePaths.calendar,
     AppSection.contacts => RoutePaths.contacts,
     AppSection.analytics => RoutePaths.analytics,
     AppSection.space => RoutePaths.space,
     AppSection.automations => RoutePaths.automations,
-    AppSection.linkArchive => RoutePaths.linkArchive,
+    AppSection.notes => RoutePaths.notes,
     AppSection.settings => RoutePaths.settings,
   };
 
@@ -45,8 +44,9 @@ enum AppSection {
     if (location.startsWith(RoutePaths.automations)) {
       return AppSection.automations;
     }
-    if (location.startsWith(RoutePaths.linkArchive)) {
-      return AppSection.linkArchive;
+    if (location.startsWith(RoutePaths.notes) ||
+        location.startsWith(RoutePaths.linkArchive)) {
+      return AppSection.notes;
     }
     if (location.startsWith(RoutePaths.settings)) return AppSection.settings;
     return AppSection.tasks;

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
+import '../theme/ddt_icons.dart';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,10 +9,14 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 const Duration _kSidePanelDuration = Duration(milliseconds: 340);
 const Curve _kSidePanelCurve = Curves.easeInOutCubic;
 const double _kSidePanelBlurSigma = 4;
+const double _kSidePanelScrollFadeHeight = 40;
+/// Scroll content starts this far through the fade (0 = opaque edge, 1 = fully transparent edge).
+const double _kSidePanelFadeContentAnchor = 0.68;
 
 OverlayEntry? _activeSidePanelOverlayEntry;
 
@@ -303,7 +307,11 @@ class DdtSidePanelShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = DdtTheme.sidePanelDivider(context);
+    final surfaceColor = DdtTheme.sidePanelSurfaceColor(context);
+    final headerExtent = _SidePanelHeaderChrome.scrollTopInset(context);
+    final footerExtent = footer == null
+        ? 0.0
+        : _SidePanelFooterChrome.scrollBottomInset(context);
 
     return Material(
       type: MaterialType.transparency,
@@ -311,63 +319,270 @@ class DdtSidePanelShell extends StatelessWidget {
         data: DdtTheme.sidePanelTheme(context),
         child: DdtTheme.sidePanelGlass(
           context: context,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  DdtTheme.spacing.w,
-                  14.h,
-                  4.w,
-                  14.h,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.panelTitleSize,
-                          fontWeight: FontWeight.w700,
-                          color: DdtTheme.sidePanelTextPrimary(context),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+              Positioned.fill(
+                child: ClipRect(
+                  child: _SidePanelInsetScrollChild(
+                    scrollPadding: EdgeInsets.only(
+                      top: headerExtent,
+                      bottom: footerExtent,
+                      left: DdtTheme.spacing.w,
+                      right: DdtTheme.spacing.w,
                     ),
-                    if (actions != null) ...actions!,
-                    IconButton(
-                      tooltip: 'Закрыть',
-                      onPressed: onClose ?? () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        CupertinoIcons.xmark,
-                        size: 20.sp,
-                        color: DdtTheme.sidePanelTextPrimary(context),
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
+                    child: child,
+                  ),
                 ),
               ),
-              Divider(height: 1, thickness: 1, color: borderColor),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: DdtTheme.spacing.w),
-                  child: child,
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: _SidePanelHeaderChrome(
+                  surfaceColor: surfaceColor,
+                  title: title,
+                  actions: actions,
+                  onClose: onClose,
                 ),
               ),
-              if (footer != null) ...[
-                Divider(height: 1, thickness: 1, color: borderColor),
-                Padding(
-                  padding: EdgeInsets.all(DdtTheme.spacing.w),
-                  child: footer!,
+              if (footer != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _SidePanelFooterChrome(
+                    surfaceColor: surfaceColor,
+                    footer: footer!,
+                  ),
                 ),
-              ],
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _SidePanelScrollFade extends StatelessWidget {
+  const _SidePanelScrollFade({
+    required this.surfaceColor,
+    required this.atTop,
+  });
+
+  final Color surfaceColor;
+  final bool atTop;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        height: _kSidePanelScrollFadeHeight.h,
+        width: double.infinity,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.42, 1],
+              colors: atTop
+                  ? [
+                      surfaceColor,
+                      surfaceColor.withValues(alpha: 0.72),
+                      surfaceColor.withValues(alpha: 0),
+                    ]
+                  : [
+                      surfaceColor.withValues(alpha: 0),
+                      surfaceColor.withValues(alpha: 0.72),
+                      surfaceColor,
+                    ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidePanelHeaderChrome extends StatelessWidget {
+  const _SidePanelHeaderChrome({
+    required this.surfaceColor,
+    required this.title,
+    this.actions,
+    this.onClose,
+  });
+
+  final Color surfaceColor;
+  final String title;
+  final List<Widget>? actions;
+  final VoidCallback? onClose;
+
+  static double _titleBarHeight(BuildContext context) {
+    return 14.h + DdtTypography.panelTitleSize.sp + 14.h;
+  }
+
+  static double scrollTopInset(BuildContext context) {
+    final fade = _kSidePanelScrollFadeHeight.h;
+    return _titleBarHeight(context) + fade * _kSidePanelFadeContentAnchor;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ColoredBox(
+          color: surfaceColor,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              DdtTheme.spacing.w,
+              14.h,
+              4.w,
+              14.h,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.panelTitleSize,
+                      fontWeight: FontWeight.w700,
+                      color: DdtTheme.sidePanelTextPrimary(context),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (actions != null) ...actions!,
+                IconButton(
+                  tooltip: 'Закрыть',
+                  onPressed: onClose ?? () => Navigator.of(context).pop(),
+                  icon: DdtIcon(
+                    DdtIcons.close,
+                    size: 20.sp,
+                    color: DdtTheme.sidePanelTextPrimary(context),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+        ),
+        _SidePanelScrollFade(surfaceColor: surfaceColor, atTop: true),
+      ],
+    );
+  }
+}
+
+class _SidePanelFooterChrome extends StatelessWidget {
+  const _SidePanelFooterChrome({
+    required this.surfaceColor,
+    required this.footer,
+  });
+
+  final Color surfaceColor;
+  final Widget footer;
+
+  static double _footerSolidHeight(BuildContext context) {
+    return DdtTheme.spacing.w * 2 + 52.h;
+  }
+
+  static double scrollBottomInset(BuildContext context) {
+    final fade = _kSidePanelScrollFadeHeight.h;
+    return _footerSolidHeight(context) + fade * _kSidePanelFadeContentAnchor;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SidePanelScrollFade(surfaceColor: surfaceColor, atTop: false),
+        ColoredBox(
+          color: surfaceColor,
+          child: Padding(
+            padding: EdgeInsets.all(DdtTheme.spacing.w),
+            child: footer,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Applies [scrollPadding] to the panel [child] scroll view so content can
+/// move under the header/footer fade overlays (outer padding would prevent that).
+class _SidePanelInsetScrollChild extends StatelessWidget {
+  const _SidePanelInsetScrollChild({
+    required this.scrollPadding,
+    required this.child,
+  });
+
+  final EdgeInsets scrollPadding;
+  final Widget child;
+
+  EdgeInsetsGeometry _mergedPadding(
+    BuildContext context,
+    EdgeInsetsGeometry? existing,
+  ) {
+    final direction = Directionality.of(context);
+    final base = existing?.resolve(direction) ?? EdgeInsets.zero;
+    return base.add(scrollPadding);
+  }
+
+  Widget _patch(BuildContext context, Widget widget) {
+    if (widget is SingleChildScrollView) {
+      return SingleChildScrollView(
+        key: widget.key,
+        scrollDirection: widget.scrollDirection,
+        reverse: widget.reverse,
+        padding: _mergedPadding(context, widget.padding),
+        primary: widget.primary,
+        physics: widget.physics,
+        controller: widget.controller,
+        clipBehavior: widget.clipBehavior,
+        restorationId: widget.restorationId,
+        keyboardDismissBehavior: widget.keyboardDismissBehavior,
+        child: widget.child,
+      );
+    }
+
+    if (widget is ListView) {
+      return ListView.custom(
+        key: widget.key,
+        scrollDirection: widget.scrollDirection,
+        reverse: widget.reverse,
+        controller: widget.controller,
+        primary: widget.primary,
+        physics: widget.physics,
+        shrinkWrap: widget.shrinkWrap,
+        padding: _mergedPadding(context, widget.padding),
+        itemExtent: widget.itemExtent,
+        prototypeItem: widget.prototypeItem,
+        clipBehavior: widget.clipBehavior,
+        childrenDelegate: widget.childrenDelegate,
+      );
+    }
+
+    if (widget is Form) {
+      return Form(
+        key: widget.key,
+        onChanged: widget.onChanged,
+        onPopInvokedWithResult: widget.onPopInvokedWithResult,
+        autovalidateMode: widget.autovalidateMode,
+        child: _patch(context, widget.child),
+      );
+    }
+
+    return Padding(padding: scrollPadding, child: widget);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _patch(context, child);
   }
 }

@@ -1,13 +1,14 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../models/task_status.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/task_formatters.dart';
 import 'ddt_section_refresh.dart';
+import '../widgets/ddt_icon.dart';
 
 /// Kanban-shaped loading placeholder with shimmering empty cards.
 class KanbanBoardSkeleton extends StatelessWidget {
@@ -137,8 +138,8 @@ class _SkeletonColumnHeader extends StatelessWidget {
           child: IconButton(
             tooltip: 'Добавить задачу',
             onPressed: () {},
-            icon: Icon(
-              CupertinoIcons.add,
+            icon: DdtIcon(
+              DdtIcons.add,
               size: 20.sp,
               color: AppColors.primary,
             ),
