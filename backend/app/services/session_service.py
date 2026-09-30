@@ -11,7 +11,11 @@ from exchangelib.errors import ErrorTimeoutExpired, TransportError
 from app.config import settings
 from app.db import get_db
 from app.services.crypto_service import crypto_service
-from app.services.ews_service import EwsConnectionError, ews_service
+from app.services.ews_service import (
+    EwsConnectionError,
+    ews_service,
+    server_busy_cause,
+)
 from app.services.user_service import UserProfile, user_service, user_profile_to_dict
 
 T = TypeVar("T")
@@ -37,6 +41,7 @@ class SessionService:
         self._memory_sessions: dict[str, SessionContext] = {}
         self._account_cache: dict[str, Account] = {}
         self._account_locks: dict[str, Lock] = {}
+        self._account_waiters: dict[str, int] = {}
 
     def _expires_at(self, remember_me: bool) -> datetime:
         if remember_me:
@@ -247,8 +252,25 @@ class SessionService:
         lock_timeout: float = -1,
     ) -> T:
         """Execute exchangelib work under a per-session lock (not thread-safe)."""
-        lock = self._account_lock_for(context.token_hash)
-        if not lock.acquire(timeout=lock_timeout):
+        token_hash = context.token_hash
+        lock = self._account_lock_for(token_hash)
+        with self._lock:
+            waiting = self._account_waiters.get(token_hash, 0)
+            if waiting >= max(1, settings.ews_max_queued_per_session):
+                raise EwsConnectionError(
+                    "Too many Exchange requests queued for this session"
+                )
+            self._account_waiters[token_hash] = waiting + 1
+        try:
+            acquired = lock.acquire(timeout=lock_timeout)
+        finally:
+            with self._lock:
+                remaining = self._account_waiters.get(token_hash, 1) - 1
+                if remaining > 0:
+                    self._account_waiters[token_hash] = remaining
+                else:
+                    self._account_waiters.pop(token_hash, None)
+        if not acquired:
             raise EwsConnectionError(
                 "Previous Exchange request for this session is still running"
             )
@@ -256,8 +278,11 @@ class SessionService:
             account = self.get_account(context)
             try:
                 return operation(account)
-            except (EwsConnectionError, TransportError, ErrorTimeoutExpired):
-                self._drop_cached_account(context.token_hash)
+            except (EwsConnectionError, TransportError, ErrorTimeoutExpired) as exc:
+                # Throttling is not a broken connection: reconnecting would
+                # only add verification requests to an exhausted budget.
+                if server_busy_cause(exc) is None:
+                    self._drop_cached_account(token_hash)
                 raise
         finally:
             lock.release()
@@ -281,6 +306,7 @@ class SessionService:
             self._memory_sessions.pop(token_hash, None)
             account = self._account_cache.pop(token_hash, None)
             self._account_locks.pop(token_hash, None)
+            self._account_waiters.pop(token_hash, None)
         ews_service.close_account(account)
 
         with get_db() as conn:

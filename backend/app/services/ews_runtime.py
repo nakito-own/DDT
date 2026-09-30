@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TypeVar
 
 from app.config import settings
+from app.services.ews_service import EwsBusyError, server_busy_cause
 from app.services.session_service import SessionContext, session_service
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,8 @@ T = TypeVar("T")
 
 _executor: ThreadPoolExecutor | None = None
 _gate: threading.Semaphore | None = None
+_busy_until: dict[str, float] = {}
+_busy_lock = threading.Lock()
 
 
 class EwsOverloadedError(Exception):
@@ -40,6 +43,18 @@ def _get_gate() -> threading.Semaphore:
         _gate = threading.Semaphore(slots)
         logger.info("EWS concurrency gate: %s slots", slots)
     return _gate
+
+
+def _raise_if_busy(token_hash: str) -> None:
+    with _busy_lock:
+        until = _busy_until.get(token_hash)
+        if until is None:
+            return
+        remaining = until - time.monotonic()
+        if remaining <= 0:
+            _busy_until.pop(token_hash, None)
+            return
+    raise EwsBusyError(remaining)
 
 
 def _run_gated(func: Callable[..., T], /, *args, **kwargs) -> T:
@@ -85,12 +100,37 @@ async def run_ews(
     Exchange call only queues that user's requests, not everyone's.
     """
 
+    token_hash = context.token_hash
+
+    def _operation(account) -> T:
+        _raise_if_busy(token_hash)
+        return _run_gated(operation, account, *args, **kwargs)
+
     def _run() -> T:
-        return session_service.run_with_account(
-            context,
-            lambda account: _run_gated(operation, account, *args, **kwargs),
-            lock_timeout=settings.ews_read_timeout_seconds,
-        )
+        _raise_if_busy(token_hash)
+        try:
+            return session_service.run_with_account(
+                context,
+                _operation,
+                lock_timeout=settings.ews_read_timeout_seconds,
+            )
+        except EwsBusyError:
+            raise
+        except Exception as exc:
+            busy = server_busy_cause(exc)
+            if busy is None:
+                raise
+            back_off = float(
+                busy.back_off or settings.ews_server_busy_default_backoff_seconds
+            )
+            with _busy_lock:
+                _busy_until[token_hash] = time.monotonic() + back_off
+            logger.warning(
+                "Exchange throttled %s; pausing its requests for %.0fs",
+                context.email,
+                back_off,
+            )
+            raise EwsBusyError(back_off) from exc
 
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_get_executor(), _run)
