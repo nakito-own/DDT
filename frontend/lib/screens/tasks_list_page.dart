@@ -11,6 +11,9 @@ import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_side_panel_divider.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/tasks_filters_panel.dart';
 import '../theme/ddt_typography.dart';
 
@@ -60,7 +63,6 @@ class TasksListPage extends StatelessWidget {
       authorId: currentUserId ?? created.authorId,
       executorId: created.executorId,
       responsibleId: created.responsibleId,
-      spaceId: context.read<TasksBloc>().spaceId,
       timeSet: created.timeSet,
       timeStart:
           created.timeStart ??
@@ -69,6 +71,9 @@ class TasksListPage extends StatelessWidget {
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
       deadline: created.deadline,
       priority: created.priority,
+      parent: created.parent,
+      parentId: created.parent?.id,
+      children: created.children,
       links: created.links,
       comments: created.comments,
     );
@@ -100,64 +105,52 @@ class TasksListPage extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              flex: 7,
-              child: DdtTheme.glass(
-                context: context,
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Задачи',
-                            style: DdtTheme.style(
-                              fontSize: DdtTypography.sectionTitleSize,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Button(
-                          text: 'Создать',
-                          onPressed: () => _createTask(context),
-                          borderRadius: DdtTheme.radius,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12.h),
-                    Expanded(
-                      child: tasks.isEmpty
-                          ? Center(
-                              child: Text(
-                                'Нет задач по выбранным фильтрам',
-                                style: DdtTheme.style(
-                                  fontSize: DdtTypography.bodySize,
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              itemCount: tasks.length,
-                              separatorBuilder: (_, __) =>
-                                  SizedBox(height: 10.h),
-                              itemBuilder: (context, index) {
-                                final task = tasks[index];
-                                return TaskCard(
-                                  key: ValueKey(task.id),
-                                  task: task,
-                                  onTap: () => _openTask(context, task),
-                                  onDelete: () => _deleteTask(context, task),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
+            Padding(
+              padding: DdtShellMetrics.fixedTopPadding(context),
+              child: SizedBox(
+                width: kTasksFiltersPanelWidth.w,
+                child: TasksFiltersPanel(
+                  onCreatePressed: () => _createTask(context),
                 ),
               ),
             ),
-            SizedBox(width: 16.w),
-            const Expanded(flex: 3, child: TasksFiltersPanel()),
+            DdtTheme.horizontalGap(),
+            const DdtSidePanelDivider(),
+            DdtTheme.horizontalGap(),
+            Expanded(
+              child: tasks.isEmpty
+                  ? Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: DdtShellMetrics.fixedTopPadding(context),
+                        child: Text(
+                          'Нет задач по выбранным фильтрам',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.bodySize,
+                          ),
+                        ),
+                      ),
+                    )
+                  : DdtScrollEdgeFade(
+                      child: ListView.separated(
+                        padding: DdtShellMetrics.scrollPadding(context).copyWith(
+                          bottom: DdtScrollEdgeFade.listBottomPadding(context),
+                        ),
+                        clipBehavior: Clip.none,
+                        itemCount: tasks.length,
+                        separatorBuilder: (_, _) => SizedBox(height: 10.h),
+                        itemBuilder: (context, index) {
+                          final task = tasks[index];
+                          return TaskCard(
+                            key: ValueKey(task.id),
+                            task: task,
+                            onTap: () => _openTask(context, task),
+                            onDelete: () => _deleteTask(context, task),
+                          );
+                        },
+                      ),
+                    ),
+            ),
           ],
         );
       },

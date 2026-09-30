@@ -17,9 +17,15 @@ final class CalendarEventsLoadRequested extends CalendarBlocEvent {
   const CalendarEventsLoadRequested();
 }
 
-/// Обновить события (например, по WS-уведомлению).
+/// Обновить события (кнопка в аппбаре или WS-уведомление).
 final class CalendarEventsRefreshRequested extends CalendarBlocEvent {
-  const CalendarEventsRefreshRequested();
+  const CalendarEventsRefreshRequested({this.showAnimation = false});
+
+  /// Анимация только для явного действия пользователя.
+  final bool showAnimation;
+
+  @override
+  List<Object?> get props => [showAnimation];
 }
 
 /// Пользователь переключил режим отображения (день/неделя/месяц).

@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_gantt/flutter_gantt.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
@@ -11,6 +11,8 @@ import '../theme/ddt_theme.dart';
 import '../utils/task_gantt_mapper.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 class TasksGanttPage extends StatefulWidget {
   const TasksGanttPage({super.key});
@@ -150,12 +152,12 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
       children: [
         _GanttToolbarButton(
           tooltip: 'Назад на неделю',
-          icon: CupertinoIcons.chevron_left,
+          icon: DdtIcons.chevronLeft,
           onPressed: () => _ganttController.prev(days: 7),
         ),
         _GanttToolbarButton(
           tooltip: 'Вперёд на неделю',
-          icon: CupertinoIcons.chevron_right,
+          icon: DdtIcons.chevronRight,
           onPressed: () => _ganttController.next(days: 7),
         ),
         SizedBox(width: 12.w),
@@ -170,7 +172,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         SizedBox(width: 8.w),
         _GanttToolbarButton(
           tooltip: 'Отдалить',
-          icon: CupertinoIcons.minus,
+          icon: DdtIcons.remove,
           onPressed: _zoom > _minZoom
               ? () => _setZoom(_zoom - _zoomStep)
               : null,
@@ -188,7 +190,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         ),
         _GanttToolbarButton(
           tooltip: 'Приблизить',
-          icon: CupertinoIcons.plus,
+          icon: DdtIcons.add,
           onPressed: _zoom < _maxZoom
               ? () => _setZoom(_zoom + _zoomStep)
               : null,
@@ -234,39 +236,34 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         final activities = _buildActivities(state.filteredTasks);
 
         if (activities.isEmpty) {
-          return DdtTheme.glass(
-            context: context,
-            padding: EdgeInsets.all(24.w),
-            child: Center(
-              child: Text(
-                'Нет задач для отображения на диаграмме',
-                style: DdtTheme.style(fontSize: DdtTypography.bodySize),
-              ),
+          return Center(
+            child: Text(
+              'Нет задач для отображения на диаграмме',
+              style: DdtTheme.style(fontSize: DdtTypography.bodySize),
             ),
           );
         }
 
-        return DdtTheme.glass(
-          context: context,
-          padding: EdgeInsets.all(12.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildToolbar(),
-              SizedBox(height: 8.h),
-              Expanded(
-                child: Gantt(
-                  controller: _ganttController,
-                  theme: _ganttTheme(context),
-                  activities: activities,
-                  activitiesListFlex: 2,
-                  gridAreaFlex: 5,
-                  monthToText: ganttMonthLabel,
-                  onActivityChanged: _onActivityChanged,
-                ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: DdtShellMetrics.fixedTopPadding(context),
+              child: _buildToolbar(),
+            ),
+            SizedBox(height: 8.h),
+            Expanded(
+              child: Gantt(
+                controller: _ganttController,
+                theme: _ganttTheme(context),
+                activities: activities,
+                activitiesListFlex: 2,
+                gridAreaFlex: 5,
+                monthToText: ganttMonthLabel,
+                onActivityChanged: _onActivityChanged,
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
@@ -281,7 +278,7 @@ class _GanttToolbarButton extends StatelessWidget {
   });
 
   final String tooltip;
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback? onPressed;
 
   @override
@@ -319,7 +316,12 @@ class _GanttToolbarButton extends StatelessWidget {
                     ),
               ),
             ),
-            child: Icon(icon, size: 16.sp, color: color),
+            child: DdtIcon(
+              icon,
+              size: 16.sp,
+              color: color,
+              fitParent: true,
+            ),
           ),
         ),
       ),

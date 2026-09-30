@@ -1,12 +1,13 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import '../theme/ddt_icons.dart';
 
 import '../models/calendar_event.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 const _calendarCardRadius = 5.0;
 const _calendarCardRadiusCompact = 4.0;
@@ -158,8 +159,8 @@ class _PlannerEventTile extends StatelessWidget {
                       ),
                     ],
                     if (showIcon && !pending) ...[
-                      Icon(
-                        CupertinoIcons.calendar,
+                      DdtIcon(
+                        DdtIcons.calendar,
                         size: (height * 0.22).clamp(11.0, 14.sp),
                         color: iconMuted,
                       ),
@@ -189,7 +190,7 @@ class _PlannerEventTile extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.time, size: metaSize, color: timeColor),
+                  DdtIcon(DdtIcons.clock, size: metaSize, color: timeColor),
                   SizedBox(width: 3.w),
                   Flexible(
                     child: Text(
@@ -265,7 +266,7 @@ class _StandardEventCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!compact && !pending) ...[
-                Icon(CupertinoIcons.calendar, size: 18.sp, color: iconMuted),
+                DdtIcon(DdtIcons.calendar, size: 18.sp, color: iconMuted),
                 SizedBox(width: 8.w),
               ],
               if (pending) ...[
@@ -299,7 +300,7 @@ class _StandardEventCard extends StatelessWidget {
           if (timeLabel != null) ...[
             SizedBox(height: compact ? 4.h : 8.h),
             _MetaRow(
-              icon: CupertinoIcons.time,
+              icon: DdtIcons.clock,
               label: timeLabel,
               color: timeColor,
               fontSize: compact
@@ -313,7 +314,7 @@ class _StandardEventCard extends StatelessWidget {
               event.location!.isNotEmpty) ...[
             SizedBox(height: 6.h),
             _MetaRow(
-              icon: CupertinoIcons.location,
+              icon: DdtIcons.location,
               label: event.location!,
               color: textSecondary,
               fontSize: DdtTypography.labelSmallSize,
@@ -343,7 +344,7 @@ class _MetaRow extends StatelessWidget {
     required this.iconSize,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final Color color;
   final double fontSize;
@@ -354,7 +355,7 @@ class _MetaRow extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: iconSize, color: color),
+        DdtIcon(icon, size: iconSize, color: color),
         SizedBox(width: 4.w),
         Flexible(
           child: Text(

@@ -158,9 +158,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     }
 
     try {
-      final foldersFuture = state.folders == null && !background
-          ? _api.fetchMailFolders()
-          : null;
+      final foldersFuture = _api.fetchMailFolders();
       final messagesFuture = _api.fetchInbox(
         limit: _pageSize,
         filter: filter,
@@ -171,9 +169,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       final freshMessages = await messagesFuture;
       if (generation != _inboxRequestGeneration) return;
 
-      final folders = foldersFuture != null
-          ? await foldersFuture
-          : state.folders;
+      var folders = state.folders;
+      try {
+        folders = await foldersFuture;
+      } catch (_) {
+        // Keep previously loaded folder tree if counts cannot be refreshed.
+      }
+      if (generation != _inboxRequestGeneration) return;
       if ((folderId == null || folderId.isEmpty) && folders != null) {
         folderId = folders.inboxFolderId;
       }

@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -15,6 +18,12 @@ class DdtTheme {
   static const double inputHorizontalPadding = 12;
   static const double inputVerticalPadding = 10;
   static const double spacing = 16;
+  static const double scrollbarThickness = 6;
+  static const double scrollbarCrossAxisMargin = 2;
+  static const double scrollbarMainAxisMargin = 4;
+
+  /// Reserved space between scrollable content and the scrollbar track.
+  static const double scrollbarGutter = 12;
 
   static const Color lightBackground = Color(0xFFFFFFFF);
   static const Color lightSurface = Color(0xFFFFFFFF);
@@ -68,6 +77,39 @@ class DdtTheme {
 
   static Color pickerSurfaceColor(BuildContext context) =>
       _isDark(context) ? darkPickerSurface : lightSurface;
+
+  /// High-contrast tooltip surface for charts (inverted vs shell background).
+  static Color chartTooltipBackground(BuildContext context) =>
+      _isDark(context) ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+
+  static Color chartTooltipForeground(BuildContext context) =>
+      _isDark(context) ? lightTextPrimary : Colors.white;
+
+  static TextStyle chartTooltipTextStyle(BuildContext context) => style(
+        fontSize: DdtTypography.labelSmallSize,
+        fontWeight: FontWeight.w600,
+        height: 1.35,
+        color: chartTooltipForeground(context),
+      );
+
+  static TooltipThemeData tooltipThemeData(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return TooltipThemeData(
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFFF1F5F9)
+            : const Color(0xFF1E293B).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      textStyle: style(
+        fontSize: DdtTypography.captionSize,
+        fontWeight: FontWeight.w500,
+        color: isDark ? lightTextPrimary : Colors.white,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      waitDuration: const Duration(milliseconds: 400),
+    );
+  }
 
   static Color pickerInputFillColor(BuildContext context) =>
       _isDark(context) ? darkPickerInputFill : lightInputFill;
@@ -161,7 +203,7 @@ class DdtTheme {
         : lightTextPrimary;
 
     return DropdownMenuThemeData(
-      textStyle: TextStyle(color: textColor),
+      textStyle: typography.bodyMedium?.copyWith(color: textColor),
       menuStyle: MenuStyle(
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
@@ -203,13 +245,16 @@ class DdtTheme {
     BuildContext context, {
     bool addShadow = true,
     double? radius,
+    bool showBorder = true,
   }) {
     final isDark = _isDark(context);
 
     return BoxDecoration(
       color: shellSurfaceColor(context),
       borderRadius: BorderRadius.circular(radius ?? borderRadius.r),
-      border: Border.all(color: shellSurfaceBorderColor(context)),
+      border: showBorder
+          ? Border.all(color: shellSurfaceBorderColor(context))
+          : null,
       boxShadow: addShadow
           ? [
               BoxShadow(
@@ -230,13 +275,63 @@ class DdtTheme {
     double? height,
     EdgeInsetsGeometry? padding,
     bool addShadow = true,
+    bool showBorder = true,
   }) {
     return Container(
       width: width,
       height: height,
       padding: padding,
-      decoration: shellSurfaceDecoration(context, addShadow: addShadow),
+      decoration: shellSurfaceDecoration(
+        context,
+        addShadow: addShadow,
+        showBorder: showBorder,
+      ),
       child: child,
+    );
+  }
+
+  /// Floating app bar: frosted glass tinted like [shellSurfaceColor], soft drop shadow.
+  static Widget shellAppBarGlass({
+    required BuildContext context,
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    double blurSigma = 14,
+  }) {
+    final isDark = _isDark(context);
+    final borderRadiusGeometry = radius;
+    final substrate = shellSurfaceColor(context);
+    final frostTint = substrate.withValues(alpha: isDark ? 0.46 : 0.58);
+
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: borderRadiusGeometry,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadiusGeometry,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              borderRadius: borderRadiusGeometry,
+              color: frostTint,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
@@ -248,7 +343,7 @@ class DdtTheme {
 
   static Color taskCardIconMuted(BuildContext context) => textMuted(context);
 
-  static GlassContainer contextMenuGlass({
+  static Widget contextMenuGlass({
     required BuildContext context,
     required Widget child,
     EdgeInsetsGeometry? padding,
@@ -258,12 +353,13 @@ class DdtTheme {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
     final radius = cornerRadius ?? borderRadius.r;
+    final effectivePadding = padding ?? EdgeInsets.all(8.w);
 
     return GlassContainer(
       type: GlassType.custom,
       shape: GlassShape.roundedRectangle,
       radius: radius,
-      padding: padding ?? EdgeInsets.all(8.w),
+      padding: effectivePadding,
       blurIntensity: blurIntensity,
       backgroundColor: isDark
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
@@ -361,6 +457,11 @@ class DdtTheme {
     );
   }
 
+  static Color sidePanelSurfaceColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark ? const Color(0xFF1C1C1E) : Colors.white;
+  }
+
   static GlassContainer sidePanelGlass({
     required BuildContext context,
     required Widget child,
@@ -375,11 +476,9 @@ class DdtTheme {
       width: double.infinity,
       height: double.infinity,
       padding: EdgeInsets.zero,
-      blurIntensity: 3,
-      backgroundOpacity: isDark ? 0.82 : 0.9,
-      backgroundColor: isDark
-          ? const Color(0xFF1C1C1E).withValues(alpha: 0.9)
-          : Colors.white.withValues(alpha: 0.94),
+      blurIntensity: 0,
+      backgroundOpacity: 1,
+      backgroundColor: sidePanelSurfaceColor(context),
       borderColor: glassBorderColor(brightness),
       borderOpacity: glassBorderOpacity(brightness) * 0.55,
       borderWidth: 1,
@@ -405,10 +504,14 @@ class DdtTheme {
 
   static double sidePanelWidth(BuildContext context, {double? maxWidth}) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final limit = maxWidth ?? 676;
+    // The panel is inset from the right edge, so it can never be wider than the
+    // viewport minus that inset. The bound matters at high browser zoom, where
+    // the logical viewport can shrink below the preferred panel width.
+    final available = math.max(screenWidth - spacing, 0.0);
+    final limit = math.min(maxWidth ?? 676, available);
     final percentage = screenWidth * 0.494;
 
-    return percentage.clamp(416.0, limit);
+    return percentage.clamp(math.min(416.0, limit), limit);
   }
 
   static double sidePanelHeight(BuildContext context) {
@@ -445,9 +548,13 @@ class DdtTheme {
         onSurfaceVariant: darkTextSecondary,
       ),
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-        labelStyle: TextStyle(color: darkTextSecondary),
-        floatingLabelStyle: TextStyle(color: darkTextMuted),
-        hintStyle: TextStyle(color: darkTextMuted),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: darkTextSecondary,
+        ),
+        floatingLabelStyle: theme.textTheme.bodySmall?.copyWith(
+          color: darkTextMuted,
+        ),
+        hintStyle: theme.textTheme.bodyMedium?.copyWith(color: darkTextMuted),
         fillColor: darkInputFill,
       ),
       dropdownMenuTheme: dropdownMenuThemeData(
@@ -501,6 +608,8 @@ class DdtTheme {
     milliseconds: 220,
   );
   static const Curve selectionAnimationCurve = Curves.easeOutCubic;
+  static const Duration refreshContentDuration = Duration(milliseconds: 280);
+  static const Duration refreshShimmerDuration = Duration(milliseconds: 1400);
 
   static const WidgetStateProperty<Color> _transparentOverlay =
       WidgetStatePropertyAll(Colors.transparent);
@@ -512,12 +621,41 @@ class DdtTheme {
     );
   }
 
+  static ScrollbarThemeData scrollbarThemeData() {
+    return ScrollbarThemeData(
+      thickness: const WidgetStatePropertyAll(scrollbarThickness),
+      radius: const Radius.circular(8),
+      crossAxisMargin: scrollbarCrossAxisMargin,
+      mainAxisMargin: scrollbarMainAxisMargin,
+      minThumbLength: 32,
+    );
+  }
+
+  static EdgeInsets scrollbarContentGutter(
+    BuildContext context,
+    AxisDirection direction,
+  ) {
+    // Only vertical scrollables reserve a gutter. Horizontal ones (calendar
+    // day headers, kanban) often have a tight max height, and a bottom inset
+    // overflows their inner layout.
+    final isVertical =
+        direction == AxisDirection.down || direction == AxisDirection.up;
+    if (!isVertical) {
+      return EdgeInsets.zero;
+    }
+
+    final gap = shellSizeOf(context, scrollbarGutter);
+    final isRtl = Directionality.maybeOf(context) == TextDirection.rtl;
+    return isRtl ? EdgeInsets.only(left: gap) : EdgeInsets.only(right: gap);
+  }
+
   static ThemeData _applyInteractionTheme(ThemeData theme) {
     return theme.copyWith(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       splashColor: Colors.transparent,
       hoverColor: Colors.transparent,
+      scrollbarTheme: scrollbarThemeData(),
       iconButtonTheme: IconButtonThemeData(
         style: _withoutMaterialOverlay(
           IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
@@ -547,6 +685,10 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
+        iconTheme: IconThemeData(
+          size: 20,
+          color: lightTextSecondary,
+        ),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: lightBackground,
@@ -557,7 +699,7 @@ class DdtTheme {
           outline: lightBorderStrong,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle: GoogleFonts.nunitoSans(
+          titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -581,6 +723,7 @@ class DdtTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            textStyle: typography.labelLarge,
             shape: shape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
@@ -591,6 +734,7 @@ class DdtTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: lightTextPrimary,
+            textStyle: typography.labelLarge,
             side: BorderSide(color: AppColors.primary, width: 1.5),
             shape: shape,
             padding: EdgeInsets.symmetric(
@@ -599,23 +743,26 @@ class DdtTheme {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            textStyle: typography.labelLarge,
+          ),
+        ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: lightInputFill,
           constraints: const BoxConstraints(minHeight: inputControlHeight),
           contentPadding: inputContentPadding(),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          labelStyle: TextStyle(
+          labelStyle: typography.bodyMedium?.copyWith(
             color: lightTextSecondary,
-            fontSize: DdtTypography.bodySize,
           ),
-          floatingLabelStyle: TextStyle(
+          floatingLabelStyle: typography.bodySmall?.copyWith(
             color: lightTextMuted,
-            fontSize: DdtTypography.labelSmallSize,
           ),
-          hintStyle: TextStyle(
+          hintStyle: typography.bodyMedium?.copyWith(
             color: lightTextMuted.withValues(alpha: 0.62),
-            fontSize: DdtTypography.bodySize,
           ),
           border: _outlineBorder(
             borderRadius: radius,
@@ -645,6 +792,7 @@ class DdtTheme {
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
         menuTheme: menuThemeData(),
         popupMenuTheme: popupMenuThemeData(),
+        tooltipTheme: tooltipThemeData(Brightness.light),
       ),
     );
   }
@@ -656,6 +804,10 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
+        iconTheme: IconThemeData(
+          size: 20,
+          color: darkTextSecondary,
+        ),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: darkBackground,
@@ -666,7 +818,7 @@ class DdtTheme {
           outline: darkBorderStrong,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle: GoogleFonts.nunitoSans(
+          titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -689,6 +841,7 @@ class DdtTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
+            textStyle: typography.labelLarge,
             shape: shape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
@@ -699,6 +852,7 @@ class DdtTheme {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: darkTextPrimary,
+            textStyle: typography.labelLarge,
             side: BorderSide(color: AppColors.primary, width: 1.5),
             shape: shape,
             padding: EdgeInsets.symmetric(
@@ -707,23 +861,26 @@ class DdtTheme {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.accent,
+            textStyle: typography.labelLarge,
+          ),
+        ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           filled: true,
           fillColor: darkInputFill,
           constraints: const BoxConstraints(minHeight: inputControlHeight),
           contentPadding: inputContentPadding(),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          labelStyle: TextStyle(
+          labelStyle: typography.bodyMedium?.copyWith(
             color: darkTextSecondary,
-            fontSize: DdtTypography.bodySize,
           ),
-          floatingLabelStyle: TextStyle(
+          floatingLabelStyle: typography.bodySmall?.copyWith(
             color: darkTextMuted,
-            fontSize: DdtTypography.labelSmallSize,
           ),
-          hintStyle: TextStyle(
+          hintStyle: typography.bodyMedium?.copyWith(
             color: darkTextMuted.withValues(alpha: 0.62),
-            fontSize: DdtTypography.bodySize,
           ),
           border: _outlineBorder(
             borderRadius: radius,
@@ -753,6 +910,7 @@ class DdtTheme {
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
         menuTheme: menuThemeData(),
         popupMenuTheme: popupMenuThemeData(),
+        tooltipTheme: tooltipThemeData(Brightness.dark),
       ),
     );
   }

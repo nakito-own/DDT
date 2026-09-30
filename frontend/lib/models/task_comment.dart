@@ -1,3 +1,5 @@
+import '../utils/api_date_time.dart';
+
 class TaskComment {
   TaskComment({
     required this.id,
@@ -17,7 +19,7 @@ class TaskComment {
       text: json['text'] as String,
       authorId: json['author_id'] as int?,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? parseApiDateTime(json['created_at'] as String)
           : null,
     );
   }

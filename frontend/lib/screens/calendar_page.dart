@@ -1,9 +1,9 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
@@ -12,8 +12,11 @@ import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_section_refresh.dart';
+import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -97,13 +100,16 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<CalendarBloc, CalendarState>(
-      listenWhen: (previous, current) => previous.events != current.events,
+      listenWhen: (previous, current) =>
+          previous.events != current.events ||
+          (previous.isRefreshing && !current.isRefreshing),
       listener: (context, state) => _syncPlannerEvents(state.events),
       child: Stack(
         children: [
           BlocBuilder<CalendarBloc, CalendarState>(
             buildWhen: (previous, current) =>
                 previous.isLoading != current.isLoading ||
+                previous.isRefreshing != current.isRefreshing ||
                 previous.errorMessage != current.errorMessage ||
                 previous.events.isEmpty != current.events.isEmpty ||
                 previous.viewMode != current.viewMode ||
@@ -122,37 +128,34 @@ class _CalendarPageState extends State<CalendarPage> {
                 );
               }
 
-              return RefreshIndicator(
-                onRefresh: () async => context.read<CalendarBloc>().add(
-                  const CalendarEventsRefreshRequested(),
-                ),
-                child: DdtTheme.glass(
-                  context: context,
-                  padding: EdgeInsets.all(16.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _CalendarToolbar(state: state),
-                      SizedBox(height: 12.h),
-                      Expanded(
-                        child: _CalendarBody(
-                          state: state,
-                          eventsController: _eventsController,
-                          plannerInitialDate: _plannerInitialDate,
-                        ),
-                      ),
-                    ],
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: DdtShellMetrics.fixedTopPadding(context),
+                    child: _CalendarToolbar(state: state),
                   ),
-                ),
+                  SizedBox(height: 12.h),
+                  Expanded(
+                    child: DdtSectionRefreshOverlay(
+                      isRefreshing: state.isRefreshing,
+                      child: _CalendarBody(
+                        state: state,
+                        eventsController: _eventsController,
+                        plannerInitialDate: _plannerInitialDate,
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
           Positioned(
-            right: 24.w,
-            bottom: 24.h,
+            right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+            bottom: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
             child: DdtGlassFab(
               onPressed: () => showComposeEventPanel(context),
-              icon: Icons.add,
+              icon: DdtIcons.add,
               label: 'Событие',
             ),
           ),
@@ -212,13 +215,13 @@ class _CalendarToolbar extends StatelessWidget {
           ),
         ),
         _NavButton(
-          icon: CupertinoIcons.chevron_left,
+          icon: DdtIcons.chevronLeft,
           onPressed: () => context.read<CalendarBloc>().add(
             const CalendarGoPreviousRequested(),
           ),
         ),
         _NavButton(
-          icon: CupertinoIcons.chevron_right,
+          icon: DdtIcons.chevronRight,
           onPressed: () =>
               context.read<CalendarBloc>().add(const CalendarGoNextRequested()),
         ),
@@ -237,17 +240,17 @@ class _CalendarToolbar extends StatelessWidget {
             DdtSegmentedControlSegment(
               value: CalendarViewMode.day,
               label: 'День',
-              icon: CupertinoIcons.time,
+              icon: DdtIcons.clock,
             ),
             DdtSegmentedControlSegment(
               value: CalendarViewMode.week,
               label: 'Неделя',
-              icon: CupertinoIcons.calendar,
+              icon: DdtIcons.calendar,
             ),
             DdtSegmentedControlSegment(
               value: CalendarViewMode.month,
               label: 'Месяц',
-              icon: CupertinoIcons.calendar_badge_plus,
+              icon: DdtIcons.calendarPlus,
             ),
           ],
           selected: state.viewMode,
@@ -262,7 +265,7 @@ class _CalendarToolbar extends StatelessWidget {
 class _NavButton extends StatelessWidget {
   const _NavButton({required this.icon, required this.onPressed});
 
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onPressed;
 
   @override
@@ -270,7 +273,7 @@ class _NavButton extends StatelessWidget {
     return IconButton(
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
-      icon: Icon(icon, size: 20.sp),
+      icon: DdtIcon(icon, size: 20.sp),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -10,8 +12,14 @@ part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({EwsApi? api}) : _api = api ?? ewsApi, super(const AuthInitial()) {
-    on<AuthSessionRestoreRequested>(_onSessionRestoreRequested);
-    on<AuthLoginRequested>(_onLoginRequested);
+    on<AuthSessionRestoreRequested>(
+      _onSessionRestoreRequested,
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
+    on<AuthLoginRequested>(
+      _onLoginRequested,
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthSessionExpired>(_onSessionExpired);
 
@@ -20,6 +28,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   final EwsApi _api;
+
+  /// Пока идёт restore, пользователь может отправить login — увеличиваем счётчик,
+  /// чтобы устаревший restore не перезаписал состояние после входа.
+  int _sessionRestoreGeneration = 0;
 
   @override
   Future<void> close() {
@@ -31,9 +43,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthSessionRestoreRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(const AuthLoading());
+    final generation = ++_sessionRestoreGeneration;
+
+    final token = await apiClient.getSessionToken();
+    if (generation != _sessionRestoreGeneration) {
+      return;
+    }
+    if (token == null || token.isEmpty) {
+      emit(const AuthUnauthenticated());
+      return;
+    }
+
     try {
       final session = await _api.restoreSession();
+      if (generation != _sessionRestoreGeneration) {
+        return;
+      }
       if (session == null) {
         await _clearToken();
         emit(const AuthUnauthenticated());
@@ -48,6 +73,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (_) {
+      if (generation != _sessionRestoreGeneration) {
+        return;
+      }
       await _clearToken();
       emit(const AuthUnauthenticated());
     }
@@ -57,6 +85,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
+    _sessionRestoreGeneration++;
     emit(const AuthLoading());
     try {
       final session = await _api.login(
@@ -71,6 +100,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           user: session.user,
           email: session.email,
           connected: session.connected,
+        ),
+      );
+    } on TimeoutException {
+      await _clearToken();
+      emit(
+        const AuthFailure(
+          message:
+              'Превышено время ожидания. Проверьте VPN и доступность Exchange.',
         ),
       );
     } catch (error) {
@@ -97,6 +134,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthSessionExpired event,
     Emitter<AuthState> emit,
   ) async {
+    await _clearToken();
     await _handleSignOut();
     emit(const AuthUnauthenticated());
   }

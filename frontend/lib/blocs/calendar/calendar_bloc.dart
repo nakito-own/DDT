@@ -56,6 +56,9 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     CalendarEventsRefreshRequested event,
     Emitter<CalendarState> emit,
   ) async {
+    if (event.showAnimation) {
+      emit(state.copyWith(isRefreshing: true, errorMessage: () => null));
+    }
     await _fetchEvents(emit);
   }
 
@@ -79,6 +82,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
       emit(
         state.copyWith(
           isLoading: false,
+          isRefreshing: false,
           events: sorted,
           errorMessage: () => null,
         ),
@@ -88,6 +92,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
       emit(
         state.copyWith(
           isLoading: false,
+          isRefreshing: false,
           errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
         ),
       );

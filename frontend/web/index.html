@@ -20,7 +20,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@500;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <script>
     (function () {
@@ -40,62 +40,6 @@
 
       document.documentElement.setAttribute('data-theme', resolveTheme());
     })();
-
-    (function () {
-      var syncScheduled = false;
-
-      function applyViewportStyles() {
-        var docEl = document.documentElement;
-        var body = document.body;
-        if (!body) {
-          return;
-        }
-
-        docEl.style.width = '100%';
-        docEl.style.height = '100%';
-        body.style.width = '100%';
-        body.style.height = '100%';
-        body.style.margin = '0';
-        body.style.overflow = 'hidden';
-
-        document.querySelectorAll('flutter-view, flt-glass-pane, #flt-glass-pane').forEach(function (node) {
-          node.style.setProperty('width', '100%', 'important');
-          node.style.setProperty('height', '100%', 'important');
-          node.style.setProperty('display', 'block', 'important');
-        });
-
-        document.querySelectorAll('flutter-view').forEach(function (view) {
-          if (!view.shadowRoot) {
-            return;
-          }
-
-          view.shadowRoot.querySelectorAll('canvas, flt-scene-host, flt-scene').forEach(function (node) {
-            node.style.setProperty('width', '100%', 'important');
-            node.style.setProperty('height', '100%', 'important');
-          });
-        });
-      }
-
-      window.ddtSyncFlutterViewport = function () {
-        if (syncScheduled) {
-          return;
-        }
-
-        syncScheduled = true;
-        window.requestAnimationFrame(function () {
-          syncScheduled = false;
-          applyViewportStyles();
-          window.dispatchEvent(new Event('resize'));
-        });
-      };
-
-      window.addEventListener('resize', window.ddtSyncFlutterViewport);
-
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', window.ddtSyncFlutterViewport);
-        window.visualViewport.addEventListener('scroll', window.ddtSyncFlutterViewport);
-      }
-    })();
   </script>
 
   <style>
@@ -112,7 +56,7 @@
 
     html[data-theme='dark'] {
       color-scheme: dark;
-      --ddt-bg: #212121;
+      --ddt-bg: #050508;
       --ddt-title: #ffffff;
       --ddt-subtitle: rgba(255, 255, 255, 0.65);
       --ddt-border: rgba(255, 255, 255, 0.2);
@@ -127,13 +71,10 @@
       background: var(--ddt-bg);
     }
 
-    flutter-view,
-    flt-glass-pane,
-    #flt-glass-pane {
-      display: block;
-      width: 100% !important;
-      height: 100% !important;
-    }
+    /* The render surface inside <flutter-view> is sized by the engine in CSS
+       pixels derived from the device pixel ratio. Never override it: that is
+       what keeps the frame sharp and correctly scaled at fractional browser
+       zoom levels. */
 
     .flutter-loader {
       display: none !important;
@@ -147,7 +88,7 @@
       align-items: center;
       justify-content: center;
       background: var(--ddt-bg);
-      font-family: 'Nunito Sans', sans-serif;
+      font-family: 'Golos Text', sans-serif;
       transition: opacity 350ms ease;
     }
 

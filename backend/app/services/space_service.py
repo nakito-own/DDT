@@ -10,17 +10,35 @@ class SpaceService:
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, name, created_at FROM spaces ORDER BY id"
+                    """
+                    SELECT id, name, space_key, created_at
+                    FROM spaces
+                    ORDER BY id
+                    """
                 )
                 return list(cursor.fetchall())
 
-    def require_space(self, space_id: int) -> dict:
+    def require_space(self, space_ref) -> dict:
         with get_db() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, name, created_at FROM spaces WHERE id = %s",
-                    (space_id,),
-                )
+                if isinstance(space_ref, int) or str(space_ref).isdigit():
+                    cursor.execute(
+                        """
+                        SELECT id, name, space_key, created_at
+                        FROM spaces
+                        WHERE id = %s
+                        """,
+                        (int(space_ref),),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT id, name, space_key, created_at
+                        FROM spaces
+                        WHERE space_key = %s
+                        """,
+                        (space_ref,),
+                    )
                 space = cursor.fetchone()
         if not space:
             raise SpaceNotFoundError

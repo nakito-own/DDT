@@ -1,15 +1,20 @@
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from threading import Lock
+from typing import TypeVar
 
 from exchangelib import Account
+from exchangelib.errors import ErrorTimeoutExpired, TransportError
 
 from app.config import settings
 from app.db import get_db
 from app.services.crypto_service import crypto_service
 from app.services.ews_service import EwsConnectionError, ews_service
 from app.services.user_service import UserProfile, user_service, user_profile_to_dict
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -31,6 +36,7 @@ class SessionService:
         self._lock = Lock()
         self._memory_sessions: dict[str, SessionContext] = {}
         self._account_cache: dict[str, Account] = {}
+        self._account_locks: dict[str, Lock] = {}
 
     def _expires_at(self, remember_me: bool) -> datetime:
         if remember_me:
@@ -87,7 +93,7 @@ class SessionService:
                 )
 
     def _sync_user_profile(
-        self, account: Account, ews_account_id: int
+        self, account: Account, ews_account_id: int, username: str
     ) -> UserProfile:
         exchange_profile = ews_service.get_user_profile(account)
         return user_service.upsert_from_exchange(
@@ -98,6 +104,7 @@ class SessionService:
             phone=exchange_profile.phone,
             office_location=exchange_profile.office_location,
             ews_account_id=ews_account_id,
+            username=username,
         )
 
     def create_session(
@@ -110,7 +117,7 @@ class SessionService:
         account = ews_service.connect_account(username, password, email)
 
         ews_account_id = self._upsert_account(email, username, password)
-        user = self._sync_user_profile(account, ews_account_id)
+        user = self._sync_user_profile(account, ews_account_id, username)
 
         token = secrets.token_urlsafe(32)
         token_hash = crypto_service.hash_token(token)
@@ -204,6 +211,19 @@ class SessionService:
 
         return context
 
+    def _account_lock_for(self, token_hash: str) -> Lock:
+        with self._lock:
+            lock = self._account_locks.get(token_hash)
+            if lock is None:
+                lock = Lock()
+                self._account_locks[token_hash] = lock
+            return lock
+
+    def _drop_cached_account(self, token_hash: str) -> None:
+        with self._lock:
+            account = self._account_cache.pop(token_hash, None)
+        ews_service.close_account(account)
+
     def get_account(self, context: SessionContext) -> Account:
         with self._lock:
             cached = self._account_cache.get(context.token_hash)
@@ -219,9 +239,26 @@ class SessionService:
 
         return account
 
+    def run_with_account(
+        self,
+        context: SessionContext,
+        operation: Callable[[Account], T],
+    ) -> T:
+        """Execute exchangelib work under a per-session lock (not thread-safe)."""
+        lock = self._account_lock_for(context.token_hash)
+        with lock:
+            account = self.get_account(context)
+            try:
+                return operation(account)
+            except (EwsConnectionError, TransportError, ErrorTimeoutExpired):
+                self._drop_cached_account(context.token_hash)
+                raise
+
     def refresh_user_profile(self, context: SessionContext) -> UserProfile:
         account = self.get_account(context)
-        user = self._sync_user_profile(account, context.ews_account_id or 0)
+        user = self._sync_user_profile(
+            account, context.ews_account_id or 0, context.username
+        )
         context.user = user
         context.user_id = user.id
         with self._lock:
@@ -234,7 +271,9 @@ class SessionService:
         ews_notification_service.stop_for_session(token_hash)
         with self._lock:
             self._memory_sessions.pop(token_hash, None)
-            self._account_cache.pop(token_hash, None)
+            account = self._account_cache.pop(token_hash, None)
+            self._account_locks.pop(token_hash, None)
+        ews_service.close_account(account)
 
         with get_db() as conn:
             with conn.cursor() as cursor:

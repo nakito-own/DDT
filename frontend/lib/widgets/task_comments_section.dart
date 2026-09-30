@@ -1,8 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
@@ -14,6 +14,7 @@ import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 class TaskCommentsSection extends StatefulWidget {
   const TaskCommentsSection({
@@ -51,10 +52,21 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
   @override
   void didUpdateWidget(covariant TaskCommentsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.task.id != widget.task.id ||
-        oldWidget.task.comments != widget.task.comments) {
+    if (oldWidget.task.id != widget.task.id) {
       _comments = _sortedComments(widget.task.comments);
+    } else if (oldWidget.task.comments != widget.task.comments) {
+      _comments = _sortedComments(_mergeComments(widget.task.comments));
     }
+  }
+
+  /// A board refresh can deliver a snapshot taken before the last comment was
+  /// posted, so comments the server has not caught up with are kept.
+  List<TaskComment> _mergeComments(List<TaskComment> incoming) {
+    final incomingIds = incoming.map((comment) => comment.id).toSet();
+    return [
+      ...incoming,
+      ..._comments.where((comment) => !incomingIds.contains(comment.id)),
+    ];
   }
 
   List<TaskComment> _sortedComments(List<TaskComment> comments) {
@@ -85,9 +97,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
 
     setState(() => _isSending = true);
     try {
-      final comment = await TasksApi(
-        spaceId: widget.task.spaceId,
-      ).addComment(widget.task.id, text);
+      final comment = await TasksApi().addComment(widget.task.apiRef, text);
       if (!mounted) return;
 
       _controller.clear();
@@ -215,7 +225,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
                   dimension: 14,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(CupertinoIcons.arrow_up, size: 17),
+              : DdtIcon(DdtIcons.arrowUp, size: 17),
         ),
       ),
     );
@@ -313,8 +323,8 @@ class _CommentBubble extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  CupertinoIcons.person_crop_circle_fill,
+                DdtIcon(
+                  DdtIcons.userCircle,
                   size: 15.sp,
                   color: isOwn ? primary : DdtTheme.sidePanelTextMuted(context),
                 ),

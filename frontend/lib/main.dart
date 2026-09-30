@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:toastification/toastification.dart';
 
+import 'blocs/analytics/analytics_bloc.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/calendar/calendar_bloc.dart';
 import 'blocs/mail/mail_bloc.dart';
@@ -15,9 +17,10 @@ import 'blocs/theme/theme_bloc.dart';
 import 'models/app_notification.dart';
 import 'router/app_router.dart';
 import 'services/session_token_storage.dart';
+import 'theme/ddt_scale.dart';
+import 'theme/ddt_scroll_behavior.dart';
 import 'theme/ddt_theme.dart';
 import 'theme/ddt_typography.dart';
-import 'utils/browser_page_zoom.dart';
 import 'utils/ddt_date_time_picker.dart';
 import 'utils/ddt_toast.dart';
 
@@ -25,6 +28,7 @@ const _themeStorageBox = 'ddt_storage';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DdtTypography.ensureLoaded();
 
   await BoltKit.initialize(
     primaryColor: const Color(0xFF1976D2),
@@ -51,6 +55,8 @@ class _DdtAppState extends State<DdtApp> {
   // состояния между роутером и UI.
   late final AuthBloc _authBloc;
   late final AppRouter _appRouter;
+  Timer? _mailBackgroundRefresh;
+  Timer? _calendarBackgroundRefresh;
 
   @override
   void initState() {
@@ -61,9 +67,27 @@ class _DdtAppState extends State<DdtApp> {
 
   @override
   void dispose() {
+    _mailBackgroundRefresh?.cancel();
+    _calendarBackgroundRefresh?.cancel();
     _appRouter.dispose();
     _authBloc.close();
     super.dispose();
+  }
+
+  void _scheduleMailBackgroundRefresh(BuildContext context) {
+    _mailBackgroundRefresh?.cancel();
+    _mailBackgroundRefresh = Timer(const Duration(milliseconds: 450), () {
+      if (!context.mounted) return;
+      context.read<MailBloc>().add(const MailInboxRefreshRequested());
+    });
+  }
+
+  void _scheduleCalendarBackgroundRefresh(BuildContext context) {
+    _calendarBackgroundRefresh?.cancel();
+    _calendarBackgroundRefresh = Timer(const Duration(milliseconds: 450), () {
+      if (!context.mounted) return;
+      context.read<CalendarBloc>().add(const CalendarEventsRefreshRequested());
+    });
   }
 
   @override
@@ -82,6 +106,7 @@ class _DdtAppState extends State<DdtApp> {
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
         BlocProvider(create: (_) => CalendarBloc()),
+        BlocProvider(create: (_) => AnalyticsBloc()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -108,91 +133,93 @@ class _DdtAppState extends State<DdtApp> {
                 context.read<CalendarBloc>().add(
                   const CalendarSessionCleared(),
                 );
+                context.read<AnalyticsBloc>().add(
+                  const AnalyticsSessionCleared(),
+                );
               }
             },
           ),
           // Notifications → Mail / Calendar
           BlocListener<NotificationsBloc, NotificationsState>(
             listenWhen: (previous, current) =>
-                current.items.isNotEmpty &&
-                (previous.items.isEmpty ||
-                    previous.items.first.id != current.items.first.id),
+                previous.lastIncoming?.id != current.lastIncoming?.id &&
+                current.lastIncoming != null,
             listener: (context, notifState) {
-              if (notifState.items.isEmpty) return;
-              final latest = notifState.items.first;
-              DdtToast.show(
-                title: latest.title,
-                message: latest.body,
-                type: ToastType.info,
-                duration: const Duration(seconds: 5),
-              );
+              final latest = notifState.lastIncoming;
+              if (latest == null) return;
+              if (latest.category == AppNotificationCategory.newMail) {
+                DdtToast.show(
+                  title: latest.title,
+                  message: latest.body,
+                  type: ToastType.info,
+                  duration: const Duration(seconds: 5),
+                );
+              }
               switch (latest.category) {
                 case AppNotificationCategory.newMail:
                 case AppNotificationCategory.mailUpdated:
-                  context.read<MailBloc>().add(
-                    const MailInboxRefreshRequested(),
-                  );
+                  _scheduleMailBackgroundRefresh(context);
                 case AppNotificationCategory.calendarUpdated:
-                  context.read<CalendarBloc>().add(
-                    const CalendarEventsRefreshRequested(),
-                  );
+                  _scheduleCalendarBackgroundRefresh(context);
                 case AppNotificationCategory.system:
                   break;
               }
             },
           ),
+          BlocListener<NotificationsBloc, NotificationsState>(
+            listenWhen: (previous, current) =>
+                previous.reconnecting &&
+                current.connected &&
+                !current.reconnecting,
+            listener: (context, _) {
+              _scheduleMailBackgroundRefresh(context);
+              _scheduleCalendarBackgroundRefresh(context);
+            },
+          ),
         ],
-        child: ScreenUtilInit(
-          designSize: const Size(1440, 900),
-          minTextAdapt: true,
-          splitScreenMode: true,
-          rebuildFactor: (old, data) =>
-              old.size != data.size ||
-              old.devicePixelRatio != data.devicePixelRatio ||
-              old.textScaler != data.textScaler,
-          builder: (context, child) => FlutterViewportSyncScope(
-            child: BlocBuilder<ThemeBloc, ThemeState>(
-              buildWhen: (previous, current) => previous.mode != current.mode,
-              builder: (context, themeState) => ToastificationWrapper(
-                config: ToastificationConfig(
-                  alignment: Alignment.topRight,
-                  itemWidth: 380,
-                  maxToastLimit: 5,
-                  animationDuration: const Duration(milliseconds: 320),
-                  marginBuilder: (context, alignment) => EdgeInsets.only(
-                    top:
-                        MediaQuery.paddingOf(context).top +
-                        DdtTheme.shellSizeOf(context, 88),
-                    right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
-                  ),
+        child: DdtScaleScope(
+          builder: (context, child) => BlocBuilder<ThemeBloc, ThemeState>(
+            buildWhen: (previous, current) => previous.mode != current.mode,
+            builder: (context, themeState) => ToastificationWrapper(
+              config: ToastificationConfig(
+                alignment: Alignment.topRight,
+                itemWidth: 380,
+                maxToastLimit: 5,
+                animationDuration: const Duration(milliseconds: 320),
+                marginBuilder: (context, alignment) => EdgeInsets.only(
+                  top:
+                      MediaQuery.paddingOf(context).top +
+                      DdtTheme.shellSizeOf(context, 88),
+                  right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
                 ),
-                child: MaterialApp.router(
-                  routerConfig: _appRouter.router,
-                  title: 'DDT',
-                  locale: ddtPickerLocale,
-                  supportedLocales: const [ddtPickerLocale],
-                  localizationsDelegates: const [
-                    GlobalMaterialLocalizations.delegate,
-                    GlobalWidgetsLocalizations.delegate,
-                    GlobalCupertinoLocalizations.delegate,
-                  ],
-                  theme: DdtTheme.light(),
-                  darkTheme: DdtTheme.dark(),
-                  themeMode: themeState.mode,
-                  builder: (context, child) {
-                    return Material(
-                      type: MaterialType.transparency,
-                      child: DefaultTextStyle(
-                        style: DdtTypography.style(
-                          size: DdtTypography.bodySize,
-                          color: DdtTheme.textPrimary(context),
-                        ),
-                        child: child ?? const SizedBox.shrink(),
+              ),
+              child: MaterialApp.router(
+                routerConfig: _appRouter.router,
+                title: 'DDT',
+                locale: ddtPickerLocale,
+                supportedLocales: const [ddtPickerLocale],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: DdtTheme.light(),
+                darkTheme: DdtTheme.dark(),
+                themeMode: themeState.mode,
+                scrollBehavior: const DdtScrollBehavior(),
+                builder: (context, child) {
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: DefaultTextStyle(
+                      style: DdtTypography.style(
+                        size: DdtTypography.bodySize,
+                        color: DdtTheme.textPrimary(context),
                       ),
-                    );
-                  },
-                  debugShowCheckedModeBanner: false,
-                ),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  );
+                },
+                debugShowCheckedModeBanner: false,
               ),
             ),
           ),

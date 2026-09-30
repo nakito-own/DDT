@@ -47,9 +47,21 @@ def map_task_comment_row(row):
     }
 
 
-def map_task_row(row, *, type_=None, links=None, comments=None):
+def map_task_ref_row(row):
+    if not row:
+        return None
     return {
         "id": row["id"],
+        "key": row.get("key") or row.get("task_key"),
+        "title": row["title"],
+        "status": row["status"],
+    }
+
+
+def map_task_row(row, *, type_=None, links=None, comments=None, parent=None, children=None):
+    return {
+        "id": row["id"],
+        "key": row.get("task_key") or "",
         "title": row["title"],
         "status": row["status"],
         "type_id": row["type_id"],
@@ -60,6 +72,8 @@ def map_task_row(row, *, type_=None, links=None, comments=None):
         "responsible_id": row["responsible_id"],
         "owner_id": row["owner_id"],
         "space_id": row.get("space_id"),
+        "space_key": row.get("space_key"),
+        "parent_id": row.get("parent_id"),
         "time_set": row["time_set"],
         "time_start": row["time_start"],
         "time_end": row["time_end"],
@@ -67,6 +81,8 @@ def map_task_row(row, *, type_=None, links=None, comments=None):
         "priority": row["priority"],
         "links": links or [],
         "comments": comments or [],
+        "parent": parent,
+        "children": children or [],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

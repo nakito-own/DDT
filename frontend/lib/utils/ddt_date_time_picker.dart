@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_theme.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_side_panel.dart';
 import '../theme/ddt_typography.dart';
 
 /// Локаль для Material date/time picker: русский язык, понедельник — первый день недели.
@@ -22,8 +23,8 @@ Future<DateTime?> showDdtDateTimePicker({
   if (initial.isBefore(first)) initial = first;
   if (initial.isAfter(last)) initial = last;
 
-  return showDialog<DateTime>(
-    context: context,
+  return showDdtSidePanelDialog<DateTime>(
+    context,
     builder: (dialogContext) {
       return MediaQuery(
         data: MediaQuery.of(
@@ -45,12 +46,19 @@ Future<DateTime?> showDdtDatePicker({
   DateTime? firstDate,
   DateTime? lastDate,
 }) {
-  return showDatePicker(
-    context: context,
-    locale: ddtPickerLocale,
-    initialDate: initialDate,
-    firstDate: firstDate ?? DateTime(2020),
-    lastDate: lastDate ?? DateTime(2100),
+  return showDdtSidePanelDialog<DateTime>(
+    context,
+    builder: (dialogContext) {
+      return Localizations.override(
+        context: dialogContext,
+        locale: ddtPickerLocale,
+        child: DatePickerDialog(
+          initialDate: initialDate,
+          firstDate: firstDate ?? DateTime(2020),
+          lastDate: lastDate ?? DateTime(2100),
+        ),
+      );
+    },
   );
 }
 
@@ -58,14 +66,15 @@ Future<TimeOfDay?> showDdtTimePicker({
   required BuildContext context,
   required TimeOfDay initialTime,
 }) {
-  return showTimePicker(
-    context: context,
-    initialTime: initialTime,
-    initialEntryMode: TimePickerEntryMode.inputOnly,
-    builder: (context, child) {
+  return showDdtSidePanelDialog<TimeOfDay>(
+    context,
+    builder: (dialogContext) {
       return MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child ?? const SizedBox.shrink(),
+        data: MediaQuery.of(dialogContext).copyWith(alwaysUse24HourFormat: true),
+        child: TimePickerDialog(
+          initialTime: initialTime,
+          initialEntryMode: TimePickerEntryMode.inputOnly,
+        ),
       );
     },
   );

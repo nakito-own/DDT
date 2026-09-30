@@ -10,7 +10,13 @@ from app.schemas.task import (
     UpdateTaskStatusRequest,
 )
 from app.services.session_service import SessionContext
-from app.services.task_service import TaskNotFoundError, task_not_found, task_service
+from app.services.task_service import (
+    TaskNotFoundError,
+    TaskRelationError,
+    task_not_found,
+    task_relation_error,
+    task_service,
+)
 
 router = APIRouter()
 
@@ -25,66 +31,75 @@ async def create_task(
     payload: CreateTaskRequest,
     context: SessionContext = Depends(get_current_session),
 ):
-    return task_service.create_task(
-        owner_id=context.user_id,
-        author_id=context.user_id,
-        payload=payload,
-    )
+    try:
+        return task_service.create_task(
+            owner_id=context.user_id,
+            author_id=context.user_id,
+            payload=payload,
+            username=context.username,
+        )
+    except TaskRelationError as exc:
+        raise task_relation_error(exc) from exc
+    except TaskNotFoundError as exc:
+        raise task_not_found() from exc
 
 
-@router.get("/{task_id}", response_model=TaskResponse)
+@router.get("/{task_ref}", response_model=TaskResponse)
 async def get_task(
-    task_id: int,
+    task_ref: str,
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        return task_service.get_task(task_id, context.user_id)
+        return task_service.get_task_by_ref(task_ref, context.user_id)
     except TaskNotFoundError as exc:
         raise task_not_found() from exc
 
 
 @router.post(
-    "/{task_id}/comments",
+    "/{task_ref}/comments",
     response_model=TaskCommentResponse,
     status_code=201,
 )
 async def add_task_comment(
-    task_id: int,
+    task_ref: str,
     payload: CreateTaskCommentRequest,
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        return task_service.add_comment(
-            task_id=task_id,
-            owner_id=context.user_id,
-            author_id=context.user_id,
+        return task_service.add_comment_by_ref(
+            task_ref=task_ref,
+            user_id=context.user_id,
             text=payload.text,
         )
     except TaskNotFoundError as exc:
         raise task_not_found() from exc
 
 
-@router.put("/{task_id}", response_model=TaskResponse)
+@router.put("/{task_ref}", response_model=TaskResponse)
 async def update_task(
-    task_id: int,
+    task_ref: str,
     payload: UpdateTaskRequest,
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        return task_service.update_task(task_id, context.user_id, payload)
+        return task_service.update_task_by_ref(
+            task_ref, context.user_id, payload
+        )
+    except TaskRelationError as exc:
+        raise task_relation_error(exc) from exc
     except TaskNotFoundError as exc:
         raise task_not_found() from exc
 
 
-@router.patch("/{task_id}/status", response_model=TaskResponse)
+@router.patch("/{task_ref}/status", response_model=TaskResponse)
 async def update_task_status(
-    task_id: int,
+    task_ref: str,
     payload: UpdateTaskStatusRequest,
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        return task_service.update_task(
-            task_id,
+        return task_service.update_task_by_ref(
+            task_ref,
             context.user_id,
             UpdateTaskRequest(status=payload.status),
         )
@@ -92,12 +107,12 @@ async def update_task_status(
         raise task_not_found() from exc
 
 
-@router.delete("/{task_id}", status_code=204)
+@router.delete("/{task_ref}", status_code=204)
 async def delete_task(
-    task_id: int,
+    task_ref: str,
     context: SessionContext = Depends(get_current_session),
 ):
     try:
-        task_service.delete_task(task_id, context.user_id)
+        task_service.delete_task_by_ref(task_ref, context.user_id)
     except TaskNotFoundError as exc:
         raise task_not_found() from exc

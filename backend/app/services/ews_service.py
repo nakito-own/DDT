@@ -590,7 +590,9 @@ class EwsService:
         )
 
     @staticmethod
-    def _close_account(account: Account) -> None:
+    def close_account(account: Account | None) -> None:
+        if account is None:
+            return
         try:
             account.protocol.close()
         except Exception:
@@ -607,10 +609,10 @@ class EwsService:
                 self.verify_account(account)
                 return account
             except EwsAuthError:
-                self._close_account(account)
+                self.close_account(account)
                 raise
             except EwsConnectionError as exc:
-                self._close_account(account)
+                self.close_account(account)
                 cause = exc.__cause__
                 if isinstance(cause, TransportError):
                     last_transport_error = cause
@@ -625,7 +627,7 @@ class EwsService:
                         continue
                 raise
             except Exception:
-                self._close_account(account)
+                self.close_account(account)
                 raise
 
         if last_transport_error is not None:

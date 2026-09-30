@@ -1,9 +1,12 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
+import '../services/api_client.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/ddt_app_input.dart';
@@ -23,6 +26,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
   final _passwordController = TextEditingController();
   final _emailController = TextEditingController();
   bool _rememberMe = true;
+  String? _validationMessage;
 
   @override
   void dispose() {
@@ -40,6 +44,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
     ];
 
     if (errors.isNotEmpty) {
+      setState(() => _validationMessage = errors.join('\n'));
       DdtToast.show(
         title: 'Проверьте данные',
         message: errors.join('\n'),
@@ -47,6 +52,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
       );
       return;
     }
+    setState(() => _validationMessage = null);
     context.read<AuthBloc>().add(
       AuthLoginRequested(
         username: _usernameController.text.trim(),
@@ -83,9 +89,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                       );
                     },
                     builder: (context, state) {
-                      final isInitializing = state is AuthInitial;
-                      final isLoading = state is AuthLoading;
-                      final isBusy = isInitializing || isLoading;
+                      final isBusy = state is AuthLoading;
 
                       return DdtTheme.glass(
                         context: context,
@@ -112,16 +116,37 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                               ),
                             ),
                             SizedBox(height: 24.h),
+                            if (kDebugMode && apiUrl.isEmpty) ...[
+                              Text(
+                                'Не задан API_URL. Запускайте с '
+                                '--dart-define=API_URL=http://localhost:3000',
+                                style: DdtTheme.style(
+                                  fontSize: DdtTypography.labelSize,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                              SizedBox(height: 12.h),
+                            ],
+                            if (_validationMessage != null) ...[
+                              Text(
+                                _validationMessage!,
+                                style: DdtTheme.style(
+                                  fontSize: DdtTypography.labelSize,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                              SizedBox(height: 12.h),
+                            ],
                             DdtAppInput(
                               hint: 'Login',
-                              prefixIcon: Icons.person_outline_rounded,
+                              prefixIcon: DdtIcons.user,
                               controller: _usernameController,
                               enabled: !isBusy,
                             ),
                             SizedBox(height: 12.h),
                             DdtAppInput(
                               hint: 'Email',
-                              prefixIcon: Icons.mail_outline_rounded,
+                              prefixIcon: DdtIcons.mail,
                               controller: _emailController,
                               enabled: !isBusy,
                               type: InputType.email,
@@ -129,7 +154,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                             SizedBox(height: 12.h),
                             DdtAppInput(
                               hint: 'Password',
-                              prefixIcon: Icons.lock_outline_rounded,
+                              prefixIcon: DdtIcons.lock,
                               controller: _passwordController,
                               enabled: !isBusy,
                               type: InputType.password,
@@ -149,6 +174,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                             SizedBox(height: 12.h),
                             Button(
                               text: isBusy ? 'Подключение...' : 'Войти',
+                              isLoading: isBusy,
                               onPressed: isBusy ? null : _submit,
                               borderRadius: BorderRadius.circular(64),
                             ),
