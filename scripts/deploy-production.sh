@@ -11,6 +11,7 @@ release_id="$2"
 export RELEASE_ID="$release_id"
 release_dir="$deploy_root/releases/$release_id"
 shared_dir="$deploy_root/shared"
+export DDT_SECRETS_DIR="$shared_dir/secrets"
 env_file="$shared_dir/.env"
 backup_dir="$shared_dir/backups"
 current_link="$deploy_root/current"
@@ -25,7 +26,7 @@ if [[ ! -f "$release_dir/compose.production.yml" ]]; then
   exit 1
 fi
 
-mkdir -p "$backup_dir" "$release_dir/frontend/build/web"
+mkdir -p "$backup_dir" "$shared_dir/secrets" "$release_dir/frontend/build/web"
 
 cd "$release_dir"
 ./scripts/verify-frontend-release.sh --archive-only

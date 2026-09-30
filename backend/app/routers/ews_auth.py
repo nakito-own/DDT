@@ -60,7 +60,7 @@ async def login(payload: LoginRequest):
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(
+def logout(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ):
     if credentials is not None and credentials.scheme.lower() == "bearer":

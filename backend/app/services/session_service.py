@@ -243,16 +243,24 @@ class SessionService:
         self,
         context: SessionContext,
         operation: Callable[[Account], T],
+        *,
+        lock_timeout: float = -1,
     ) -> T:
         """Execute exchangelib work under a per-session lock (not thread-safe)."""
         lock = self._account_lock_for(context.token_hash)
-        with lock:
+        if not lock.acquire(timeout=lock_timeout):
+            raise EwsConnectionError(
+                "Previous Exchange request for this session is still running"
+            )
+        try:
             account = self.get_account(context)
             try:
                 return operation(account)
             except (EwsConnectionError, TransportError, ErrorTimeoutExpired):
                 self._drop_cached_account(context.token_hash)
                 raise
+        finally:
+            lock.release()
 
     def refresh_user_profile(self, context: SessionContext) -> UserProfile:
         account = self.get_account(context)

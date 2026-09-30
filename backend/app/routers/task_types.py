@@ -9,5 +9,5 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[TaskTypeResponse])
-async def list_task_types(_context: SessionContext = Depends(get_current_session)):
+def list_task_types(_context: SessionContext = Depends(get_current_session)):
     return task_service.list_task_types()

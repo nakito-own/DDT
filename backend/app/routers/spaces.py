@@ -41,12 +41,12 @@ def _require_space(space_ref: str) -> dict:
 
 
 @router.get("", response_model=list[SpaceResponse])
-async def list_spaces(_context: SessionContext = Depends(get_current_session)):
+def list_spaces(_context: SessionContext = Depends(get_current_session)):
     return space_service.list_spaces()
 
 
 @router.get("/{space_ref}/tasks", response_model=list[TaskResponse])
-async def list_space_tasks(
+def list_space_tasks(
     space_ref: str,
     _context: SessionContext = Depends(get_current_session),
 ):
@@ -55,7 +55,7 @@ async def list_space_tasks(
 
 
 @router.post("/{space_ref}/tasks", response_model=TaskResponse, status_code=201)
-async def create_space_task(
+def create_space_task(
     space_ref: str,
     payload: CreateTaskRequest,
     context: SessionContext = Depends(get_current_session),
@@ -76,7 +76,7 @@ async def create_space_task(
 
 
 @router.get("/{space_ref}/tasks/{task_ref}", response_model=TaskResponse)
-async def get_space_task(
+def get_space_task(
     space_ref: str,
     task_ref: str,
     context: SessionContext = Depends(get_current_session),
@@ -96,7 +96,7 @@ async def get_space_task(
     response_model=TaskCommentResponse,
     status_code=201,
 )
-async def add_space_task_comment(
+def add_space_task_comment(
     space_ref: str,
     task_ref: str,
     payload: CreateTaskCommentRequest,
@@ -117,7 +117,7 @@ async def add_space_task_comment(
 
 
 @router.put("/{space_ref}/tasks/{task_ref}", response_model=TaskResponse)
-async def update_space_task(
+def update_space_task(
     space_ref: str,
     task_ref: str,
     payload: UpdateTaskRequest,
@@ -138,7 +138,7 @@ async def update_space_task(
 
 
 @router.patch("/{space_ref}/tasks/{task_ref}/status", response_model=TaskResponse)
-async def update_space_task_status(
+def update_space_task_status(
     space_ref: str,
     task_ref: str,
     payload: UpdateTaskStatusRequest,
@@ -159,7 +159,7 @@ async def update_space_task_status(
 
 
 @router.delete("/{space_ref}/tasks/{task_ref}", status_code=204)
-async def delete_space_task(
+def delete_space_task(
     space_ref: str,
     task_ref: str,
     context: SessionContext = Depends(get_current_session),

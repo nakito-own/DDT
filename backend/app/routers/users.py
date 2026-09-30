@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def list_users(_context: SessionContext = Depends(get_current_session)):
+def list_users(_context: SessionContext = Depends(get_current_session)):
     with get_db() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
