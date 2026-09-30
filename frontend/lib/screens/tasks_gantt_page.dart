@@ -12,6 +12,7 @@ import '../utils/task_gantt_mapper.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 class TasksGanttPage extends StatefulWidget {
   const TasksGanttPage({super.key});
@@ -246,7 +247,10 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildToolbar(),
+            Padding(
+              padding: DdtShellMetrics.fixedTopPadding(context),
+              child: _buildToolbar(),
+            ),
             SizedBox(height: 8.h),
             Expanded(
               child: Gantt(

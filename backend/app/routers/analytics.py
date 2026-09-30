@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.dependencies import get_current_session
 from app.schemas.analytics import (
     AnalyticsApplicationsResponse,
-    AnalyticsDashboardResponse,
+    AnalyticsQueryRequest,
+    AnalyticsQueryResponse,
 )
+from app.services.analytics_queries import AnalyticsFilterSpec
 from app.services.analytics_service import (
     AnalyticsNotConfiguredError,
     analytics_service,
@@ -33,15 +35,26 @@ def _map_errors(exc: Exception) -> HTTPException:
     raise exc
 
 
-@router.get("/dashboard", response_model=AnalyticsDashboardResponse)
-async def get_dashboard(
-    refresh: bool = Query(default=False),
+@router.post("/query", response_model=AnalyticsQueryResponse)
+async def query_dashboard(
+    body: AnalyticsQueryRequest,
     _context: SessionContext = Depends(get_current_session),
 ):
+    spec = AnalyticsFilterSpec(
+        date_column=body.date_column,
+        period_start=body.period_start,
+        period_end=body.period_end,
+        selected=body.selected,
+        queries=body.queries,
+    )
     try:
         payload = await asyncio.to_thread(
-            analytics_service.get_dashboard,
-            refresh=refresh,
+            analytics_service.query,
+            spec,
+            table_limit=body.table_limit,
+            table_offset=body.table_offset,
+            refresh=body.refresh,
+            allow_stale=body.allow_stale,
         )
     except (AnalyticsNotConfiguredError, GoogleSheetsAccessError) as exc:
         raise _map_errors(exc) from exc

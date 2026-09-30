@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../models/analytics_dashboard.dart';
+import 'analytics_dashboard.dart';
 
 class AnalyticsFilters extends Equatable {
   const AnalyticsFilters({
@@ -23,30 +23,6 @@ class AnalyticsFilters extends Equatable {
       selectedValues.values.any((values) => values.isNotEmpty) ||
       queries.values.any((query) => query.trim().isNotEmpty);
 
-  bool get isActive => hasPeriod || hasColumnFilters || dateColumnKey != null;
-
-  String resolvedDateColumn(List<AnalyticsColumn> columns) {
-    if (dateColumnKey != null &&
-        columns.any((column) => column.key == dateColumnKey)) {
-      return dateColumnKey!;
-    }
-    for (final hint in [
-      'Дата создания',
-      'Дата закрытия',
-      'Дата последнего обновления',
-    ]) {
-      for (final column in columns.where(
-        (item) => item.isDate && !item.isFilterIgnored,
-      )) {
-        if (column.key == hint) return column.key;
-      }
-    }
-    final firstDate = columns.where(
-      (column) => column.isDate && !column.isFilterIgnored,
-    );
-    return firstDate.isEmpty ? '' : firstDate.first.key;
-  }
-
   AnalyticsFilters copyWith({
     String? Function()? dateColumnKey,
     DateTime? Function()? periodStart,
@@ -55,7 +31,9 @@ class AnalyticsFilters extends Equatable {
     Map<String, String>? queries,
   }) {
     return AnalyticsFilters(
-      dateColumnKey: dateColumnKey != null ? dateColumnKey() : this.dateColumnKey,
+      dateColumnKey: dateColumnKey != null
+          ? dateColumnKey()
+          : this.dateColumnKey,
       periodStart: periodStart != null ? periodStart() : this.periodStart,
       periodEnd: periodEnd != null ? periodEnd() : this.periodEnd,
       selectedValues: selectedValues ?? this.selectedValues,
@@ -87,39 +65,46 @@ class AnalyticsFilters extends Equatable {
     return copyWith(queries: next);
   }
 
-  bool matches(AnalyticsTicket ticket, List<AnalyticsColumn> columns) {
-    if (hasPeriod) {
-      final date = ticket.dateValue(resolvedDateColumn(columns));
-      if (date == null) return false;
-      final day = DateTime(date.year, date.month, date.day);
-      if (periodStart != null &&
-          day.isBefore(
-            DateTime(periodStart!.year, periodStart!.month, periodStart!.day),
-          )) {
-        return false;
-      }
-      if (periodEnd != null &&
-          day.isAfter(
-            DateTime(periodEnd!.year, periodEnd!.month, periodEnd!.day),
-          )) {
-        return false;
-      }
-    }
+  /// Drops filters by columns that disappeared from the sheet.
+  AnalyticsFilters prunedTo(List<AnalyticsColumn> columns) {
+    final keys = {for (final column in columns) column.key};
+    return copyWith(
+      dateColumnKey: () => dateColumnKey != null && keys.contains(dateColumnKey)
+          ? dateColumnKey
+          : null,
+      selectedValues: {
+        for (final entry in selectedValues.entries)
+          if (keys.contains(entry.key)) entry.key: entry.value,
+      },
+      queries: {
+        for (final entry in queries.entries)
+          if (keys.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+  }
 
-    for (final entry in selectedValues.entries) {
-      if (entry.value.isEmpty) continue;
-      final field = ticket.fieldValue(entry.key);
-      if (!entry.value.contains(field)) return false;
-    }
+  Map<String, dynamic> toQueryJson() {
+    return {
+      'date_column': ?dateColumnKey,
+      'period_start': ?_isoDay(periodStart),
+      'period_end': ?_isoDay(periodEnd),
+      'selected': {
+        for (final entry in selectedValues.entries)
+          if (entry.value.isNotEmpty) entry.key: entry.value.toList(),
+      },
+      'queries': {
+        for (final entry in queries.entries)
+          if (entry.value.trim().isNotEmpty) entry.key: entry.value.trim(),
+      },
+    };
+  }
 
-    for (final entry in queries.entries) {
-      final query = entry.value.trim().toLowerCase();
-      if (query.isEmpty) continue;
-      if (!ticket.fieldValue(entry.key).toLowerCase().contains(query)) {
-        return false;
-      }
-    }
-    return true;
+  static String? _isoDay(DateTime? value) {
+    if (value == null) return null;
+    final y = value.year.toString().padLeft(4, '0');
+    final m = value.month.toString().padLeft(2, '0');
+    final d = value.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
   }
 
   @override

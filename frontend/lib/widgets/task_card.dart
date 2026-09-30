@@ -10,6 +10,7 @@ import 'task_priority_badge.dart';
 import 'task_type_badge.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_markdown_body.dart';
 
 class TaskCard extends StatelessWidget {
   const TaskCard({
@@ -91,7 +92,7 @@ class TaskCard extends StatelessWidget {
           if (task.description.isNotEmpty) ...[
             SizedBox(height: 8.h),
             Text(
-              task.description,
+              DdtMarkdownBody.plainTextPreview(task.description),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(

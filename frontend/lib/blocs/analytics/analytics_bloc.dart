@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../models/analytics_dashboard.dart';
 import '../../models/analytics_filters.dart';
-import '../../services/analytics_aggregator.dart';
 import '../../services/analytics_api.dart';
 
 part 'analytics_event.dart';
@@ -20,16 +19,21 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     on<AnalyticsColumnValueToggled>(_onColumnValueToggled);
     on<AnalyticsColumnQueryChanged>(_onColumnQueryChanged);
     on<AnalyticsFiltersCleared>(_onFiltersCleared);
+    on<AnalyticsTableMoreRequested>(_onTableMoreRequested);
+    on<AnalyticsSessionCleared>(_onSessionCleared);
   }
 
+  static const tablePageSize = 200;
+
   final AnalyticsApi _api;
+  int _requestId = 0;
 
   Future<void> _onLoadRequested(
     AnalyticsLoadRequested event,
     Emitter<AnalyticsState> emit,
   ) async {
     emit(state.copyWith(isLoading: true, errorMessage: () => null));
-    await _fetch(emit, refresh: false);
+    await _query(emit);
   }
 
   Future<void> _onRefreshRequested(
@@ -37,79 +41,113 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     Emitter<AnalyticsState> emit,
   ) async {
     emit(state.copyWith(isRefreshing: true, errorMessage: () => null));
-    await _fetch(emit, refresh: true);
+    await _query(emit, refresh: true);
   }
 
-  void _onDateColumnChanged(
+  Future<void> _onDateColumnChanged(
     AnalyticsDateColumnChanged event,
     Emitter<AnalyticsState> emit,
   ) {
-    emit(
-      state.copyWith(
-        filters: state.filters.copyWith(dateColumnKey: () => event.columnKey),
-      ),
+    return _applyFilters(
+      emit,
+      state.filters.copyWith(dateColumnKey: () => event.columnKey),
     );
   }
 
-  void _onPeriodChanged(
+  Future<void> _onPeriodChanged(
     AnalyticsPeriodChanged event,
     Emitter<AnalyticsState> emit,
   ) {
-    emit(
-      state.copyWith(
-        filters: state.filters.copyWith(
-          periodStart: () => event.start,
-          periodEnd: () => event.end,
-        ),
+    return _applyFilters(
+      emit,
+      state.filters.copyWith(
+        periodStart: () => event.start,
+        periodEnd: () => event.end,
       ),
     );
   }
 
-  void _onColumnValueToggled(
+  Future<void> _onColumnValueToggled(
     AnalyticsColumnValueToggled event,
     Emitter<AnalyticsState> emit,
   ) {
-    emit(
-      state.copyWith(
-        filters: state.filters.toggleValue(event.columnKey, event.valueKey),
-      ),
+    return _applyFilters(
+      emit,
+      state.filters.toggleValue(event.columnKey, event.valueKey),
     );
   }
 
-  void _onColumnQueryChanged(
+  Future<void> _onColumnQueryChanged(
     AnalyticsColumnQueryChanged event,
     Emitter<AnalyticsState> emit,
   ) {
-    emit(
-      state.copyWith(
-        filters: state.filters.setQuery(event.columnKey, event.query),
-      ),
+    return _applyFilters(
+      emit,
+      state.filters.setQuery(event.columnKey, event.query),
     );
   }
 
-  void _onFiltersCleared(
+  Future<void> _onFiltersCleared(
     AnalyticsFiltersCleared event,
     Emitter<AnalyticsState> emit,
   ) {
-    emit(state.copyWith(filters: const AnalyticsFilters()));
+    return _applyFilters(emit, const AnalyticsFilters());
   }
 
-  Future<void> _fetch(
+  Future<void> _onTableMoreRequested(
+    AnalyticsTableMoreRequested event,
+    Emitter<AnalyticsState> emit,
+  ) async {
+    emit(
+      state.copyWith(
+        tableLimit: state.tableLimit + tablePageSize,
+        isRefreshing: true,
+      ),
+    );
+    await _query(emit, allowStale: true);
+  }
+
+  Future<void> _applyFilters(
+    Emitter<AnalyticsState> emit,
+    AnalyticsFilters filters,
+  ) async {
+    if (filters == state.filters) return;
+    emit(
+      state.copyWith(
+        filters: filters,
+        tableLimit: tablePageSize,
+        isRefreshing: true,
+        errorMessage: () => null,
+      ),
+    );
+    await _query(emit, allowStale: true);
+  }
+
+  Future<void> _query(
     Emitter<AnalyticsState> emit, {
-    required bool refresh,
+    bool refresh = false,
+    bool allowStale = false,
   }) async {
+    final requestId = ++_requestId;
     try {
-      final dashboard = await _api.fetchDashboard(refresh: refresh);
+      final dashboard = await _api.query(
+        filters: state.filters,
+        tableLimit: state.tableLimit,
+        refresh: refresh,
+        allowStale: allowStale,
+      );
+      if (requestId != _requestId) return;
       emit(
         state.copyWith(
           isLoading: false,
           isRefreshing: false,
           dashboard: dashboard,
-          filters: _pruneFilters(state.filters, dashboard.columns),
+          filters: state.filters.prunedTo(dashboard.columns),
           errorMessage: () => null,
         ),
       );
     } catch (error) {
+      if (requestId != _requestId) return;
       emit(
         state.copyWith(
           isLoading: false,
@@ -120,26 +158,11 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     }
   }
 
-  AnalyticsFilters _pruneFilters(
-    AnalyticsFilters filters,
-    List<AnalyticsColumn> columns,
+  void _onSessionCleared(
+    AnalyticsSessionCleared event,
+    Emitter<AnalyticsState> emit,
   ) {
-    final keys = {for (final column in columns) column.key};
-    final selected = {
-      for (final entry in filters.selectedValues.entries)
-        if (keys.contains(entry.key)) entry.key: entry.value,
-    };
-    final queries = {
-      for (final entry in filters.queries.entries)
-        if (keys.contains(entry.key)) entry.key: entry.value,
-    };
-    final dateKey = filters.dateColumnKey != null && keys.contains(filters.dateColumnKey)
-        ? filters.dateColumnKey
-        : null;
-    return filters.copyWith(
-      dateColumnKey: () => dateKey,
-      selectedValues: selected,
-      queries: queries,
-    );
+    _requestId++;
+    emit(const AnalyticsState());
   }
 }

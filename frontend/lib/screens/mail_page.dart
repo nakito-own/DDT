@@ -18,6 +18,9 @@ import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_side_panel_divider.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 
 class MailPage extends StatelessWidget {
   const MailPage({super.key});
@@ -65,15 +68,21 @@ class MailPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(flex: 8, child: const _MailList()),
-                  SizedBox(width: 16.w),
-                  Expanded(flex: 7, child: const _MailDetail()),
+                  DdtTheme.horizontalGap(),
+                  Expanded(
+                    flex: 7,
+                    child: Padding(
+                      padding: DdtShellMetrics.fixedTopPadding(context),
+                      child: const _MailDetail(),
+                    ),
+                  ),
                 ],
               );
             },
           ),
           Positioned(
-            right: 24.w,
-            bottom: 24.h,
+            right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+            bottom: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
             child: DdtGlassFab(
               onPressed: () => showComposeMailPanel(context),
               icon: DdtIcons.edit,
@@ -152,45 +161,52 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                               ),
                             ),
                     )
-                  : ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        if (favoriteFolders.isNotEmpty)
-                          _buildExpandableSection(
-                            context: context,
-                            title: 'Избранное',
-                            sectionKey: _favoritesSectionKey,
-                            children: favoriteFolders
-                                .map(
-                                  (folder) => _buildFolderNode(
-                                    context,
-                                    folder,
-                                    selectedFolderId: selectedFolderId,
-                                    depth: 0,
-                                    compact: true,
-                                  ),
-                                )
-                                .toList(),
+                  : DdtScrollEdgeFade(
+                      child: ListView(
+                        padding: EdgeInsets.only(
+                          bottom: DdtScrollEdgeFade.listBottomPadding(context),
+                        ),
+                        children: [
+                          SizedBox(
+                            height: DdtScrollEdgeFade.fadeHeight(context),
                           ),
-                        if (otherFolders.isNotEmpty) ...[
-                          SizedBox(height: 8.h),
-                          _buildExpandableSection(
-                            context: context,
-                            title: 'Все',
-                            sectionKey: _allSectionKey,
-                            children: otherFolders
-                                .map(
-                                  (folder) => _buildFolderNode(
-                                    context,
-                                    folder,
-                                    selectedFolderId: selectedFolderId,
-                                    depth: 0,
-                                  ),
-                                )
-                                .toList(),
-                          ),
+                          if (favoriteFolders.isNotEmpty)
+                            _buildExpandableSection(
+                              context: context,
+                              title: 'Избранное',
+                              sectionKey: _favoritesSectionKey,
+                              children: favoriteFolders
+                                  .map(
+                                    (folder) => _buildFolderNode(
+                                      context,
+                                      folder,
+                                      selectedFolderId: selectedFolderId,
+                                      depth: 0,
+                                      compact: true,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          if (otherFolders.isNotEmpty) ...[
+                            SizedBox(height: 8.h),
+                            _buildExpandableSection(
+                              context: context,
+                              title: 'Все',
+                              sectionKey: _allSectionKey,
+                              children: otherFolders
+                                  .map(
+                                    (folder) => _buildFolderNode(
+                                      context,
+                                      folder,
+                                      selectedFolderId: selectedFolderId,
+                                      depth: 0,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
             ),
           ],
@@ -666,6 +682,88 @@ class _MailListState extends State<_MailList> {
     ];
   }
 
+  /// Height of the message list toolbar below [DdtShellMetrics.contentInsetTop].
+  static const double _messagesToolbarReserve = 36;
+
+  Widget _buildMessagesToolbar(BuildContext context) {
+    return Padding(
+      padding: DdtShellMetrics.fixedTopPadding(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+            BlocBuilder<MailBloc, MailState>(
+              buildWhen: (previous, current) =>
+                  previous.filter != current.filter ||
+                  previous.sort != current.sort,
+              builder: (context, state) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _MailListMenuButton(
+                      tooltip: 'Фильтр',
+                      icon: DdtIcons.filter,
+                      items: _filterMenuItems(state.filter),
+                      placement: DdtContextMenuPlacement.belowEnd,
+                    ),
+                    SizedBox(width: 4.w),
+                    _MailListMenuButton(
+                      tooltip: 'Сортировка',
+                      icon: DdtIcons.sort,
+                      items: _sortMenuItems(state.sort),
+                      placement: DdtContextMenuPlacement.belowEnd,
+                    ),
+                  ],
+                );
+              },
+            ),
+            BlocBuilder<MailBloc, MailState>(
+              buildWhen: (previous, current) =>
+                  previous.selectedMessageIds != current.selectedMessageIds ||
+                  previous.messages.length != current.messages.length ||
+                  previous.isArchiving != current.isArchiving ||
+                  previous.archiveErrorMessage != current.archiveErrorMessage,
+              builder: (context, state) {
+                return AnimatedSize(
+                  duration: DdtTheme.selectionAnimationDuration,
+                  curve: DdtTheme.selectionAnimationCurve,
+                  alignment: Alignment.topCenter,
+                  child: state.selectedMessageIds.isEmpty
+                      ? const SizedBox.shrink()
+                      : _MailBulkActionBar(
+                          selectedCount: state.selectedMessageIds.length,
+                          totalCount: state.messages.length,
+                          isArchiving: state.isArchiving,
+                          errorMessage: state.archiveErrorMessage,
+                          onSelectAll: () => context.read<MailBloc>().add(
+                            const MailSelectAllRequested(),
+                          ),
+                          onMarkRead: () => context.read<MailBloc>().add(
+                            const MailBulkMarkReadRequested(),
+                          ),
+                          onArchive: () {
+                            final bloc = context.read<MailBloc>();
+                            final s = bloc.state;
+                            bloc.add(
+                              MailArchiveRequested(
+                                messageIds: s.selectedMessageIds.toList(),
+                                folderId: s.selectedFolderId,
+                              ),
+                            );
+                          },
+                          onClear: () => context.read<MailBloc>().add(
+                            const MailSelectionCleared(),
+                          ),
+                        ),
+                );
+              },
+            ),
+          SizedBox(height: 8.h),
+        ],
+      ),
+    );
+  }
+
   List<DdtContextMenuItem> _sortMenuItems(MailInboxSort selected) {
     final bloc = context.read<MailBloc>();
 
@@ -719,257 +817,219 @@ class _MailListState extends State<_MailList> {
             _scheduleLoadMoreIfNotScrollable();
           }
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Header row ──────────────────────────────────────────────
-            BlocBuilder<MailBloc, MailState>(
-                buildWhen: (previous, current) =>
-                    previous.folders != current.folders ||
-                    previous.filter != current.filter ||
-                    previous.sort != current.sort ||
-                    previous.isRefreshingInbox != current.isRefreshingInbox ||
-                    previous.inboxQueryErrorMessage !=
-                        current.inboxQueryErrorMessage,
-                builder: (context, state) {
-                  final folders = state.folders;
-                  final subtitle = folders == null
-                      ? 'Загрузка...'
-                      : 'Входящие: ${folders.inbox} · Отправленные: ${folders.sent}';
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              subtitle,
-                              style: DdtTheme.style(
-                                fontSize: DdtTypography.labelSize,
-                                color: DdtTheme.taskCardTextSecondary(context),
-                              ),
-                            ),
-                            if (state.inboxQueryErrorMessage != null) ...[
-                              SizedBox(height: 4.h),
-                              Text(
-                                state.inboxQueryErrorMessage!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: DdtTheme.style(
-                                  fontSize: DdtTypography.captionSize,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      _MailListMenuButton(
-                        tooltip: 'Фильтр',
-                        icon: DdtIcons.filter,
-                        items: _filterMenuItems(state.filter),
-                        placement: DdtContextMenuPlacement.belowEnd,
-                      ),
-                      SizedBox(width: 4.w),
-                      _MailListMenuButton(
-                        tooltip: 'Сортировка',
-                        icon: DdtIcons.sort,
-                        items: _sortMenuItems(state.sort),
-                        placement: DdtContextMenuPlacement.belowEnd,
-                      ),
-                    ],
-                  );
-                },
-              ),
-              // ── Bulk action bar (visible when any messages are selected) ─
-              BlocBuilder<MailBloc, MailState>(
-                buildWhen: (previous, current) =>
-                    previous.selectedMessageIds != current.selectedMessageIds ||
-                    previous.messages.length != current.messages.length ||
-                    previous.isArchiving != current.isArchiving ||
-                    previous.archiveErrorMessage != current.archiveErrorMessage,
-                builder: (context, state) {
-                  return AnimatedSize(
-                    duration: DdtTheme.selectionAnimationDuration,
-                    curve: DdtTheme.selectionAnimationCurve,
-                    alignment: Alignment.topCenter,
-                    child: state.selectedMessageIds.isEmpty
-                        ? const SizedBox.shrink()
-                        : _MailBulkActionBar(
-                            selectedCount: state.selectedMessageIds.length,
-                            totalCount: state.messages.length,
-                            isArchiving: state.isArchiving,
-                            errorMessage: state.archiveErrorMessage,
-                            onSelectAll: () => context.read<MailBloc>().add(
-                              const MailSelectAllRequested(),
-                            ),
-                            onMarkRead: () => context.read<MailBloc>().add(
-                              const MailBulkMarkReadRequested(),
-                            ),
-                            onArchive: () {
-                              final bloc = context.read<MailBloc>();
-                              final s = bloc.state;
-                              bloc.add(
-                                MailArchiveRequested(
-                                  messageIds: s.selectedMessageIds.toList(),
-                                  folderId: s.selectedFolderId,
-                                ),
-                              );
-                            },
-                            onClear: () => context.read<MailBloc>().add(
-                              const MailSelectionCleared(),
-                            ),
-                          ),
-                  );
-                },
-              ),
-              SizedBox(height: 8.h),
-              // ── Folder browser + message list ───────────────────────────
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: DdtShellMetrics.fixedTopPadding(context).copyWith(
+                  right: 1.w,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const _MailFolderCountsHeader(),
+                    SizedBox(height: 8.h),
                     Expanded(
-                      flex: 3,
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 2.h, right: 1.w),
-                        child: _MailFolderBrowser(embedded: true),
-                      ),
-                    ),
-                    SizedBox(width: 10.w),
-                    Container(
-                      width: 1,
-                      color: DdtTheme.glassBorderColor(
-                        Theme.of(context).brightness,
-                      ).withValues(alpha: 0.22),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      flex: 7,
-                      child: BlocBuilder<MailBloc, MailState>(
-                        buildWhen: (previous, current) =>
-                            previous.messages != current.messages ||
-                            previous.isLoadingMore != current.isLoadingMore ||
-                            previous.isRefreshingInbox !=
-                                current.isRefreshingInbox ||
-                            previous.hasMoreMessages !=
-                                current.hasMoreMessages ||
-                            previous.loadMoreErrorMessage !=
-                                current.loadMoreErrorMessage,
-                        builder: (context, state) {
-                          final messages = state.messages;
-
-                          if (messages.isEmpty) {
-                            if (state.isLoading) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            }
-                            return DdtSectionRefreshOverlay(
-                              isRefreshing: state.isRefreshingInbox,
-                              child: Center(
-                                child: Text(
-                                  'В этой папке нет писем',
-                                  style: DdtTheme.style(
-                                    fontSize: DdtTypography.bodySize,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          final showFooter =
-                              state.isLoadingMore ||
-                              state.hasMoreMessages ||
-                              state.loadMoreErrorMessage != null;
-
-                          final listView = ListView.separated(
-                            controller: _scrollController,
-                            clipBehavior: Clip.none,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 3.w,
-                              vertical: 2.h,
-                            ),
-                            cacheExtent: 480,
-                            itemCount: messages.length + (showFooter ? 1 : 0),
-                            separatorBuilder: (context, index) {
-                              if (index >= messages.length - 1) {
-                                return const SizedBox.shrink();
-                              }
-                              return SizedBox(height: 8.h);
-                            },
-                            itemBuilder: (context, index) {
-                              if (index >= messages.length) {
-                                return _MailListFooter(
-                                  isLoading: state.isLoadingMore,
-                                  hasMore: state.hasMoreMessages,
-                                  errorMessage: state.loadMoreErrorMessage,
-                                  onRetry: () => context.read<MailBloc>().add(
-                                    const MailInboxLoadMoreRequested(),
-                                  ),
-                                );
-                              }
-
-                              final message = messages[index];
-                              return _MailListRowConnector(
-                                key: ValueKey(message.id),
-                                message: message,
-                              );
-                            },
-                          );
-
-                          return Stack(
-                            children: [
-                              Positioned.fill(
-                                child: DdtSectionRefreshOverlay(
-                                  isRefreshing: state.isRefreshingInbox,
-                                  child: listView,
-                                ),
-                              ),
-                              Positioned(
-                                right: 12.w,
-                                bottom: 12.h,
-                                child: ValueListenableBuilder<bool>(
-                                  valueListenable: _showScrollToTopButton,
-                                  builder: (context, show, child) {
-                                    return IgnorePointer(
-                                      ignoring: !show,
-                                      child: AnimatedScale(
-                                        scale: show ? 1.0 : 0.72,
-                                        duration:
-                                            DdtTheme.selectionAnimationDuration,
-                                        curve: DdtTheme.selectionAnimationCurve,
-                                        child: AnimatedOpacity(
-                                          opacity: show ? 1.0 : 0.0,
-                                          duration: DdtTheme
-                                              .selectionAnimationDuration,
-                                          curve:
-                                              DdtTheme.selectionAnimationCurve,
-                                          child: child,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Tooltip(
-                                    message: 'Наверх',
-                                    child: DdtGlassFab(
-                                      onPressed: _scrollToTop,
-                                      icon: DdtIcons.arrowUp,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                      child: _MailFolderBrowser(embedded: true),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, DdtTheme.spacing / 2)),
+            DdtSidePanelDivider(
+              color: DdtTheme.glassBorderColor(
+                Theme.of(context).brightness,
+              ).withValues(alpha: 0.22),
+            ),
+            DdtTheme.horizontalGap(),
+            Expanded(
+              flex: 7,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  BlocBuilder<MailBloc, MailState>(
+                          buildWhen: (previous, current) =>
+                              previous.messages != current.messages ||
+                              previous.isLoadingMore !=
+                                  current.isLoadingMore ||
+                              previous.isRefreshingInbox !=
+                                  current.isRefreshingInbox ||
+                              previous.hasMoreMessages !=
+                                  current.hasMoreMessages ||
+                              previous.loadMoreErrorMessage !=
+                                  current.loadMoreErrorMessage,
+                          builder: (context, state) {
+                            final messages = state.messages;
+
+                            if (messages.isEmpty) {
+                              if (state.isLoading) {
+                                return const Positioned.fill(
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              return Positioned.fill(
+                                child: DdtSectionRefreshOverlay(
+                                  isRefreshing: state.isRefreshingInbox,
+                                  child: Center(
+                                    child: Text(
+                                      'В этой папке нет писем',
+                                      style: DdtTheme.style(
+                                        fontSize: DdtTypography.bodySize,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final showFooter =
+                                state.isLoadingMore ||
+                                state.hasMoreMessages ||
+                                state.loadMoreErrorMessage != null;
+
+                            final listTop =
+                                DdtShellMetrics.of(context).contentInsetTop +
+                                DdtTheme.shellSize(_messagesToolbarReserve);
+
+                            final listView = ListView.separated(
+                              controller: _scrollController,
+                              padding: EdgeInsets.fromLTRB(
+                                3.w,
+                                listTop,
+                                3.w,
+                                DdtScrollEdgeFade.listBottomPadding(context),
+                              ),
+                              cacheExtent: 480,
+                              itemCount:
+                                  messages.length + (showFooter ? 1 : 0),
+                              separatorBuilder: (context, index) {
+                                if (index >= messages.length - 1) {
+                                  return const SizedBox.shrink();
+                                }
+                                return SizedBox(height: 8.h);
+                              },
+                              itemBuilder: (context, index) {
+                                if (index >= messages.length) {
+                                  return _MailListFooter(
+                                    isLoading: state.isLoadingMore,
+                                    hasMore: state.hasMoreMessages,
+                                    errorMessage: state.loadMoreErrorMessage,
+                                    onRetry: () =>
+                                        context.read<MailBloc>().add(
+                                          const MailInboxLoadMoreRequested(),
+                                        ),
+                                  );
+                                }
+
+                                final message = messages[index];
+                                return _MailListRowConnector(
+                                  key: ValueKey(message.id),
+                                  message: message,
+                                );
+                              },
+                            );
+
+                            return Positioned.fill(
+                              child: DdtSectionRefreshOverlay(
+                                isRefreshing: state.isRefreshingInbox,
+                                child: DdtScrollEdgeFade(child: listView),
+                              ),
+                            );
+                          },
+                        ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildMessagesToolbar(context),
+                  ),
+                  Positioned(
+                    right: 12.w,
+                    bottom: 12.h,
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _showScrollToTopButton,
+                            builder: (context, show, child) {
+                              return IgnorePointer(
+                                ignoring: !show,
+                                child: AnimatedScale(
+                                  scale: show ? 1.0 : 0.72,
+                                  duration:
+                                      DdtTheme.selectionAnimationDuration,
+                                  curve: DdtTheme.selectionAnimationCurve,
+                                  child: AnimatedOpacity(
+                                    opacity: show ? 1.0 : 0.0,
+                                    duration:
+                                        DdtTheme.selectionAnimationDuration,
+                                    curve: DdtTheme.selectionAnimationCurve,
+                                    child: child,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Tooltip(
+                              message: 'Наверх',
+                              child: DdtGlassFab(
+                                onPressed: _scrollToTop,
+                                icon: DdtIcons.arrowUp,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _MailFolderCountsHeader extends StatelessWidget {
+  const _MailFolderCountsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<MailBloc, MailState>(
+      buildWhen: (previous, current) =>
+          previous.folders != current.folders ||
+          previous.inboxQueryErrorMessage != current.inboxQueryErrorMessage,
+      builder: (context, state) {
+        final folders = state.folders;
+        final subtitle = folders == null
+            ? 'Загрузка...'
+            : 'Входящие: ${folders.inbox} · Отправленные: ${folders.sent}';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              subtitle,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSize,
+                color: DdtTheme.taskCardTextSecondary(context),
+              ),
+            ),
+            if (state.inboxQueryErrorMessage != null) ...[
+              SizedBox(height: 4.h),
+              Text(
+                state.inboxQueryErrorMessage!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.captionSize,
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

@@ -39,5 +39,8 @@ class Settings(BaseSettings):
     google_sheets_credentials_json: str = ""
     google_sheets_cache_ttl_seconds: int = 60
 
+    analytics_timezone: str = "Europe/Moscow"
+    analytics_itsm_base_url: str = "https://sc-tech-solutions.itsm.mos.ru/requests/"
+
 
 settings = Settings()

@@ -13,6 +13,7 @@ import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/compose_event_panel.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_section_refresh.dart';
+import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
@@ -130,7 +131,10 @@ class _CalendarPageState extends State<CalendarPage> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _CalendarToolbar(state: state),
+                  Padding(
+                    padding: DdtShellMetrics.fixedTopPadding(context),
+                    child: _CalendarToolbar(state: state),
+                  ),
                   SizedBox(height: 12.h),
                   Expanded(
                     child: DdtSectionRefreshOverlay(
@@ -147,8 +151,8 @@ class _CalendarPageState extends State<CalendarPage> {
             },
           ),
           Positioned(
-            right: 24.w,
-            bottom: 24.h,
+            right: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+            bottom: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
             child: DdtGlassFab(
               onPressed: () => showComposeEventPanel(context),
               icon: DdtIcons.add,

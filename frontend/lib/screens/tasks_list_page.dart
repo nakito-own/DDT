@@ -11,6 +11,9 @@ import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_side_panel_divider.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/tasks_filters_panel.dart';
 import '../theme/ddt_typography.dart';
 
@@ -68,6 +71,9 @@ class TasksListPage extends StatelessWidget {
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
       deadline: created.deadline,
       priority: created.priority,
+      parent: created.parent,
+      parentId: created.parent?.id,
+      children: created.children,
       links: created.links,
       comments: created.comments,
     );
@@ -99,40 +105,50 @@ class TasksListPage extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: kTasksFiltersPanelWidth.w,
-              child: TasksFiltersPanel(
-                onCreatePressed: () => _createTask(context),
+            Padding(
+              padding: DdtShellMetrics.fixedTopPadding(context),
+              child: SizedBox(
+                width: kTasksFiltersPanelWidth.w,
+                child: TasksFiltersPanel(
+                  onCreatePressed: () => _createTask(context),
+                ),
               ),
             ),
-            SizedBox(width: 12.w),
-            Container(
-              width: 1,
-              color: DdtTheme.sidePanelDivider(context),
-            ),
-            SizedBox(width: 12.w),
+            DdtTheme.horizontalGap(),
+            const DdtSidePanelDivider(),
+            DdtTheme.horizontalGap(),
             Expanded(
               child: tasks.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Нет задач по выбранным фильтрам',
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.bodySize,
+                  ? Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: DdtShellMetrics.fixedTopPadding(context),
+                        child: Text(
+                          'Нет задач по выбранным фильтрам',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.bodySize,
+                          ),
                         ),
                       ),
                     )
-                  : ListView.separated(
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, _) => SizedBox(height: 10.h),
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return TaskCard(
-                          key: ValueKey(task.id),
-                          task: task,
-                          onTap: () => _openTask(context, task),
-                          onDelete: () => _deleteTask(context, task),
-                        );
-                      },
+                  : DdtScrollEdgeFade(
+                      child: ListView.separated(
+                        padding: DdtShellMetrics.scrollPadding(context).copyWith(
+                          bottom: DdtScrollEdgeFade.listBottomPadding(context),
+                        ),
+                        clipBehavior: Clip.none,
+                        itemCount: tasks.length,
+                        separatorBuilder: (_, _) => SizedBox(height: 10.h),
+                        itemBuilder: (context, index) {
+                          final task = tasks[index];
+                          return TaskCard(
+                            key: ValueKey(task.id),
+                            task: task,
+                            onTap: () => _openTask(context, task),
+                            onDelete: () => _deleteTask(context, task),
+                          );
+                        },
+                      ),
                     ),
             ),
           ],

@@ -236,6 +236,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
           created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
       deadline: created.deadline,
       priority: created.priority,
+      parent: created.parent,
+      parentId: created.parent?.id,
+      children: created.children,
       links: created.links,
       comments: created.comments,
     );

@@ -258,16 +258,11 @@ class _DdtSidePanelStackedDialog<T> extends StatelessWidget {
           ),
           Navigator(
             initialRoute: '/',
-            observers: [_DdtSidePanelDialogObserver<T>(onClosed)],
             onGenerateRoute: (settings) {
-              return PageRouteBuilder<T>(
+              return _DdtSidePanelDialogRoute<T>(
                 settings: settings,
-                opaque: false,
-                barrierColor: Colors.transparent,
-                pageBuilder: (dialogContext, _, __) {
-                  return Center(child: builder(dialogContext));
-                },
-                transitionsBuilder: (_, __, ___, child) => child,
+                onClose: onClosed,
+                builder: builder,
               );
             },
           ),
@@ -277,15 +272,28 @@ class _DdtSidePanelStackedDialog<T> extends StatelessWidget {
   }
 }
 
-class _DdtSidePanelDialogObserver<T> extends NavigatorObserver {
-  _DdtSidePanelDialogObserver(this.onClosed);
+/// Forwards the pop result to [onClose]: a [NavigatorObserver] cannot be used
+/// here because [Route.currentResult] is always null for [PageRouteBuilder].
+class _DdtSidePanelDialogRoute<T> extends PageRouteBuilder<T> {
+  _DdtSidePanelDialogRoute({
+    required super.settings,
+    required this.onClose,
+    required WidgetBuilder builder,
+  }) : super(
+         opaque: false,
+         barrierColor: Colors.transparent,
+         pageBuilder: (dialogContext, _, _) =>
+             Center(child: builder(dialogContext)),
+         transitionsBuilder: (_, _, _, child) => child,
+       );
 
-  final ValueChanged<T?> onClosed;
+  final ValueChanged<T?> onClose;
 
   @override
-  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    super.didPop(route, previousRoute);
-    onClosed(route.currentResult as T?);
+  bool didPop(T? result) {
+    onClose(result);
+    super.didPop(result);
+    return false;
   }
 }
 

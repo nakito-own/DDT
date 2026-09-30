@@ -8,6 +8,8 @@ import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
 import '../theme/ddt_theme.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../theme/ddt_typography.dart';
 
 class ContactsPage extends StatefulWidget {
@@ -39,7 +41,9 @@ class _ContactsPageState extends State<ContactsPage> {
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.only(bottom: 12.h),
+            padding: DdtShellMetrics.fixedTopPadding(context).copyWith(
+              bottom: 12.h,
+            ),
             child: DdtAppInput(
               hint: 'Поиск контактов',
               type: InputType.search,
@@ -74,32 +78,39 @@ class _ContactsPageState extends State<ContactsPage> {
                   );
                 }
 
-                return RefreshIndicator(
-                  onRefresh: () async =>
-                      _bloc.add(const ContactsLoadRequested()),
-                  child: state.contacts.isEmpty
-                      ? ListView(
-                          children: [
-                            SizedBox(height: 120.h),
-                            Center(
-                              child: Text(
-                                'Контакты не найдены',
-                                style: DdtTheme.style(
-                                  fontSize: DdtTypography.bodyLargeSize,
+                final bottomPad = DdtScrollEdgeFade.listBottomPadding(context);
+
+                return DdtScrollEdgeFade(
+                  child: RefreshIndicator(
+                    onRefresh: () async =>
+                        _bloc.add(const ContactsLoadRequested()),
+                    child: state.contacts.isEmpty
+                        ? ListView(
+                            padding: EdgeInsets.only(bottom: bottomPad),
+                            children: [
+                              SizedBox(height: 120.h),
+                              Center(
+                                child: Text(
+                                  'Контакты не найдены',
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.bodyLargeSize,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        )
-                      : ListView.separated(
-                          itemCount: state.contacts.length,
-                          separatorBuilder: (_, __) => SizedBox(height: 8.h),
-                          itemBuilder: (context, index) {
-                            return ContactListItem(
-                              contact: state.contacts[index],
-                            );
-                          },
-                        ),
+                            ],
+                          )
+                        : ListView.separated(
+                            padding: EdgeInsets.only(bottom: bottomPad),
+                            itemCount: state.contacts.length,
+                            separatorBuilder: (_, __) =>
+                                SizedBox(height: 8.h),
+                            itemBuilder: (context, index) {
+                              return ContactListItem(
+                                contact: state.contacts[index],
+                              );
+                            },
+                          ),
+                  ),
                 );
               },
             ),

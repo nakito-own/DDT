@@ -17,6 +17,9 @@ import '../widgets/task_comments_section.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_markdown_body.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_side_panel_divider.dart';
 
 class TaskDetailsPage extends StatefulWidget {
   const TaskDetailsPage({super.key, required this.taskKey, this.spaceKey});
@@ -178,23 +181,29 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: _TaskMainContent(
-                      task: task,
-                      onEdit: _editTask,
-                      onTaskChanged: (updated) {
-                        setState(() => _task = updated);
-                      },
+                    child: Padding(
+                      padding: DdtShellMetrics.fixedTopPadding(context),
+                      child: _TaskMainContent(
+                        task: task,
+                        onEdit: _editTask,
+                        onTaskChanged: (updated) {
+                          setState(() => _task = updated);
+                        },
+                      ),
                     ),
                   ),
-                  Container(
-                    width: 1,
-                    color: DdtTheme.sidePanelDivider(context),
+                  const DdtSidePanelDivider(),
+                  Padding(
+                    padding: DdtShellMetrics.fixedTopPadding(context),
+                    child: _TaskParametersPanel(task: task, pinned: true),
                   ),
-                  _TaskParametersPanel(task: task, pinned: true),
                 ],
               )
             : SingleChildScrollView(
-                padding: EdgeInsets.all(20.w),
+                padding: DdtShellMetrics.scrollPadding(
+                  context,
+                  base: EdgeInsets.all(20.w),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -362,16 +371,17 @@ class _TaskDescription extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8.h),
-        SelectableText(
-          isEmpty ? 'Описание не добавлено' : task.description,
-          style: DdtTheme.style(
-            fontSize: DdtTypography.bodySize,
-            height: 1.55,
-            color: isEmpty
-                ? DdtTheme.sidePanelTextMuted(context)
-                : DdtTheme.sidePanelTextPrimary(context),
-          ),
-        ),
+        if (isEmpty)
+          Text(
+            'Описание не добавлено',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              height: 1.55,
+              color: DdtTheme.sidePanelTextMuted(context),
+            ),
+          )
+        else
+          DdtMarkdownBody(data: task.description),
       ],
     );
   }

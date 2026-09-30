@@ -34,6 +34,8 @@ dependencies:
   toastification: ^3.2.0
   fl_chart: ^1.2.0
   font_awesome_flutter: ^11.0.0
+  markdown: ^7.3.1
+  markdown_live: ^0.1.0
 
 dependency_overrides:
   get_storage:

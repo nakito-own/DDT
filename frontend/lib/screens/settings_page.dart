@@ -11,6 +11,7 @@ import '../blocs/theme/theme_bloc.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -20,6 +21,9 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      padding: DdtShellMetrics.scrollPadding(context).copyWith(
+        bottom: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

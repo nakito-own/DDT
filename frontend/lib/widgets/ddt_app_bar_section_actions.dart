@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/ddt_icons.dart';
 
+import '../blocs/analytics/analytics_bloc.dart';
 import '../blocs/calendar/calendar_bloc.dart';
 import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
@@ -14,6 +15,7 @@ import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
 import 'compose_mail_panel.dart';
 import 'ddt_context_menu.dart';
+import 'ddt_filter_dropdown.dart';
 import 'ddt_segmented_control.dart';
 import '../widgets/ddt_icon.dart';
 
@@ -29,6 +31,7 @@ class DdtAppBarSectionActions extends StatelessWidget {
       AppSection.space => const _SpaceAppBarActions(),
       AppSection.mail => const _MailAppBarActions(),
       AppSection.calendar => const _CalendarAppBarActions(),
+      AppSection.analytics => const _AnalyticsAppBarActions(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -61,39 +64,6 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FutureBuilder<List<Space>>(
-          future: _spaces,
-          builder: (context, snapshot) {
-            final spaces = snapshot.data ?? const <Space>[];
-            Space? selectedSpace;
-            for (final space in spaces) {
-              if (space.spaceKey == selectedSpaceKey) {
-                selectedSpace = space;
-                break;
-              }
-            }
-
-            return _AppBarIconAction(
-              tooltip: 'Выбрать пространство',
-              label: selectedSpace?.name ?? 'ПРОСТРАНСТВО',
-              icon: DdtIcons.chevronDown,
-              isBusy: snapshot.connectionState == ConnectionState.waiting,
-              contextMenuItems: spaces.isEmpty
-                  ? null
-                  : [
-                      for (final space in spaces)
-                        DdtContextMenuItem(
-                          icon: DdtIcons.grid,
-                          label: space.name,
-                          onTap: () => context.go(
-                            activeMode.routePathForSpace(space.spaceKey),
-                          ),
-                        ),
-                    ],
-            );
-          },
-        ),
-        SizedBox(width: DdtTheme.shellSizeOf(context, 12)),
         DdtSegmentedControl<TasksViewMode>(
           segments: const [
             DdtSegmentedControlSegment(
@@ -121,6 +91,43 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
           tooltip: 'Архив',
           icon: DdtIcons.archive,
           onPressed: () {},
+        ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 12)),
+        FutureBuilder<List<Space>>(
+          future: _spaces,
+          builder: (context, snapshot) {
+            final spaces = snapshot.data ?? const <Space>[];
+            Space? selectedSpace;
+            for (final space in spaces) {
+              if (space.spaceKey == selectedSpaceKey) {
+                selectedSpace = space;
+                break;
+              }
+            }
+
+            final loading =
+                snapshot.connectionState == ConnectionState.waiting;
+
+            return _AppBarFilterDropdown(
+              width: 220,
+              label: loading
+                  ? 'Загрузка…'
+                  : (selectedSpace?.name ?? 'Пространство'),
+              isBusy: loading,
+              active: selectedSpaceKey != null,
+              options: [
+                for (final space in spaces)
+                  DdtFilterOption(key: space.spaceKey, label: space.name),
+              ],
+              selected: selectedSpaceKey != null
+                  ? {selectedSpaceKey}
+                  : const {},
+              emptyLabel: 'Нет пространств',
+              onSelected: (key) => context.go(
+                activeMode.routePathForSpace(key),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -221,6 +228,47 @@ class _MailAppBarActions extends StatelessWidget {
   }
 }
 
+class _AnalyticsAppBarActions extends StatelessWidget {
+  const _AnalyticsAppBarActions();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AnalyticsBloc, AnalyticsState>(
+      buildWhen: (previous, current) =>
+          previous.isLoading != current.isLoading ||
+          previous.dashboard?.sheetName != current.dashboard?.sheetName,
+      builder: (context, state) {
+        final sheetName = state.dashboard?.sheetName.trim();
+        final label = sheetName != null && sheetName.isNotEmpty
+            ? sheetName
+            : 'Google Таблица';
+
+        final loading = state.isLoading && state.dashboard == null;
+        const sheetKey = 'current-sheet';
+        const addDashboardKey = 'add-dashboard';
+
+        return _AppBarFilterDropdown(
+          width: 240,
+          label: loading ? 'Загрузка…' : label,
+          isBusy: loading,
+          active: !loading,
+          options: [
+            DdtFilterOption(key: sheetKey, label: label),
+            const DdtFilterOption(
+              key: addDashboardKey,
+              label: 'Добавить дашборд',
+              enabled: false,
+            ),
+          ],
+          selected: loading ? const {} : {sheetKey},
+          emptyLabel: 'Нет источников',
+          onSelected: (_) {},
+        );
+      },
+    );
+  }
+}
+
 class _CalendarAppBarActions extends StatelessWidget {
   const _CalendarAppBarActions();
 
@@ -273,6 +321,57 @@ class _CalendarAppBarActions extends StatelessWidget {
             contextMenuItems: _addCalendarMenuItems,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AppBarFilterDropdown extends StatelessWidget {
+  const _AppBarFilterDropdown({
+    required this.width,
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.isBusy = false,
+    this.active = false,
+    this.emptyLabel = 'Нет значений',
+  });
+
+  final double width;
+  final String label;
+  final List<DdtFilterOption> options;
+  final Set<String> selected;
+  final ValueChanged<String> onSelected;
+  final bool isBusy;
+  final bool active;
+  final String emptyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final menuWidth = DdtTheme.shellSizeOf(context, width);
+
+    return SizedBox(
+      width: menuWidth,
+      child: Builder(
+        builder: (anchorContext) {
+          return DdtFilterDropdownAnchor(
+            label: label,
+            active: active,
+            onTap: isBusy
+                ? () {}
+                : () => showDdtSearchableFilterMenu(
+                      context: context,
+                      anchorContext: anchorContext,
+                      options: options,
+                      selected: selected,
+                      onSelected: onSelected,
+                      multi: false,
+                      emptyLabel: emptyLabel,
+                      matchAnchorWidth: true,
+                    ),
+          );
+        },
       ),
     );
   }

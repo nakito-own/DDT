@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 
 import '../models/analytics_dashboard.dart';
+import '../models/analytics_filters.dart';
 import 'api_client.dart';
 
 class AnalyticsApi {
@@ -8,10 +9,21 @@ class AnalyticsApi {
 
   final ApiClient _client;
 
-  Future<AnalyticsDashboard> fetchDashboard({bool refresh = false}) async {
-    final response = await _client.get(
-      '/api/analytics/dashboard',
-      query: refresh ? const {'refresh': 'true'} : null,
+  Future<AnalyticsDashboard> query({
+    required AnalyticsFilters filters,
+    required int tableLimit,
+    bool refresh = false,
+    bool allowStale = false,
+  }) async {
+    final response = await _client.post(
+      '/api/analytics/query',
+      body: {
+        ...filters.toQueryJson(),
+        'table_limit': tableLimit,
+        'table_offset': 0,
+        'refresh': refresh,
+        'allow_stale': allowStale,
+      },
     );
     _ensureSuccess(response);
     return AnalyticsDashboard.fromJson(ApiClient.decodeMap(response));

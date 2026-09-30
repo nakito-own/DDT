@@ -52,10 +52,21 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
   @override
   void didUpdateWidget(covariant TaskCommentsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.task.id != widget.task.id ||
-        oldWidget.task.comments != widget.task.comments) {
+    if (oldWidget.task.id != widget.task.id) {
       _comments = _sortedComments(widget.task.comments);
+    } else if (oldWidget.task.comments != widget.task.comments) {
+      _comments = _sortedComments(_mergeComments(widget.task.comments));
     }
+  }
+
+  /// A board refresh can deliver a snapshot taken before the last comment was
+  /// posted, so comments the server has not caught up with are kept.
+  List<TaskComment> _mergeComments(List<TaskComment> incoming) {
+    final incomingIds = incoming.map((comment) => comment.id).toSet();
+    return [
+      ...incoming,
+      ..._comments.where((comment) => !incomingIds.contains(comment.id)),
+    ];
   }
 
   List<TaskComment> _sortedComments(List<TaskComment> comments) {

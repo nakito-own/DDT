@@ -32,35 +32,33 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     final height = DdtTheme.shellSizeOf(context, barHeight);
     final horizontalPadding = DdtTheme.shellSizeOf(context, 16);
 
-    return RepaintBoundary(
-      child: DdtTheme.glass(
-        context: context,
-        height: height,
-        width: double.infinity,
-        child: Row(
-          children: [
-            SizedBox(width: horizontalPadding),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.panelTitleSize,
-                fontWeight: FontWeight.w600,
-                color: foregroundColor,
-              ),
+    return DdtTheme.shellAppBarGlass(
+      context: context,
+      height: height,
+      width: double.infinity,
+      child: Row(
+        children: [
+          SizedBox(width: horizontalPadding),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.panelTitleSize,
+              fontWeight: FontWeight.w600,
+              color: foregroundColor,
             ),
-            if (actions != null) ...[
-              SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
-              actions!,
-            ],
-            const Spacer(),
-            const _NotificationBellButton(),
-            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
-            const _UserEmailIsland(),
-            SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+          ),
+          if (actions != null) ...[
+            SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
+            actions!,
           ],
-        ),
+          const Spacer(),
+          const _NotificationBellButton(),
+          SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+          const _UserEmailIsland(),
+          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+        ],
       ),
     );
   }

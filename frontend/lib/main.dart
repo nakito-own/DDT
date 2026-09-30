@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:toastification/toastification.dart';
 
+import 'blocs/analytics/analytics_bloc.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/calendar/calendar_bloc.dart';
 import 'blocs/mail/mail_bloc.dart';
@@ -105,6 +106,7 @@ class _DdtAppState extends State<DdtApp> {
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
         BlocProvider(create: (_) => CalendarBloc()),
+        BlocProvider(create: (_) => AnalyticsBloc()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -130,6 +132,9 @@ class _DdtAppState extends State<DdtApp> {
                 context.read<MailBloc>().add(const MailSessionCleared());
                 context.read<CalendarBloc>().add(
                   const CalendarSessionCleared(),
+                );
+                context.read<AnalyticsBloc>().add(
+                  const AnalyticsSessionCleared(),
                 );
               }
             },

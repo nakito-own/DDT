@@ -259,7 +259,11 @@ class _DdtContextMenuOverlayState extends State<_DdtContextMenuOverlay>
   @override
   void initState() {
     super.initState();
-    _controller.forward();
+    // Let the overlay attach before animating — avoids a one-frame compositing
+    // glitch on Flutter web (white flash) when panels use backdrop effects.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.forward();
+    });
   }
 
   @override
@@ -291,12 +295,15 @@ class _DdtContextMenuOverlayState extends State<_DdtContextMenuOverlay>
   Widget build(BuildContext context) {
     final viewPadding = MediaQuery.paddingOf(context);
 
+    // Full-screen [PointerInterceptor] on web inserts a platform view that can
+    // flash the HTML body background (white) for a frame. The menu panel keeps
+    // a local interceptor so iframe/webview content does not steal taps.
     final barrier = FadeTransition(
       opacity: _fadeAnimation,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => unawaited(_dismiss()),
-        child: const SizedBox.expand(),
+        child: const ColoredBox(color: Colors.transparent),
       ),
     );
 
@@ -315,25 +322,28 @@ class _DdtContextMenuOverlayState extends State<_DdtContextMenuOverlay>
       ),
     );
 
-    return IgnorePointer(
-      ignoring: _isDismissing,
-      child: Focus(
-        autofocus: true,
-        onKeyEvent: _handleKeyEvent,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            kIsWeb ? PointerInterceptor(child: barrier) : barrier,
-            CustomSingleChildLayout(
-              delegate: _DdtContextMenuLayoutDelegate(
-                anchorRect: widget.anchorRect,
-                placement: widget.placement,
-                padding: viewPadding,
-                offset: widget.offset,
+    return Material(
+      type: MaterialType.transparency,
+      child: IgnorePointer(
+        ignoring: _isDismissing,
+        child: Focus(
+          autofocus: true,
+          onKeyEvent: _handleKeyEvent,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              barrier,
+              CustomSingleChildLayout(
+                delegate: _DdtContextMenuLayoutDelegate(
+                  anchorRect: widget.anchorRect,
+                  placement: widget.placement,
+                  padding: viewPadding,
+                  offset: widget.offset,
+                ),
+                child: kIsWeb ? PointerInterceptor(child: menu) : menu,
               ),
-              child: kIsWeb ? PointerInterceptor(child: menu) : menu,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

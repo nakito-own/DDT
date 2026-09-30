@@ -1,0 +1,229 @@
+aside.filters {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 72px);
+  position: sticky;
+  top: 72px;
+}
+
+.filters h2 {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.filter-group {
+  margin-bottom: 1rem;
+}
+
+.filter-group label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filter-group select,
+.filter-group input[type="date"] {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.filter-group select {
+  appearance: none;
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  padding-right: 1.75rem;
+}
+
+[data-theme="dark"] .filter-group select,
+:root:not([data-theme="light"]) .filter-group select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9cb3' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+[data-theme="light"] .filter-group select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+.dropdown-filter {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.dropdown-filter > label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.dropdown-trigger:hover {
+  border-color: var(--hover-border);
+}
+
+.dropdown-filter.open .dropdown-trigger {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.dropdown-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-label.placeholder {
+  color: var(--muted);
+}
+
+.dropdown-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.65rem;
+  transition: transform 0.15s ease;
+}
+
+.dropdown-filter.open .dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.dropdown-panel {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  margin-top: 0.35rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.dropdown-filter.open .dropdown-panel {
+  display: block;
+}
+
+.dropdown-search {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.dropdown-search::placeholder {
+  color: var(--muted);
+}
+
+.dropdown-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.4rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.dropdown-actions button {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dropdown-actions button:hover {
+  text-decoration: underline;
+}
+
+.dropdown-options {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0.35rem 0;
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.dropdown-option:hover {
+  background: var(--dropdown-hover);
+}
+
+.dropdown-option input {
+  margin-top: 0.15rem;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.dropdown-option span {
+  word-break: break-word;
+}
+
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.filter-count {
+  margin-top: 1rem;
+  padding: 0.65rem;
+  background: var(--surface2);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.filter-count strong {
+  color: var(--text);
+  font-size: 1.1rem;
+  display: block;
+}

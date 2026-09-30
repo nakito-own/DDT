@@ -4,6 +4,7 @@ final class AnalyticsState extends Equatable {
   const AnalyticsState({
     this.dashboard,
     this.filters = const AnalyticsFilters(),
+    this.tableLimit = AnalyticsBloc.tablePageSize,
     this.isLoading = false,
     this.isRefreshing = false,
     this.errorMessage,
@@ -11,19 +12,15 @@ final class AnalyticsState extends Equatable {
 
   final AnalyticsDashboard? dashboard;
   final AnalyticsFilters filters;
+  final int tableLimit;
   final bool isLoading;
   final bool isRefreshing;
   final String? errorMessage;
 
-  AnalyticsDashboard? get visibleDashboard {
-    final source = dashboard;
-    if (source == null) return null;
-    return AnalyticsAggregator.filter(source, filters);
-  }
-
   AnalyticsState copyWith({
     AnalyticsDashboard? dashboard,
     AnalyticsFilters? filters,
+    int? tableLimit,
     bool? isLoading,
     bool? isRefreshing,
     String? Function()? errorMessage,
@@ -31,6 +28,7 @@ final class AnalyticsState extends Equatable {
     return AnalyticsState(
       dashboard: dashboard ?? this.dashboard,
       filters: filters ?? this.filters,
+      tableLimit: tableLimit ?? this.tableLimit,
       isLoading: isLoading ?? this.isLoading,
       isRefreshing: isRefreshing ?? this.isRefreshing,
       errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
@@ -41,6 +39,7 @@ final class AnalyticsState extends Equatable {
   List<Object?> get props => [
     dashboard,
     filters,
+    tableLimit,
     isLoading,
     isRefreshing,
     errorMessage,

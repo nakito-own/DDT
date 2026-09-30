@@ -63,3 +63,11 @@ final class AnalyticsColumnQueryChanged extends AnalyticsEvent {
 final class AnalyticsFiltersCleared extends AnalyticsEvent {
   const AnalyticsFiltersCleared();
 }
+
+final class AnalyticsTableMoreRequested extends AnalyticsEvent {
+  const AnalyticsTableMoreRequested();
+}
+
+final class AnalyticsSessionCleared extends AnalyticsEvent {
+  const AnalyticsSessionCleared();
+}

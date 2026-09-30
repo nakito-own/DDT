@@ -2,6 +2,7 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'ddt_markdown_live_controller.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/ddt_icons.dart';
@@ -20,12 +21,72 @@ import '../utils/ddt_toast.dart';
 import '../utils/ddt_date_time_picker.dart';
 import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
+import 'ddt_filter_dropdown.dart';
+import 'ddt_markdown_description_input.dart';
 import 'ddt_side_panel.dart';
 import 'task_comments_section.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 
 enum TaskSidePanelMode { view, create }
+
+/// Tasks that may be linked as a parent/child, without duplicate keys — two
+/// items sharing a value would make the relation dropdowns assert.
+List<Task> _uniqueRelationCandidates(List<Task> tasks, {int? excludeId}) {
+  final seen = <String>{};
+  return [
+    for (final task in tasks)
+      if (task.id != excludeId &&
+          task.id > 0 &&
+          task.key.isNotEmpty &&
+          seen.add(task.key))
+        task,
+  ];
+}
+
+const _relationPickNoneKey = '';
+
+DdtFilterOption _relationPickOption(String key, String title) {
+  return DdtFilterOption(key: key, label: '$key · $title');
+}
+
+List<DdtFilterOption> _parentPickOptions({
+  required List<Task> candidates,
+  required List<TaskRef> children,
+  required TaskRef? parent,
+}) {
+  final options = <DdtFilterOption>[
+    const DdtFilterOption(key: _relationPickNoneKey, label: 'Нет'),
+  ];
+  var parentListed = parent == null;
+  for (final task in candidates) {
+    if (children.any((child) => child.key == task.key)) continue;
+    if (task.key == parent?.key) parentListed = true;
+    options.add(_relationPickOption(task.key, task.title));
+  }
+  if (!parentListed && parent != null) {
+    options.add(_relationPickOption(parent.key, parent.title));
+  }
+  return options;
+}
+
+List<DdtFilterOption> _childPickOptions({
+  required List<Task> candidates,
+  required List<TaskRef> children,
+  required TaskRef? parent,
+}) {
+  return [
+    for (final task in candidates)
+      if (task.key != parent?.key &&
+          !children.any((child) => child.key == task.key))
+        _relationPickOption(task.key, task.title),
+  ];
+}
+
+String _relationPickSummary(TaskRef? ref, {required String emptyLabel}) {
+  if (ref == null) return emptyLabel;
+  return '${ref.key} · ${ref.title}';
+}
 
 Future<Task?> showTaskSidePanel(
   BuildContext context, {
@@ -104,7 +165,7 @@ class TaskSidePanelDetails extends StatefulWidget {
 
 class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
+  late final DdtMarkdownLiveController _descriptionController;
   late final TextEditingController _authorController;
   late final TextEditingController _executorController;
   late final TextEditingController _responsibleController;
@@ -128,7 +189,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     _currentTask = task;
 
     _titleController = TextEditingController(text: task.title);
-    _descriptionController = TextEditingController(text: task.description);
+    _descriptionController = DdtMarkdownLiveController(text: task.description);
     _authorController = TextEditingController(
       text: task.authorId?.toString() ?? '',
     );
@@ -184,14 +245,8 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     return null;
   }
 
-  List<Task> get _relationCandidates {
-    return widget.relatedTasks
-        .where(
-          (task) =>
-              task.id != widget.task.id && task.key.isNotEmpty && task.id > 0,
-        )
-        .toList();
-  }
+  List<Task> get _relationCandidates =>
+      _uniqueRelationCandidates(widget.relatedTasks, excludeId: widget.task.id);
 
   TaskRef _toRef(Task task) {
     return TaskRef(
@@ -348,13 +403,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
               controller: _titleController,
             ),
             DdtTheme.verticalGap(),
-            DdtAppInput(
-              label: 'Описание',
-              hint: 'Описание задачи',
-              controller: _descriptionController,
-              type: InputType.multiline,
-              maxLines: 4,
-            ),
+            DdtMarkdownDescriptionInput(controller: _descriptionController),
             DdtTheme.verticalGap(),
             _TaskFormTableSections(
               sections: [
@@ -379,6 +428,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                     label: 'Тип',
                     child: _DropdownControl<int?>(
                       value: _typeId,
+                      placeholderWhenNull: true,
                       items: [
                         const DropdownMenuItem<int?>(
                           value: null,
@@ -397,6 +447,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                     label: 'Приоритет',
                     child: _DropdownControl<TaskPriority?>(
                       value: _priority,
+                      placeholderWhenNull: true,
                       items: [
                         const DropdownMenuItem<TaskPriority?>(
                           value: null,
@@ -439,24 +490,18 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                   ),
                   _TaskFormTableRow(
                     label: 'Родитель',
-                    child: _DropdownControl<String?>(
-                      value: _parent?.key,
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Нет'),
-                        ),
-                        for (final task in _relationCandidates)
-                          if (!_children.any((child) => child.key == task.key))
-                            DropdownMenuItem<String?>(
-                              value: task.key,
-                              child: Text(
-                                '${task.key} · ${task.title}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                      ],
-                      onChanged: _setParentKey,
+                    child: _FormTableSearchableDropdown(
+                      label: _relationPickSummary(_parent, emptyLabel: 'Нет'),
+                      placeholder: _parent == null,
+                      options: _parentPickOptions(
+                        candidates: _relationCandidates,
+                        children: _children,
+                        parent: _parent,
+                      ),
+                      selected: {_parent?.key ?? _relationPickNoneKey},
+                      onSelected: (key) => _setParentKey(
+                        key.isEmpty ? null : key,
+                      ),
                     ),
                   ),
                   _TaskFormTableRow(
@@ -464,27 +509,17 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _DropdownControl<String?>(
-                          value: null,
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Добавить задачу'),
-                            ),
-                            for (final task in _relationCandidates)
-                              if (task.key != _parent?.key &&
-                                  !_children.any(
-                                    (child) => child.key == task.key,
-                                  ))
-                                DropdownMenuItem<String?>(
-                                  value: task.key,
-                                  child: Text(
-                                    '${task.key} · ${task.title}',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                          ],
-                          onChanged: _addChildKey,
+                        _FormTableSearchableDropdown(
+                          label: 'Добавить задачу',
+                          placeholder: true,
+                          options: _childPickOptions(
+                            candidates: _relationCandidates,
+                            children: _children,
+                            parent: _parent,
+                          ),
+                          selected: const {},
+                          emptyLabel: 'Нет доступных задач',
+                          onSelected: _addChildKey,
                         ),
                         if (_children.isNotEmpty) ...[
                           SizedBox(height: 8.h),
@@ -493,9 +528,9 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                             runSpacing: 8.h,
                             children: [
                               for (final child in _children)
-                                InputChip(
-                                  label: Text(child.key),
-                                  onDeleted: () {
+                                _TaskChildRelationChip(
+                                  child: child,
+                                  onRemove: () {
                                     setState(
                                       () => _children.removeWhere(
                                         (item) => item.key == child.key,
@@ -611,7 +646,7 @@ class TaskSidePanelCreateForm extends StatefulWidget {
 
 class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _descriptionController = DdtMarkdownLiveController();
   late final TextEditingController _authorController;
   final _executorController = TextEditingController();
   final _responsibleController = TextEditingController();
@@ -666,11 +701,8 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
     return null;
   }
 
-  List<Task> get _relationCandidates {
-    return widget.relatedTasks
-        .where((task) => task.key.isNotEmpty && task.id > 0)
-        .toList();
-  }
+  List<Task> get _relationCandidates =>
+      _uniqueRelationCandidates(widget.relatedTasks);
 
   TaskRef _toRef(Task task) {
     return TaskRef(
@@ -818,13 +850,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
               autofocus: true,
             ),
             DdtTheme.verticalGap(),
-            DdtAppInput(
-              label: 'Описание',
-              hint: 'Описание задачи',
-              controller: _descriptionController,
-              type: InputType.multiline,
-              maxLines: 4,
-            ),
+            DdtMarkdownDescriptionInput(controller: _descriptionController),
             DdtTheme.verticalGap(),
             _TaskFormTableSections(
               sections: [
@@ -849,6 +875,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                     label: 'Тип',
                     child: _DropdownControl<int?>(
                       value: _typeId,
+                      placeholderWhenNull: true,
                       items: [
                         const DropdownMenuItem<int?>(
                           value: null,
@@ -867,6 +894,7 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                     label: 'Приоритет',
                     child: _DropdownControl<TaskPriority?>(
                       value: _priority,
+                      placeholderWhenNull: true,
                       items: [
                         const DropdownMenuItem<TaskPriority?>(
                           value: null,
@@ -909,24 +937,18 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                   ),
                   _TaskFormTableRow(
                     label: 'Родитель',
-                    child: _DropdownControl<String?>(
-                      value: _parent?.key,
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Нет'),
-                        ),
-                        for (final task in _relationCandidates)
-                          if (!_children.any((child) => child.key == task.key))
-                            DropdownMenuItem<String?>(
-                              value: task.key,
-                              child: Text(
-                                '${task.key} · ${task.title}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                      ],
-                      onChanged: _setParentKey,
+                    child: _FormTableSearchableDropdown(
+                      label: _relationPickSummary(_parent, emptyLabel: 'Нет'),
+                      placeholder: _parent == null,
+                      options: _parentPickOptions(
+                        candidates: _relationCandidates,
+                        children: _children,
+                        parent: _parent,
+                      ),
+                      selected: {_parent?.key ?? _relationPickNoneKey},
+                      onSelected: (key) => _setParentKey(
+                        key.isEmpty ? null : key,
+                      ),
                     ),
                   ),
                   _TaskFormTableRow(
@@ -934,27 +956,17 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _DropdownControl<String?>(
-                          value: null,
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Добавить задачу'),
-                            ),
-                            for (final task in _relationCandidates)
-                              if (task.key != _parent?.key &&
-                                  !_children.any(
-                                    (child) => child.key == task.key,
-                                  ))
-                                DropdownMenuItem<String?>(
-                                  value: task.key,
-                                  child: Text(
-                                    '${task.key} · ${task.title}',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                          ],
-                          onChanged: _addChildKey,
+                        _FormTableSearchableDropdown(
+                          label: 'Добавить задачу',
+                          placeholder: true,
+                          options: _childPickOptions(
+                            candidates: _relationCandidates,
+                            children: _children,
+                            parent: _parent,
+                          ),
+                          selected: const {},
+                          emptyLabel: 'Нет доступных задач',
+                          onSelected: _addChildKey,
                         ),
                         if (_children.isNotEmpty) ...[
                           SizedBox(height: 8.h),
@@ -963,9 +975,9 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                             runSpacing: 8.h,
                             children: [
                               for (final child in _children)
-                                InputChip(
-                                  label: Text(child.key),
-                                  onDeleted: () {
+                                _TaskChildRelationChip(
+                                  child: child,
+                                  onRemove: () {
                                     setState(
                                       () => _children.removeWhere(
                                         (item) => item.key == child.key,
@@ -1138,11 +1150,16 @@ class _FormTableControl {
   static const double rowSpacing = 12;
   static const double labelGap = 12;
   static const double labelColumnWidth = 128;
+  static const double controlHeight = DdtTheme.compactInputControlHeight;
 
   static TextStyle textStyle(BuildContext context) => DdtTheme.style(
     fontSize: DdtTypography.bodySize,
     color: DdtTheme.sidePanelTextSecondary(context),
   );
+
+  static TextStyle placeholderStyle(BuildContext context) => textStyle(
+    context,
+  ).copyWith(color: DdtTheme.inputHintStyle(context).color);
 
   static InputDecoration decoration(
     BuildContext context, {
@@ -1154,6 +1171,32 @@ class _FormTableControl {
       hintText: hintText,
       suffixIcon: suffixIcon,
       compact: true,
+    );
+  }
+
+  static Widget shell({
+    required BuildContext context,
+    required Widget child,
+    VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      height: controlHeight.h,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: DdtTheme.inputControlBorderRadius,
+          child: InputDecorator(
+            decoration: decoration(context),
+            isEmpty: false,
+            expands: true,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: child,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1299,13 +1342,16 @@ class _FormTableTextInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DdtAppInput(
-      hint: hint,
-      controller: controller,
-      variant: DdtInputVariant.compact,
-      type: InputType.number,
-      inputFormatters: inputFormatters,
-      textColor: DdtTheme.sidePanelTextSecondary(context),
+    return SizedBox(
+      height: _FormTableControl.controlHeight.h,
+      child: DdtAppInput(
+        hint: hint,
+        controller: controller,
+        variant: DdtInputVariant.compact,
+        type: InputType.number,
+        inputFormatters: inputFormatters,
+        textColor: DdtTheme.sidePanelTextSecondary(context),
+      ),
     );
   }
 }
@@ -1334,30 +1380,36 @@ class _FormTableDateTimeControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    final hasValue = value != null;
+    return _FormTableControl.shell(
+      context: context,
       onTap: () => _pick(context),
-      borderRadius: DdtTheme.radius,
-      child: InputDecorator(
-        decoration: _FormTableControl.decoration(
-          context,
-          suffixIcon: nullable && value != null
-              ? IconButton(
-                  tooltip: 'Очистить',
-                  onPressed: () => onChanged(null),
-                  icon: DdtIcon(
-                    DdtIcons.closeCircle,
-                    size: 18.sp,
-                    color: DdtTheme.sidePanelTextMuted(context),
-                  ),
-                  visualDensity: VisualDensity.compact,
-                )
-              : null,
-        ),
-        isEmpty: false,
-        child: Text(
-          value != null ? formatTaskDateTime(value!) : 'Не указано',
-          style: _FormTableControl.textStyle(context),
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              hasValue ? formatTaskDateTime(value!) : 'Не указано',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: hasValue
+                  ? _FormTableControl.textStyle(context)
+                  : _FormTableControl.placeholderStyle(context),
+            ),
+          ),
+          if (nullable && hasValue)
+            IconButton(
+              tooltip: 'Очистить',
+              onPressed: () => onChanged(null),
+              icon: DdtIcon(
+                DdtIcons.closeCircle,
+                size: 18.sp,
+                color: DdtTheme.sidePanelTextMuted(context),
+              ),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints(minWidth: 28.w, minHeight: 28.h),
+            ),
+        ],
       ),
     );
   }
@@ -1368,25 +1420,176 @@ class _DropdownControl<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.placeholderWhenNull = false,
   });
 
   final T value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
+  final bool placeholderWhenNull;
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      isExpanded: true,
-      borderRadius: DdtTheme.inputControlBorderRadius,
-      dropdownColor: Theme.of(context).brightness == Brightness.dark
-          ? DdtTheme.darkSurface
-          : DdtTheme.lightSurface,
-      style: _FormTableControl.textStyle(context),
-      decoration: _FormTableControl.decoration(context),
-      items: items,
-      onChanged: onChanged,
+    // A DropdownButtonFormField keeps its own value once the user interacts
+    // with it, which breaks controls whose selection is owned by the parent
+    // (and asserts when the selected item leaves [items]).
+    final isSelectable =
+        items.where((item) => item.value == value).length == 1;
+    final showPlaceholder = placeholderWhenNull && value == null;
+
+    return _FormTableControl.shell(
+      context: context,
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: isSelectable ? value : null,
+          isExpanded: true,
+          isDense: true,
+          borderRadius: DdtTheme.inputControlBorderRadius,
+          dropdownColor: Theme.of(context).brightness == Brightness.dark
+              ? DdtTheme.darkSurface
+              : DdtTheme.lightSurface,
+          style: showPlaceholder
+              ? _FormTableControl.placeholderStyle(context)
+              : _FormTableControl.textStyle(context),
+          icon: DdtIcon(
+            DdtIcons.chevronDown,
+            size: 16.sp,
+            color: DdtTheme.sidePanelTextMuted(context),
+          ),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _FormTableSearchableDropdown extends StatelessWidget {
+  const _FormTableSearchableDropdown({
+    required this.label,
+    required this.placeholder,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.emptyLabel = 'Нет значений',
+  });
+
+  final String label;
+  final bool placeholder;
+  final List<DdtFilterOption> options;
+  final Set<String> selected;
+  final ValueChanged<String> onSelected;
+  final String emptyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (anchorContext) {
+        return _FormTableControl.shell(
+          context: context,
+          onTap: () => showDdtSearchableFilterMenu(
+            context: context,
+            anchorContext: anchorContext,
+            options: options,
+            selected: selected,
+            onSelected: onSelected,
+            emptyLabel: emptyLabel,
+            matchAnchorWidth: true,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: placeholder
+                      ? _FormTableControl.placeholderStyle(context)
+                      : _FormTableControl.textStyle(context),
+                ),
+              ),
+              DdtIcon(
+                DdtIcons.chevronDown,
+                size: 16.sp,
+                color: DdtTheme.sidePanelTextMuted(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TaskChildRelationChip extends StatelessWidget {
+  const _TaskChildRelationChip({
+    required this.child,
+    required this.onRemove,
+  });
+
+  final TaskRef child;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : AppColors.primary.withValues(alpha: 0.08),
+        border: Border.all(
+          color: DdtTheme.glassBorderColor(brightness).withValues(alpha: 0.28),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(10.w, 5.h, 4.w, 5.h),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              child.key,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.captionSize,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(width: 6.w),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 168.w),
+              child: Text(
+                child.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.captionSize,
+                  color: DdtTheme.sidePanelTextMuted(context),
+                ),
+              ),
+            ),
+            SizedBox(width: 2.w),
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: onRemove,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: EdgeInsets.all(4.w),
+                  child: DdtIcon(
+                    DdtIcons.close,
+                    size: 12.sp,
+                    color: DdtTheme.sidePanelTextMuted(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

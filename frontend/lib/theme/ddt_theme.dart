@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
@@ -76,6 +77,39 @@ class DdtTheme {
 
   static Color pickerSurfaceColor(BuildContext context) =>
       _isDark(context) ? darkPickerSurface : lightSurface;
+
+  /// High-contrast tooltip surface for charts (inverted vs shell background).
+  static Color chartTooltipBackground(BuildContext context) =>
+      _isDark(context) ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+
+  static Color chartTooltipForeground(BuildContext context) =>
+      _isDark(context) ? lightTextPrimary : Colors.white;
+
+  static TextStyle chartTooltipTextStyle(BuildContext context) => style(
+        fontSize: DdtTypography.labelSmallSize,
+        fontWeight: FontWeight.w600,
+        height: 1.35,
+        color: chartTooltipForeground(context),
+      );
+
+  static TooltipThemeData tooltipThemeData(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return TooltipThemeData(
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFFF1F5F9)
+            : const Color(0xFF1E293B).withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      textStyle: style(
+        fontSize: DdtTypography.captionSize,
+        fontWeight: FontWeight.w500,
+        color: isDark ? lightTextPrimary : Colors.white,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      waitDuration: const Duration(milliseconds: 400),
+    );
+  }
 
   static Color pickerInputFillColor(BuildContext context) =>
       _isDark(context) ? darkPickerInputFill : lightInputFill;
@@ -256,6 +290,51 @@ class DdtTheme {
     );
   }
 
+  /// Floating app bar: frosted glass tinted like [shellSurfaceColor], soft drop shadow.
+  static Widget shellAppBarGlass({
+    required BuildContext context,
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    double blurSigma = 14,
+  }) {
+    final isDark = _isDark(context);
+    final borderRadiusGeometry = radius;
+    final substrate = shellSurfaceColor(context);
+    final frostTint = substrate.withValues(alpha: isDark ? 0.46 : 0.58);
+
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: borderRadiusGeometry,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadiusGeometry,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              borderRadius: borderRadiusGeometry,
+              color: frostTint,
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
   static Color taskCardTextPrimary(BuildContext context) =>
       textPrimary(context);
 
@@ -264,7 +343,7 @@ class DdtTheme {
 
   static Color taskCardIconMuted(BuildContext context) => textMuted(context);
 
-  static GlassContainer contextMenuGlass({
+  static Widget contextMenuGlass({
     required BuildContext context,
     required Widget child,
     EdgeInsetsGeometry? padding,
@@ -274,12 +353,13 @@ class DdtTheme {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
     final radius = cornerRadius ?? borderRadius.r;
+    final effectivePadding = padding ?? EdgeInsets.all(8.w);
 
     return GlassContainer(
       type: GlassType.custom,
       shape: GlassShape.roundedRectangle,
       radius: radius,
-      padding: padding ?? EdgeInsets.all(8.w),
+      padding: effectivePadding,
       blurIntensity: blurIntensity,
       backgroundColor: isDark
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
@@ -712,6 +792,7 @@ class DdtTheme {
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
         menuTheme: menuThemeData(),
         popupMenuTheme: popupMenuThemeData(),
+        tooltipTheme: tooltipThemeData(Brightness.light),
       ),
     );
   }
@@ -829,6 +910,7 @@ class DdtTheme {
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
         menuTheme: menuThemeData(),
         popupMenuTheme: popupMenuThemeData(),
+        tooltipTheme: tooltipThemeData(Brightness.dark),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import '../utils/api_date_time.dart';
 import 'task_comment.dart';
 import 'task_link.dart';
 import 'task_priority.dart';
@@ -94,15 +95,15 @@ class Task {
               ?.map((item) => TaskRef.fromJson(item as Map<String, dynamic>))
               .toList() ??
           const [],
-      timeSet: DateTime.parse(json['time_set'] as String),
+      timeSet: parseApiDateTime(json['time_set'] as String),
       timeStart: json['time_start'] != null
-          ? DateTime.parse(json['time_start'] as String)
+          ? parseApiDateTime(json['time_start'] as String)
           : null,
       timeEnd: json['time_end'] != null
-          ? DateTime.parse(json['time_end'] as String)
+          ? parseApiDateTime(json['time_end'] as String)
           : null,
       deadline: json['deadline'] != null
-          ? DateTime.parse(json['deadline'] as String)
+          ? parseApiDateTime(json['deadline'] as String)
           : null,
       priority: TaskPriority.fromValue(json['priority'] as String?),
       links: rawLinks
@@ -116,10 +117,10 @@ class Task {
               .toList() ??
           const [],
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? parseApiDateTime(json['created_at'] as String)
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+          ? parseApiDateTime(json['updated_at'] as String)
           : null,
     );
   }

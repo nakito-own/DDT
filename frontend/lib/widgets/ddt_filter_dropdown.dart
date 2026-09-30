@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -48,11 +50,13 @@ class DdtFilterOption {
     required this.key,
     required this.label,
     this.count,
+    this.enabled = true,
   });
 
   final String key;
   final String label;
   final int? count;
+  final bool enabled;
 }
 
 /// Summary text for multi-select filter dropdowns (same rules as analytics).
@@ -100,22 +104,54 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
           label: summary,
           active: active,
           badge: multi ? selected.length : 0,
-          onTap: () => showDdtContextPanel(
+          onTap: () => showDdtSearchableFilterMenu(
             context: context,
             anchorContext: anchorContext,
-            placement: DdtContextMenuPlacement.belowStart,
-            childBuilder: (_) => _DdtSearchableFilterMenu(
-              options: options,
-              selected: selected,
-              multi: multi,
-              emptyLabel: emptyLabel,
-              onSelected: onSelected,
-            ),
+            options: options,
+            selected: selected,
+            onSelected: onSelected,
+            multi: multi,
+            emptyLabel: emptyLabel,
           ),
         );
       },
     );
   }
+}
+
+/// Glass search panel shared by filter sidebars and compact form pickers.
+Future<void> showDdtSearchableFilterMenu({
+  required BuildContext context,
+  required BuildContext anchorContext,
+  required List<DdtFilterOption> options,
+  required Set<String> selected,
+  required ValueChanged<String> onSelected,
+  bool multi = false,
+  String emptyLabel = 'Нет значений',
+  bool matchAnchorWidth = false,
+}) {
+  final anchorWidth = matchAnchorWidth
+      ? ddtContextMenuAnchorRect(
+          context: context,
+          anchorContext: anchorContext,
+        )?.width
+      : null;
+
+  return showDdtContextPanel(
+    context: context,
+    anchorContext: anchorContext,
+    placement: DdtContextMenuPlacement.belowStart,
+    childBuilder: (dismiss) => _DdtSearchableFilterMenu(
+      options: options,
+      selected: selected,
+      multi: multi,
+      emptyLabel: emptyLabel,
+      closeOnSelect: !multi,
+      dismiss: dismiss,
+      onSelected: onSelected,
+      menuWidth: anchorWidth,
+    ),
+  );
 }
 
 class DdtFilterDropdownAnchor extends StatefulWidget {
@@ -268,6 +304,9 @@ class _DdtSearchableFilterMenu extends StatefulWidget {
     required this.multi,
     required this.emptyLabel,
     required this.onSelected,
+    this.closeOnSelect = false,
+    this.dismiss,
+    this.menuWidth,
   });
 
   final List<DdtFilterOption> options;
@@ -275,6 +314,9 @@ class _DdtSearchableFilterMenu extends StatefulWidget {
   final bool multi;
   final String emptyLabel;
   final ValueChanged<String> onSelected;
+  final bool closeOnSelect;
+  final Future<void> Function()? dismiss;
+  final double? menuWidth;
 
   @override
   State<_DdtSearchableFilterMenu> createState() =>
@@ -303,6 +345,13 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
   }
 
   void _select(String key) {
+    for (final option in widget.options) {
+      if (option.key == key) {
+        if (!option.enabled) return;
+        break;
+      }
+    }
+
     if (widget.multi) {
       setState(() {
         if (!_selected.add(key)) {
@@ -317,6 +366,9 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
       });
     }
     widget.onSelected(key);
+    if (widget.closeOnSelect && widget.dismiss != null) {
+      unawaited(widget.dismiss!());
+    }
   }
 
   @override
@@ -326,7 +378,7 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
       context: context,
       padding: EdgeInsets.fromLTRB(8.w, 8.h, 8.w, 6.h),
       child: SizedBox(
-        width: 280.w,
+        width: widget.menuWidth ?? 280.w,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -365,7 +417,9 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
                             option: option,
                             checked: _selected.contains(option.key),
                             multi: widget.multi,
-                            onTap: () => _select(option.key),
+                            onTap: option.enabled
+                                ? () => _select(option.key)
+                                : null,
                           );
                         },
                       ),
@@ -410,7 +464,7 @@ class _DdtFilterOptionRow extends StatefulWidget {
   final DdtFilterOption option;
   final bool checked;
   final bool multi;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   State<_DdtFilterOptionRow> createState() => _DdtFilterOptionRowState();
@@ -432,12 +486,17 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = widget.option.enabled && widget.onTap != null;
+    final textColor = enabled
+        ? DdtTheme.textPrimary(context)
+        : DdtTheme.textMuted(context).withValues(alpha: 0.55);
+
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 1.h),
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: enabled ? (_) => setState(() => _hovered = false) : null,
         child: GestureDetector(
           onTap: widget.onTap,
           behavior: HitTestBehavior.opaque,
@@ -490,7 +549,7 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
                       fontWeight: widget.checked
                           ? FontWeight.w700
                           : FontWeight.w500,
-                      color: DdtTheme.textPrimary(context),
+                      color: textColor,
                     ),
                   ),
                 ),
