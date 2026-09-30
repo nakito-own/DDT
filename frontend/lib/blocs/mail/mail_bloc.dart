@@ -31,10 +31,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
   final EwsApi _api;
   int _inboxRequestGeneration = 0;
   int _sessionGeneration = 0;
+  bool _backgroundRefreshInFlight = false;
+  bool _backgroundRefreshQueued = false;
 
   void _onSessionCleared(MailSessionCleared event, Emitter<MailState> emit) {
     _inboxRequestGeneration++;
     _sessionGeneration++;
+    _backgroundRefreshQueued = false;
     emit(const MailState());
   }
 
@@ -58,7 +61,27 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     MailInboxRefreshRequested event,
     Emitter<MailState> emit,
   ) async {
-    await _reloadInbox(emit, showAnimation: event.showAnimation);
+    if (event.showAnimation) {
+      await _reloadInbox(emit, showAnimation: true);
+      return;
+    }
+    // Exchange notifications arrive in bursts; the backend serializes a
+    // session's Exchange calls, so overlapping reloads only pile up there.
+    if (_backgroundRefreshInFlight) {
+      _backgroundRefreshQueued = true;
+      return;
+    }
+    _backgroundRefreshInFlight = true;
+    final sessionGeneration = _sessionGeneration;
+    try {
+      await _reloadInbox(emit, showAnimation: false);
+    } finally {
+      _backgroundRefreshInFlight = false;
+    }
+    if (_backgroundRefreshQueued && sessionGeneration == _sessionGeneration) {
+      _backgroundRefreshQueued = false;
+      add(const MailInboxRefreshRequested());
+    }
   }
 
   Future<void> _onInboxLoadMoreRequested(

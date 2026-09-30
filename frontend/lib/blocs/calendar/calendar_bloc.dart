@@ -30,6 +30,8 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   DateTime? _loadedEnd;
   int _requestGeneration = 0;
   int _sessionGeneration = 0;
+  bool _backgroundRefreshInFlight = false;
+  bool _backgroundRefreshQueued = false;
 
   // ─── Load / Refresh ───────────────────────────────────────────────────────
 
@@ -39,6 +41,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   ) {
     _requestGeneration++;
     _sessionGeneration++;
+    _backgroundRefreshQueued = false;
     _loadedStart = null;
     _loadedEnd = null;
     emit(CalendarState(focusedDate: DateTime.now()));
@@ -58,8 +61,24 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   ) async {
     if (event.showAnimation) {
       emit(state.copyWith(isRefreshing: true, errorMessage: () => null));
+      await _fetchEvents(emit);
+      return;
     }
-    await _fetchEvents(emit);
+    if (_backgroundRefreshInFlight) {
+      _backgroundRefreshQueued = true;
+      return;
+    }
+    _backgroundRefreshInFlight = true;
+    final sessionGeneration = _sessionGeneration;
+    try {
+      await _fetchEvents(emit);
+    } finally {
+      _backgroundRefreshInFlight = false;
+    }
+    if (_backgroundRefreshQueued && sessionGeneration == _sessionGeneration) {
+      _backgroundRefreshQueued = false;
+      add(const CalendarEventsRefreshRequested());
+    }
   }
 
   Future<void> _fetchEvents(Emitter<CalendarState> emit) async {
