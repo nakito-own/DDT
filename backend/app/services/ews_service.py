@@ -24,6 +24,7 @@ from exchangelib.errors import (
     ErrorAccessDenied,
     ErrorInvalidUserPrincipalName,
     ErrorItemNotFound,
+    ErrorServerBusy,
     TransportError,
     UnauthorizedError,
 )
@@ -39,6 +40,27 @@ configure_ews_transport()
 
 class EwsConnectionError(Exception):
     pass
+
+
+class EwsBusyError(EwsConnectionError):
+    """Exchange throttled this user; retrying before retry_after only extends it."""
+
+    def __init__(self, retry_after: float) -> None:
+        super().__init__(
+            "Exchange временно ограничил запросы, повторите через "
+            f"{max(1, round(retry_after))} с"
+        )
+        self.retry_after = retry_after
+
+
+def server_busy_cause(exc: BaseException | None) -> ErrorServerBusy | None:
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        if isinstance(exc, ErrorServerBusy):
+            return exc
+        seen.add(id(exc))
+        exc = exc.__cause__ or exc.__context__
+    return None
 
 
 class EwsAuthError(Exception):
@@ -613,6 +635,8 @@ class EwsService:
                 raise
             except EwsConnectionError as exc:
                 self.close_account(account)
+                if server_busy_cause(exc) is not None:
+                    raise
                 cause = exc.__cause__
                 if isinstance(cause, TransportError):
                     last_transport_error = cause

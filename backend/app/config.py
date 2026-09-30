@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     ews_pool_maxsize: int = 8
     ews_thread_pool_size: int = 12
     ews_max_concurrent_operations: int = 6
+    ews_max_queued_per_session: int = 6
+    ews_server_busy_default_backoff_seconds: float = 30.0
     ews_credentials_key: str = ""
     ews_session_ttl_hours: int = 24
     ews_remember_ttl_days: int = 30
