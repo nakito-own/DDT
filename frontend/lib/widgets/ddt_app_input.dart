@@ -2,8 +2,10 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 enum DdtInputVariant { standard, compact, pill }
 
@@ -55,8 +57,8 @@ class DdtAppInput extends StatefulWidget {
   final String? label;
   final String? hint;
   final String? initialValue;
-  final IconData? prefixIcon;
-  final IconData? suffixIcon;
+  final FaIconData? prefixIcon;
+  final FaIconData? suffixIcon;
   final InputType type;
   final DdtInputVariant variant;
   final ValueChanged<String>? onChanged;
@@ -215,9 +217,12 @@ class _DdtAppInputState extends State<DdtAppInput> {
     final iconColor =
         DdtTheme.inputHintStyle(context).color ?? DdtTheme.textMuted(context);
 
-    return Padding(
-      padding: const EdgeInsets.only(left: 2),
-      child: Icon(widget.prefixIcon, size: 18, color: iconColor),
+    return SizedBox(
+      width: _minControlHeight,
+      height: _minControlHeight,
+      child: Center(
+        child: DdtIcon(widget.prefixIcon!, size: 16, color: iconColor),
+      ),
     );
   }
 
@@ -226,10 +231,10 @@ class _DdtAppInputState extends State<DdtAppInput> {
 
     if (widget.type == InputType.password) {
       return IconButton(
-        icon: Icon(
+        icon: DdtIcon(
           _obscureText
-              ? Icons.visibility_outlined
-              : Icons.visibility_off_outlined,
+              ? DdtIcons.visibility
+              : DdtIcons.visibilityOff,
           size: 18,
           color:
               DdtTheme.inputHintStyle(context).color ??
@@ -248,8 +253,8 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (widget.suffixIcon == null) return null;
 
     return IconButton(
-      icon: Icon(
-        widget.suffixIcon,
+      icon: DdtIcon(
+        widget.suffixIcon!,
         size: 18,
         color:
             DdtTheme.inputHintStyle(context).color ??

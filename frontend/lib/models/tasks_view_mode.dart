@@ -16,16 +16,16 @@ enum TasksViewMode {
     TasksViewMode.gantt => RoutePaths.tasksGantt,
   };
 
-  String routePathForSpace(int spaceId) => switch (this) {
-    TasksViewMode.kanban => RoutePaths.spaceKanbanFor(spaceId),
-    TasksViewMode.list => RoutePaths.spaceListFor(spaceId),
-    TasksViewMode.gantt => RoutePaths.spaceGanttFor(spaceId),
+  String routePathForSpace(String spaceKey) => switch (this) {
+    TasksViewMode.kanban => RoutePaths.spaceKanbanFor(spaceKey),
+    TasksViewMode.list => RoutePaths.spaceListFor(spaceKey),
+    TasksViewMode.gantt => RoutePaths.spaceGanttFor(spaceKey),
   };
 
   /// Определяет активный режим по текущему URL-пути.
   static TasksViewMode fromRoute(String location) {
-    if (location.endsWith('/list')) return TasksViewMode.list;
+    if (location.endsWith('/kanban')) return TasksViewMode.kanban;
     if (location.endsWith('/gantt')) return TasksViewMode.gantt;
-    return TasksViewMode.kanban;
+    return TasksViewMode.list;
   }
 }

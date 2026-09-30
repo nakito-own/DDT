@@ -2,9 +2,11 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:toastification/toastification.dart';
+import '../theme/ddt_icons.dart';
 
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
 
 abstract final class DdtToast {
   static void show({
@@ -20,10 +22,10 @@ abstract final class DdtToast {
       ToastType.warning => const Color(0xFFE1A11A),
     };
     final icon = switch (type) {
-      ToastType.success => Icons.check_circle_outline,
-      ToastType.error => Icons.error_outline,
-      ToastType.info => Icons.info_outline,
-      ToastType.warning => Icons.warning_amber_rounded,
+      ToastType.success => DdtIcons.success,
+      ToastType.error => DdtIcons.error,
+      ToastType.info => DdtIcons.info,
+      ToastType.warning => DdtIcons.warning,
     };
 
     toastification.showCustom(
@@ -65,7 +67,12 @@ abstract final class DdtToast {
                         color: accentColor.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(10.r),
                       ),
-                      child: Icon(icon, color: accentColor, size: 21.r),
+                      child: DdtIcon(
+                        icon,
+                        color: accentColor,
+                        size: 21.r,
+                        fitParent: true,
+                      ),
                     ),
                     SizedBox(width: 12.w),
                     Expanded(
@@ -114,8 +121,8 @@ abstract final class DdtToast {
                         height: 28.r,
                       ),
                       onPressed: () => toastification.dismissById(item.id),
-                      icon: Icon(
-                        Icons.close_rounded,
+                      icon: DdtIcon(
+                        DdtIcons.close,
                         size: 18.r,
                         color: DdtTheme.taskCardIconMuted(context),
                       ),

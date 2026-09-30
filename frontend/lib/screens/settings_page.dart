@@ -1,15 +1,17 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/notifications/notifications_bloc.dart';
 import '../blocs/theme/theme_bloc.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -19,6 +21,9 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      padding: DdtShellMetrics.scrollPadding(context).copyWith(
+        bottom: DdtTheme.shellSizeOf(context, DdtTheme.spacing),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -34,8 +39,8 @@ class SettingsPage extends StatelessWidget {
                   value: isDark ? 'Тёмная' : 'Светлая',
                   trailing: IconButton(
                     tooltip: isDark ? 'Светлая тема' : 'Тёмная тема',
-                    icon: Icon(
-                      isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon,
+                    icon: DdtIcon(
+                      isDark ? DdtIcons.sun : DdtIcons.moon,
                       color: AppColors.primary,
                       size: 22.sp,
                     ),
@@ -66,8 +71,8 @@ class SettingsPage extends StatelessWidget {
                         ? 'Разрешите уведомления в настройках браузера'
                         : null,
                     trailing: isGranted
-                        ? Icon(
-                            CupertinoIcons.checkmark_circle_fill,
+                        ? DdtIcon(
+                            DdtIcons.checkCircle,
                             color: AppColors.primary.withValues(alpha: 0.85),
                             size: 22.sp,
                           )
@@ -157,24 +162,20 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DdtTheme.glass(
-      context: context,
-      padding: EdgeInsets.all(20.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSize,
-              fontWeight: FontWeight.w600,
-              color: DdtTheme.taskCardTextPrimary(context),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: DdtTheme.style(
+            fontSize: DdtTypography.labelSize,
+            fontWeight: FontWeight.w600,
+            color: DdtTheme.taskCardTextPrimary(context),
           ),
-          SizedBox(height: 12.h),
-          child,
-        ],
-      ),
+        ),
+        SizedBox(height: 12.h),
+        child,
+      ],
     );
   }
 }

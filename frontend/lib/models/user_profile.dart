@@ -8,6 +8,7 @@ class UserProfile {
     this.department,
     this.phone,
     this.officeLocation,
+    this.username,
   });
 
   final int id;
@@ -18,6 +19,7 @@ class UserProfile {
   final String? department;
   final String? phone;
   final String? officeLocation;
+  final String? username;
 
   String get label => displayName ?? name;
 
@@ -31,6 +33,7 @@ class UserProfile {
       department: json['department'] as String?,
       phone: json['phone'] as String?,
       officeLocation: json['office_location'] as String?,
+      username: json['username'] as String?,
     );
   }
 }

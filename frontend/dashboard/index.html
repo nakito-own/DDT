@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>КРР МР — Аналитика СТП</title>
+  <link rel="preload" href="fonts/Golos-Text_Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/Golos-Text_DemiBold.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=5">
+  <script src="js/core/boot-theme.js"></script>
+  <script src="js/core/boot-dataset.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-title">
+        <h1 id="dashboard-title">КРР МР — Аналитика СТП</h1>
+        <p>Источник: <span id="source-file">—</span> · выгрузка от <span id="export-date">—</span> · <span id="total-header">—</span> заявок</p>
+      </div>
+      <div class="header-actions">
+        <nav class="dataset-nav" aria-label="Источники данных">
+          <button type="button" class="dataset-tab active" data-dataset="stp" aria-selected="true">Аналитика СТП</button>
+          <button type="button" class="dataset-tab" data-dataset="4me" aria-selected="false">Export 4me</button>
+        </nav>
+        <nav class="section-nav" aria-label="Разделы дашборда">
+          <button type="button" class="section-tab active" data-section="overview" aria-selected="true">Основные данные</button>
+          <button type="button" class="section-tab" data-section="analytics" aria-selected="false">Сводная аналитика</button>
+          <button type="button" class="section-tab" data-section="table" aria-selected="false">Таблица</button>
+        </nav>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
+          <svg class="theme-icon theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="theme-icon theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="layout-stp" class="dataset-layout">
+  <div class="layout">
+    <aside class="filters">
+      <h2>Фильтры</h2>
+
+      <div class="filter-group" id="stp-version-group">
+        <label for="stp-version">Версия таблицы</label>
+        <select id="stp-version" aria-label="Версия таблицы"></select>
+      </div>
+
+      <div class="filter-group">
+        <label for="date-field">Поле даты</label>
+        <select id="date-field">
+          <option value="createdAt">Дата создания</option>
+          <option value="workTakenAt">Дата взятия в работу</option>
+          <option value="completedAt">Дата закрытия</option>
+          <option value="slaTarget">Целевой срок (SLA)</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Период</label>
+        <div class="date-row">
+          <input type="date" id="date-from" title="С">
+          <input type="date" id="date-to" title="По">
+        </div>
+      </div>
+
+      <div id="multi-filters"></div>
+
+      <div class="btn-row">
+        <button class="primary" id="apply-btn" type="button">Применить</button>
+        <button class="secondary" id="reset-btn" type="button">Сбросить</button>
+      </div>
+
+      <div class="filter-count">
+        Показано
+        <strong><span id="filtered-count">—</span></strong>
+        из <span id="total-count">—</span>
+      </div>
+    </aside>
+
+    <main>
+      <div class="dashboard-section" data-section="overview" id="section-overview">
+      <section class="kpi-grid">
+        <div class="kpi" id="kpi-total">
+          <div class="label">Всего заявок</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi good" id="kpi-sla">
+          <div class="label">SLA (в срок)</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi" id="kpi-median">
+          <div class="label">Время решения</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi warn" id="kpi-confirmed">
+          <div class="label">Подтверждено</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi bad" id="kpi-overdue">
+          <div class="label">Просрочено</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi" id="kpi-reaction">
+          <div class="label">Скорость реакции</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi" id="kpi-errors">
+          <div class="label">Ошибки</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+        <div class="kpi warn" id="kpi-waiting-oiv">
+          <div class="label">Ожидание от ОИВ</div>
+          <div class="value">—</div>
+          <div class="sub">—</div>
+        </div>
+      </section>
+
+      <section class="charts-grid">
+        <div class="chart-card w8">
+          <div class="chart-header">
+            <h3>Динамика: создание и закрытие</h3>
+            <div class="chart-controls">
+              <div class="chart-control">
+                <label for="trend-chart-type">Вид</label>
+                <select id="trend-chart-type">
+                  <option value="bar" selected>Столбцы</option>
+                  <option value="line">Линия</option>
+                </select>
+              </div>
+              <div class="chart-control">
+                <label for="trend-group-by">Группировка</label>
+                <select id="trend-group-by">
+                  <option value="day" selected>по дням</option>
+                  <option value="week">по неделям</option>
+                  <option value="month">по месяцам</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+        </div>
+        <div class="chart-card w4">
+          <h3>Тип обращений</h3>
+          <div class="chart-wrap"><canvas id="chart-type"></canvas></div>
+        </div>
+
+        <div class="chart-card w4">
+          <h3>Блоки системы</h3>
+          <div class="chart-wrap"><canvas id="chart-block"></canvas></div>
+        </div>
+        <div class="chart-card w4">
+          <h3>ОИВ</h3>
+          <div class="chart-wrap"><canvas id="chart-oiv"></canvas></div>
+        </div>
+        <div class="chart-card w4">
+          <h3>Модули / формы</h3>
+          <div class="chart-wrap"><canvas id="chart-module"></canvas></div>
+        </div>
+
+        <div class="chart-card w6">
+          <h3>Категории проблем (топ-10)</h3>
+          <div class="chart-wrap tall"><canvas id="chart-problem"></canvas></div>
+        </div>
+        <div class="chart-card w6">
+          <h3>Заявки по статусам</h3>
+          <div class="chart-wrap"><canvas id="chart-status-group"></canvas></div>
+        </div>
+
+        <div class="chart-card w12">
+          <h3>ОИВ: ожидание ответа клиента</h3>
+          <p class="chart-note">Среднее время от запроса информации до ответа ОИВ. Для открытых заявок — текущая длительность ожидания.</p>
+          <div class="chart-wrap tall"><canvas id="chart-oiv-waiting"></canvas></div>
+        </div>
+
+        <div class="chart-card w6">
+          <h3>Сторона ошибки</h3>
+          <div class="chart-wrap"><canvas id="chart-errorside"></canvas></div>
+        </div>
+        <div class="chart-card w6">
+          <h3>Динамика по дням: создание / закрытие / реакция</h3>
+          <div class="chart-wrap tall"><canvas id="chart-daily-detail"></canvas></div>
+        </div>
+
+        <div class="chart-card w12">
+          <h3>Статусы по топ-категориям</h3>
+          <div class="chart-wrap tall"><canvas id="chart-status-category"></canvas></div>
+        </div>
+
+        <div class="chart-card w12">
+          <h3>Решено / подтверждение пользователя</h3>
+          <div class="chart-wrap"><canvas id="chart-solved"></canvas></div>
+        </div>
+      </section>
+      </div>
+
+      <div class="dashboard-section" data-section="analytics" id="section-analytics" hidden>
+      <section class="analytics-section">
+        <h2>Сводная аналитика</h2>
+        <p class="section-note">Агрегаты пересчитываются по активным фильтрам. Скорость реакции — разница между 1-м и 2-м комментарием. Сторона ошибки определяется автоматически по тексту заявки и статусу. Время ожидания ОИВ считается от первого напоминания «От Вас ожидают…» или последней активности по заявке в статусе ожидания.</p>
+
+        <div class="analytics-grid">
+          <div class="table-section">
+            <h3>По категориям проблем</h3>
+            <div class="table-wrap analytics-wrap">
+              <table id="analytics-category">
+                <thead>
+                  <tr>
+                    <th class="col-num">№</th>
+                    <th>Категория</th>
+                    <th>Кол-во</th>
+                    <th>Доля</th>
+                    <th>Ср. обработка</th>
+                    <th>Ср. реакция</th>
+                    <th>Закрыто</th>
+                    <th>В работе</th>
+                    <th>Ожидание действий от клиента</th>
+                    <th>Примеры ID</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-section">
+            <h3>По блокам системы</h3>
+            <div class="table-wrap analytics-wrap">
+              <table id="analytics-block">
+                <thead>
+                  <tr>
+                    <th class="col-num">№</th>
+                    <th>Блок</th>
+                    <th>Кол-во</th>
+                    <th>Доля</th>
+                    <th>Ср. обработка</th>
+                    <th>Ср. реакция</th>
+                    <th>Закрыто</th>
+                    <th>В работе</th>
+                    <th>Ожидание действий от клиента</th>
+                    <th>Примеры ID</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-section">
+            <h3>По ОИВ: ожидание ответа клиента</h3>
+            <div class="table-wrap analytics-wrap">
+              <table id="analytics-oiv-waiting">
+                <thead>
+                  <tr>
+                    <th class="col-num">№</th>
+                    <th>ОИВ</th>
+                    <th>Эпизодов</th>
+                    <th>Сейчас в ожидании</th>
+                    <th>Ср. время</th>
+                    <th>Медиана</th>
+                    <th>Макс.</th>
+                    <th>Примеры ID</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-section">
+            <h3>По стороне ошибки</h3>
+            <div class="table-wrap analytics-wrap">
+              <table id="analytics-errorside">
+                <thead>
+                  <tr>
+                    <th class="col-num">№</th>
+                    <th>Сторона</th>
+                    <th>Кол-во</th>
+                    <th>Доля</th>
+                    <th>Ср. обработка</th>
+                    <th>Ср. реакция</th>
+                    <th>Закрыто</th>
+                    <th>В работе</th>
+                    <th>Ожидание действий от клиента</th>
+                    <th>Примеры ID</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-section w12">
+            <h3>Матрица: категория × блок</h3>
+            <div class="table-wrap analytics-wrap" id="analytics-cross-wrap"></div>
+          </div>
+        </div>
+      </section>
+      </div>
+
+      <div class="dashboard-section" data-section="table" id="section-table" hidden>
+      <section class="table-section requests-table-section">
+        <h3>Таблица заявок <span id="table-note" style="font-weight:400;color:var(--muted)"></span></h3>
+        <div class="table-wrap">
+          <table id="requests-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Состояние</th>
+                <th>Тип</th>
+                <th>Блок</th>
+                <th>Категория</th>
+                <th>Тема</th>
+                <th>Исполнитель</th>
+                <th>Заявитель</th>
+                <th>ОИВ</th>
+                <th>Создана</th>
+                <th>Закрыта</th>
+                <th>Обработка</th>
+                <th>Реакция</th>
+                <th>Сторона</th>
+                <th>SLA</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+      </div>
+    </main>
+  </div>
+  </div>
+
+  <div id="layout-4me" class="dataset-layout" hidden>
+    <div class="layout">
+      <aside class="filters">
+        <h2>Фильтры</h2>
+
+        <div class="filter-group">
+          <label for="fourme-date-field">Поле даты</label>
+          <select id="fourme-date-field">
+            <option value="createdAt">Дата создания</option>
+            <option value="completedAt">Дата закрытия</option>
+            <option value="updatedAt">Дата обновления</option>
+            <option value="resolutionTarget">Целевой срок (SLA)</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Период</label>
+          <div class="date-row">
+            <input type="date" id="fourme-date-from" title="С">
+            <input type="date" id="fourme-date-to" title="По">
+          </div>
+        </div>
+
+        <div id="fourme-multi-filters"></div>
+
+        <div class="btn-row">
+          <button class="primary" id="fourme-apply-btn" type="button">Применить</button>
+          <button class="secondary" id="fourme-reset-btn" type="button">Сбросить</button>
+        </div>
+
+        <div class="filter-count">
+          Показано
+          <strong><span id="fourme-filtered-count">—</span></strong>
+          из <span id="fourme-total-count">—</span>
+        </div>
+      </aside>
+
+      <main>
+        <div class="dashboard-section" data-section="overview" id="fourme-section-overview">
+          <section class="kpi-grid">
+            <div class="kpi" id="fourme-kpi-total">
+              <div class="label">Всего заявок</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi good" id="fourme-kpi-completed">
+              <div class="label">Закрыто</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi warn" id="fourme-kpi-waiting">
+              <div class="label">Ожидание действий от клиента</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi good" id="fourme-kpi-sla">
+              <div class="label">SLA (в срок)</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi" id="fourme-kpi-median">
+              <div class="label">Время решения</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi bad" id="fourme-kpi-reopen">
+              <div class="label">Повторные открытия</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+            <div class="kpi" id="fourme-kpi-reviewed">
+              <div class="label">Проверено</div>
+              <div class="value">—</div>
+              <div class="sub">—</div>
+            </div>
+          </section>
+
+          <section class="charts-grid">
+            <div class="chart-card w8">
+              <div class="chart-header">
+                <h3>Динамика: создание и закрытие</h3>
+                <div class="chart-controls">
+                  <div class="chart-control">
+                    <label for="fourme-trend-chart-type">Вид</label>
+                    <select id="fourme-trend-chart-type">
+                      <option value="bar" selected>Столбцы</option>
+                      <option value="line">Линия</option>
+                    </select>
+                  </div>
+                  <div class="chart-control">
+                    <label for="fourme-trend-group-by">Группировка</label>
+                    <select id="fourme-trend-group-by">
+                      <option value="day" selected>по дням</option>
+                      <option value="week">по неделям</option>
+                      <option value="month">по месяцам</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-wrap tall"><canvas id="fourme-chart-trend"></canvas></div>
+            </div>
+            <div class="chart-card w4">
+              <h3>Статусы</h3>
+              <div class="chart-wrap"><canvas id="fourme-chart-status"></canvas></div>
+            </div>
+
+            <div class="chart-card w4">
+              <h3>Тип запроса</h3>
+              <div class="chart-wrap"><canvas id="fourme-chart-category"></canvas></div>
+            </div>
+            <div class="chart-card w4">
+              <h3>Impact</h3>
+              <div class="chart-wrap"><canvas id="fourme-chart-impact"></canvas></div>
+            </div>
+            <div class="chart-card w4">
+              <h3>Источник</h3>
+              <div class="chart-wrap"><canvas id="fourme-chart-source"></canvas></div>
+            </div>
+
+            <div class="chart-card w6">
+              <h3>Топ сервисов</h3>
+              <div class="chart-wrap tall"><canvas id="fourme-chart-service"></canvas></div>
+            </div>
+            <div class="chart-card w6">
+              <h3>Нагрузка по исполнителям</h3>
+              <div class="chart-wrap tall"><canvas id="fourme-chart-member"></canvas></div>
+            </div>
+
+            <div class="chart-card w6">
+              <h3>Причины закрытия</h3>
+              <div class="chart-wrap tall"><canvas id="fourme-chart-completion"></canvas></div>
+            </div>
+            <div class="chart-card w6">
+              <h3>Agile-колонки</h3>
+              <div class="chart-wrap tall"><canvas id="fourme-chart-agile"></canvas></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="dashboard-section" data-section="analytics" id="fourme-section-analytics" hidden>
+          <section class="analytics-section">
+            <h2>Сводная аналитика</h2>
+            <p class="section-note">Агрегаты по данным 4me: сервисы, исполнители, организации и источники. SLA считается только для закрытых заявок с известным целевым сроком.</p>
+
+            <div class="analytics-grid">
+              <div class="table-section">
+                <h3>По сервисам</h3>
+                <div class="table-wrap analytics-wrap">
+                  <table id="fourme-analytics-service">
+                    <thead>
+                      <tr>
+                        <th class="col-num">№</th>
+                        <th>Сервис</th>
+                        <th>Кол-во</th>
+                        <th>Доля</th>
+                        <th>Ср. решение</th>
+                        <th>Закрыто</th>
+                        <th>В работе</th>
+                        <th>Ожидание действий от клиента</th>
+                        <th>Reopen</th>
+                        <th>SLA</th>
+                        <th>Примеры ID</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="table-section">
+                <h3>По исполнителям</h3>
+                <div class="table-wrap analytics-wrap">
+                  <table id="fourme-analytics-member">
+                    <thead>
+                      <tr>
+                        <th class="col-num">№</th>
+                        <th>Исполнитель</th>
+                        <th>Кол-во</th>
+                        <th>Доля</th>
+                        <th>Ср. решение</th>
+                        <th>Закрыто</th>
+                        <th>В работе</th>
+                        <th>Ожидание действий от клиента</th>
+                        <th>Reopen</th>
+                        <th>SLA</th>
+                        <th>Примеры ID</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="table-section">
+                <h3>По организациям</h3>
+                <div class="table-wrap analytics-wrap">
+                  <table id="fourme-analytics-org">
+                    <thead>
+                      <tr>
+                        <th class="col-num">№</th>
+                        <th>Организация</th>
+                        <th>Кол-во</th>
+                        <th>Доля</th>
+                        <th>Ср. решение</th>
+                        <th>Закрыто</th>
+                        <th>В работе</th>
+                        <th>Ожидание действий от клиента</th>
+                        <th>Reopen</th>
+                        <th>SLA</th>
+                        <th>Примеры ID</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="table-section">
+                <h3>По источникам</h3>
+                <div class="table-wrap analytics-wrap">
+                  <table id="fourme-analytics-source">
+                    <thead>
+                      <tr>
+                        <th class="col-num">№</th>
+                        <th>Источник</th>
+                        <th>Кол-во</th>
+                        <th>Доля</th>
+                        <th>Ср. решение</th>
+                        <th>Закрыто</th>
+                        <th>В работе</th>
+                        <th>Ожидание действий от клиента</th>
+                        <th>Reopen</th>
+                        <th>SLA</th>
+                        <th>Примеры ID</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="table-section w12">
+                <h3>Матрица: тип × сервис</h3>
+                <div class="table-wrap analytics-wrap" id="fourme-analytics-cross-wrap"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="dashboard-section" data-section="table" id="fourme-section-table" hidden>
+          <section class="table-section requests-table-section">
+            <h3>Таблица заявок <span id="fourme-table-note" style="font-weight:400;color:var(--muted)"></span></h3>
+            <div class="table-wrap">
+              <table id="fourme-requests-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Статус</th>
+                    <th>Тип</th>
+                    <th>Сервис</th>
+                    <th>Тема</th>
+                    <th>Исполнитель</th>
+                    <th>Организация</th>
+                    <th>Источник</th>
+                    <th>Создана</th>
+                    <th>Закрыта</th>
+                    <th>Решение</th>
+                    <th>SLA</th>
+                    <th>Причина закрытия</th>
+                    <th>Reopen</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/core/boot-section.js"></script>
+  <script type="module" src="js/main.js?v=4"></script>
+</body>
+</html>

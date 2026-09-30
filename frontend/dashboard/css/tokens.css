@@ -1,0 +1,46 @@
+:root,
+[data-theme="dark"] {
+  --font-sans: "Golos Text", system-ui, -apple-system, sans-serif;
+  --bg: #0f1419;
+  --surface: #1a2332;
+  --surface2: #243044;
+  --border: #2d3a4f;
+  --text: #e7ecf3;
+  --muted: #8b9cb3;
+  --accent: #3b82f6;
+  --accent2: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --header-bg: linear-gradient(135deg, #1a2332 0%, #121820 100%);
+  --hover-border: #3d5068;
+  --row-hover: rgba(59, 130, 246, 0.08);
+  --dropdown-hover: rgba(59, 130, 246, 0.1);
+  --scrollbar-track: #121820;
+  --scrollbar-thumb: #3d4f6a;
+  --scrollbar-thumb-hover: #4f6383;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #1a2332;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent2: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --header-bg: #ffffff;
+  --hover-border: #cbd5e1;
+  --row-hover: rgba(37, 99, 235, 0.06);
+  --dropdown-hover: rgba(37, 99, 235, 0.08);
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  color-scheme: light;
+}

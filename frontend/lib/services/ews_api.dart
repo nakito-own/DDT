@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
@@ -40,6 +41,8 @@ class EwsSession {
 class EwsApi {
   EwsApi({ApiClient? client}) : _client = client ?? apiClient;
 
+  static const _sessionRestoreTimeout = Duration(seconds: 25);
+
   final ApiClient _client;
 
   Future<EwsSession> login({
@@ -51,6 +54,7 @@ class EwsApi {
     final response = await _client.post(
       '/api/ews/auth/login',
       auth: false,
+      timeout: ApiClient.loginTimeout,
       body: {
         'username': username,
         'password': password,
@@ -76,7 +80,21 @@ class EwsApi {
     final data = ApiClient.decodeMap(response);
     await _client.setSessionToken(data['session_token'] as String);
 
-    return fetchMe();
+    return _sessionFromAuthPayload(data, rememberMe: rememberMe, connected: true);
+  }
+
+  EwsSession _sessionFromAuthPayload(
+    Map<String, dynamic> data, {
+    required bool rememberMe,
+    required bool connected,
+  }) {
+    return EwsSession(
+      email: data['email'] as String,
+      connected: connected,
+      rememberMe: rememberMe,
+      expiresAt: DateTime.parse(data['expires_at'] as String),
+      user: UserProfile.fromJson(data['user'] as Map<String, dynamic>),
+    );
   }
 
   Future<void> logout() async {
@@ -91,7 +109,12 @@ class EwsApi {
     }
 
     try {
-      return await fetchMe();
+      return await _client.runSilentlyUnauthorized(
+        () => fetchMe().timeout(_sessionRestoreTimeout),
+      );
+    } on TimeoutException {
+      await _client.clearSessionToken();
+      return null;
     } catch (_) {
       await _client.clearSessionToken();
       return null;

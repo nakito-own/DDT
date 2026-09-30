@@ -1,8 +1,8 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ddt_frontend/theme/ddt_scale.dart';
 import 'package:ddt_frontend/theme/ddt_theme.dart';
 import 'package:ddt_frontend/theme/ddt_typography.dart';
 
@@ -36,6 +36,16 @@ void main() {
       );
 
       expect(textTheme.bodyMedium?.fontSize, DdtTypography.bodySize);
+      expect(
+        textTheme.bodyMedium?.fontFamily?.toLowerCase(),
+        contains('golos'),
+        reason: 'Theme text should use Golos Text from google_fonts',
+      );
+      expect(
+        DdtTypography.style(size: DdtTypography.bodySize).fontFamily
+            ?.toLowerCase(),
+        contains('golos'),
+      );
       expect(textTheme.labelSmall?.fontSize, DdtTypography.captionSize);
       expect(textTheme.titleLarge?.fontSize, DdtTypography.sectionTitleSize);
       expect(textTheme.headlineLarge?.fontSize, DdtTypography.entityTitleSize);
@@ -87,9 +97,7 @@ class _TypographyTestApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MediaQuery(
       data: MediaQueryData(size: const Size(1440, 900), textScaler: textScaler),
-      child: ScreenUtilInit(
-        designSize: const Size(1440, 900),
-        minTextAdapt: true,
+      child: DdtScaleScope(
         builder: (_, _) => MaterialApp(
           theme: brightness == Brightness.light
               ? DdtTheme.light()

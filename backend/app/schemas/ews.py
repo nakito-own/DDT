@@ -8,6 +8,7 @@ class UserProfileResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    username: str | None = None
     display_name: str | None = None
     job_title: str | None = None
     department: str | None = None

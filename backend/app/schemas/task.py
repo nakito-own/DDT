@@ -38,8 +38,16 @@ class CreateTaskCommentRequest(BaseModel):
         return value
 
 
+class TaskRefResponse(BaseModel):
+    id: int
+    key: str
+    title: str
+    status: TaskStatus
+
+
 class TaskResponse(BaseModel):
     id: int
+    key: str
     title: str
     status: TaskStatus
     type_id: int | None = None
@@ -48,8 +56,10 @@ class TaskResponse(BaseModel):
     executor_id: int | None = None
     author_id: int | None = None
     responsible_id: int | None = None
-    owner_id: int
+    owner_id: int | None = None
     space_id: int | None = None
+    space_key: str | None = None
+    parent_id: int | None = None
     time_set: datetime
     time_start: datetime | None = None
     time_end: datetime | None = None
@@ -57,6 +67,8 @@ class TaskResponse(BaseModel):
     priority: TaskPriority | None = None
     links: list[TaskLinkResponse] = Field(default_factory=list)
     comments: list[TaskCommentResponse] = Field(default_factory=list)
+    parent: TaskRefResponse | None = None
+    children: list[TaskRefResponse] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -75,10 +87,20 @@ class CreateTaskRequest(BaseModel):
     priority: TaskPriority | None = None
     links: list[TaskLinkPayload] = Field(default_factory=list)
     initial_comment: str | None = Field(default=None, max_length=10000)
+    parent_key: str | None = Field(default=None, max_length=191)
+    child_keys: list[str] = Field(default_factory=list)
 
     @field_validator("initial_comment")
     @classmethod
     def normalize_initial_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    @field_validator("parent_key")
+    @classmethod
+    def normalize_parent_key(cls, value: str | None) -> str | None:
         if value is None:
             return None
         value = value.strip()
@@ -98,6 +120,16 @@ class UpdateTaskRequest(BaseModel):
     deadline: datetime | None = None
     priority: TaskPriority | None = None
     links: list[TaskLinkPayload] | None = None
+    parent_key: str | None = Field(default=None, max_length=191)
+    child_keys: list[str] | None = None
+
+    @field_validator("parent_key")
+    @classmethod
+    def normalize_parent_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
 
 
 class UpdateTaskStatusRequest(BaseModel):

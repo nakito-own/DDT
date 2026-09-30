@@ -1,6 +1,15 @@
 from dataclasses import dataclass
 
+from pymysql.err import IntegrityError
+
 from app.db import get_db
+from app.services.task_key import normalize_user_key_prefix
+
+
+USER_COLUMNS = """
+id, name, username, email, display_name, job_title, department,
+phone, office_location, ews_account_id
+"""
 
 
 @dataclass
@@ -8,6 +17,7 @@ class UserProfile:
     id: int
     name: str
     email: str
+    username: str | None = None
     display_name: str | None = None
     job_title: str | None = None
     department: str | None = None
@@ -21,6 +31,7 @@ def _map_user_row(row) -> UserProfile:
         id=row["id"],
         name=row["name"],
         email=row["email"],
+        username=row.get("username"),
         display_name=row.get("display_name"),
         job_title=row.get("job_title"),
         department=row.get("department"),
@@ -35,6 +46,7 @@ def user_profile_to_dict(user: UserProfile) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "username": user.username,
         "display_name": user.display_name,
         "job_title": user.job_title,
         "department": user.department,
@@ -48,12 +60,7 @@ class UserService:
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
-                    SELECT id, name, email, display_name, job_title, department,
-                           phone, office_location, ews_account_id
-                    FROM users
-                    WHERE id = %s
-                    """,
+                    f"SELECT {USER_COLUMNS} FROM users WHERE id = %s",
                     (user_id,),
                 )
                 row = cursor.fetchone()
@@ -63,16 +70,35 @@ class UserService:
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
-                    SELECT id, name, email, display_name, job_title, department,
-                           phone, office_location, ews_account_id
-                    FROM users
-                    WHERE email = %s
-                    """,
+                    f"SELECT {USER_COLUMNS} FROM users WHERE email = %s",
                     (email,),
                 )
                 row = cursor.fetchone()
         return _map_user_row(row) if row else None
+
+    def _assign_username(self, cursor, user_id: int, login: str | None) -> None:
+        if not login:
+            return
+        cursor.execute(
+            "SELECT username FROM users WHERE id = %s",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        if row and row.get("username"):
+            return
+
+        prefix = normalize_user_key_prefix(login)
+        candidates = [prefix, f"{prefix}{user_id}", f"user{user_id}"]
+        for candidate in candidates:
+            try:
+                cursor.execute(
+                    "UPDATE users SET username = %s WHERE id = %s AND username IS NULL",
+                    (candidate, user_id),
+                )
+                if cursor.rowcount:
+                    return
+            except IntegrityError:
+                continue
 
     def upsert_from_exchange(
         self,
@@ -84,6 +110,7 @@ class UserService:
         phone: str | None = None,
         office_location: str | None = None,
         ews_account_id: int | None = None,
+        username: str | None = None,
     ) -> UserProfile:
         name = display_name or email.split("@")[0]
 
@@ -116,15 +143,17 @@ class UserService:
                     ),
                 )
                 cursor.execute(
-                    """
-                    SELECT id, name, email, display_name, job_title, department,
-                           phone, office_location, ews_account_id
-                    FROM users
-                    WHERE email = %s
-                    """,
+                    f"SELECT {USER_COLUMNS} FROM users WHERE email = %s",
                     (email,),
                 )
                 row = cursor.fetchone()
+                if row:
+                    self._assign_username(cursor, row["id"], username)
+                    cursor.execute(
+                        f"SELECT {USER_COLUMNS} FROM users WHERE email = %s",
+                        (email,),
+                    )
+                    row = cursor.fetchone()
 
         if not row:
             raise RuntimeError("Failed to upsert user profile")

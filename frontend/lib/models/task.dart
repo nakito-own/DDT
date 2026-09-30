@@ -1,6 +1,8 @@
+import '../utils/api_date_time.dart';
 import 'task_comment.dart';
 import 'task_link.dart';
 import 'task_priority.dart';
+import 'task_ref.dart';
 import 'task_status.dart';
 import 'task_type.dart';
 
@@ -10,6 +12,7 @@ class Task {
     required this.title,
     required this.status,
     required this.timeSet,
+    this.key = '',
     this.typeId,
     this.type,
     this.description = '',
@@ -18,6 +21,10 @@ class Task {
     this.responsibleId,
     this.ownerId,
     this.spaceId,
+    this.spaceKey,
+    this.parentId,
+    this.parent,
+    this.children = const [],
     this.timeStart,
     this.timeEnd,
     this.deadline,
@@ -29,6 +36,7 @@ class Task {
   });
 
   final int id;
+  final String key;
   final String title;
   final TaskStatus status;
   final int? typeId;
@@ -39,6 +47,10 @@ class Task {
   final int? responsibleId;
   final int? ownerId;
   final int? spaceId;
+  final String? spaceKey;
+  final int? parentId;
+  final TaskRef? parent;
+  final List<TaskRef> children;
   final DateTime timeSet;
   final DateTime? timeStart;
   final DateTime? timeEnd;
@@ -49,12 +61,18 @@ class Task {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  String get apiRef => key.isNotEmpty ? key : id.toString();
+
+  String get displayKey => key.isNotEmpty ? key : '#$id';
+
   factory Task.fromJson(Map<String, dynamic> json) {
     final rawLinks = json['links'] as List<dynamic>?;
     final rawComments = json['comments'] as List<dynamic>?;
+    final rawChildren = json['children'] as List<dynamic>?;
 
     return Task(
       id: json['id'] as int,
+      key: json['key'] as String? ?? '',
       title: json['title'] as String,
       status: TaskStatus.fromValue(json['status'] as String),
       typeId: json['type_id'] as int?,
@@ -67,15 +85,25 @@ class Task {
       responsibleId: json['responsible_id'] as int?,
       ownerId: json['owner_id'] as int?,
       spaceId: json['space_id'] as int?,
-      timeSet: DateTime.parse(json['time_set'] as String),
+      spaceKey: json['space_key'] as String?,
+      parentId: json['parent_id'] as int?,
+      parent: json['parent'] != null
+          ? TaskRef.fromJson(json['parent'] as Map<String, dynamic>)
+          : null,
+      children:
+          rawChildren
+              ?.map((item) => TaskRef.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      timeSet: parseApiDateTime(json['time_set'] as String),
       timeStart: json['time_start'] != null
-          ? DateTime.parse(json['time_start'] as String)
+          ? parseApiDateTime(json['time_start'] as String)
           : null,
       timeEnd: json['time_end'] != null
-          ? DateTime.parse(json['time_end'] as String)
+          ? parseApiDateTime(json['time_end'] as String)
           : null,
       deadline: json['deadline'] != null
-          ? DateTime.parse(json['deadline'] as String)
+          ? parseApiDateTime(json['deadline'] as String)
           : null,
       priority: TaskPriority.fromValue(json['priority'] as String?),
       links: rawLinks
@@ -89,10 +117,10 @@ class Task {
               .toList() ??
           const [],
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? parseApiDateTime(json['created_at'] as String)
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+          ? parseApiDateTime(json['updated_at'] as String)
           : null,
     );
   }
@@ -100,6 +128,7 @@ class Task {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      if (key.isNotEmpty) 'key': key,
       'title': title,
       'status': status.value,
       if (typeId != null) 'type_id': typeId,
@@ -110,6 +139,10 @@ class Task {
       if (responsibleId != null) 'responsible_id': responsibleId,
       if (ownerId != null) 'owner_id': ownerId,
       if (spaceId != null) 'space_id': spaceId,
+      if (spaceKey != null) 'space_key': spaceKey,
+      if (parentId != null) 'parent_id': parentId,
+      if (parent != null) 'parent': parent!.toJson(),
+      'children': children.map((child) => child.toJson()).toList(),
       'time_set': timeSet.toIso8601String(),
       if (timeStart != null) 'time_start': timeStart!.toIso8601String(),
       if (timeEnd != null) 'time_end': timeEnd!.toIso8601String(),
@@ -124,6 +157,7 @@ class Task {
 
   Task copyWith({
     int? id,
+    String? key,
     String? title,
     TaskStatus? status,
     int? typeId,
@@ -134,6 +168,10 @@ class Task {
     int? responsibleId,
     int? ownerId,
     int? spaceId,
+    String? spaceKey,
+    int? parentId,
+    TaskRef? parent,
+    List<TaskRef>? children,
     DateTime? timeSet,
     DateTime? timeStart,
     DateTime? timeEnd,
@@ -144,6 +182,7 @@ class Task {
   }) {
     return Task(
       id: id ?? this.id,
+      key: key ?? this.key,
       title: title ?? this.title,
       status: status ?? this.status,
       typeId: typeId ?? this.typeId,
@@ -154,6 +193,10 @@ class Task {
       responsibleId: responsibleId ?? this.responsibleId,
       ownerId: ownerId ?? this.ownerId,
       spaceId: spaceId ?? this.spaceId,
+      spaceKey: spaceKey ?? this.spaceKey,
+      parentId: parentId ?? this.parentId,
+      parent: parent ?? this.parent,
+      children: children ?? this.children,
       timeSet: timeSet ?? this.timeSet,
       timeStart: timeStart ?? this.timeStart,
       timeEnd: timeEnd ?? this.timeEnd,

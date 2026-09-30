@@ -6,6 +6,7 @@ final class CalendarState extends Equatable {
   const CalendarState({
     this.events = const [],
     this.isLoading = false,
+    this.isRefreshing = false,
     this.isCreating = false,
     this.isResponding = false,
     this.errorMessage,
@@ -15,6 +16,7 @@ final class CalendarState extends Equatable {
 
   final List<CalendarEvent> events;
   final bool isLoading;
+  final bool isRefreshing;
   final bool isCreating;
   final bool isResponding;
   final String? errorMessage;
@@ -50,6 +52,7 @@ final class CalendarState extends Equatable {
   CalendarState copyWith({
     List<CalendarEvent>? events,
     bool? isLoading,
+    bool? isRefreshing,
     bool? isCreating,
     bool? isResponding,
     String? Function()? errorMessage,
@@ -59,6 +62,7 @@ final class CalendarState extends Equatable {
     return CalendarState(
       events: events ?? this.events,
       isLoading: isLoading ?? this.isLoading,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       isCreating: isCreating ?? this.isCreating,
       isResponding: isResponding ?? this.isResponding,
       errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
@@ -109,6 +113,7 @@ final class CalendarState extends Equatable {
   List<Object?> get props => [
     events,
     isLoading,
+    isRefreshing,
     isCreating,
     isResponding,
     errorMessage,
