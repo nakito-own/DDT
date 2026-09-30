@@ -22,12 +22,12 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[TaskResponse])
-async def list_tasks(context: SessionContext = Depends(get_current_session)):
+def list_tasks(context: SessionContext = Depends(get_current_session)):
     return task_service.list_tasks(context.user_id)
 
 
 @router.post("", response_model=TaskResponse, status_code=201)
-async def create_task(
+def create_task(
     payload: CreateTaskRequest,
     context: SessionContext = Depends(get_current_session),
 ):
@@ -45,7 +45,7 @@ async def create_task(
 
 
 @router.get("/{task_ref}", response_model=TaskResponse)
-async def get_task(
+def get_task(
     task_ref: str,
     context: SessionContext = Depends(get_current_session),
 ):
@@ -60,7 +60,7 @@ async def get_task(
     response_model=TaskCommentResponse,
     status_code=201,
 )
-async def add_task_comment(
+def add_task_comment(
     task_ref: str,
     payload: CreateTaskCommentRequest,
     context: SessionContext = Depends(get_current_session),
@@ -76,7 +76,7 @@ async def add_task_comment(
 
 
 @router.put("/{task_ref}", response_model=TaskResponse)
-async def update_task(
+def update_task(
     task_ref: str,
     payload: UpdateTaskRequest,
     context: SessionContext = Depends(get_current_session),
@@ -92,7 +92,7 @@ async def update_task(
 
 
 @router.patch("/{task_ref}/status", response_model=TaskResponse)
-async def update_task_status(
+def update_task_status(
     task_ref: str,
     payload: UpdateTaskStatusRequest,
     context: SessionContext = Depends(get_current_session),
@@ -108,7 +108,7 @@ async def update_task_status(
 
 
 @router.delete("/{task_ref}", status_code=204)
-async def delete_task(
+def delete_task(
     task_ref: str,
     context: SessionContext = Depends(get_current_session),
 ):

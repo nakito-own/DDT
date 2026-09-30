@@ -72,6 +72,8 @@ services:
       GOOGLE_SHEETS_CREDENTIALS_PATH: ${GOOGLE_SHEETS_CREDENTIALS_PATH:-}
       GOOGLE_SHEETS_CREDENTIALS_JSON: ${GOOGLE_SHEETS_CREDENTIALS_JSON:-}
       GOOGLE_SHEETS_CACHE_TTL_SECONDS: ${GOOGLE_SHEETS_CACHE_TTL_SECONDS:-60}
+    volumes:
+      - ${DDT_SECRETS_DIR:-/opt/ddt/shared/secrets}:/app/secrets:ro
     depends_on:
       mysql:
         condition: service_healthy

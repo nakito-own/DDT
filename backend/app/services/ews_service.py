@@ -591,12 +591,12 @@ class EwsService:
 
     @staticmethod
     def close_account(account: Account | None) -> None:
-        if account is None:
-            return
-        try:
-            account.protocol.close()
-        except Exception:
-            logger.debug("Failed to close EWS protocol", exc_info=True)
+        # exchangelib caches one Protocol (and its session pool) per
+        # endpoint+credentials and shares it between every Account with the same
+        # login. Closing it here would drain sessions still used by other
+        # threads and corrupt the pool size counter, after which get_session()
+        # blocks forever. Broken sessions are retired by exchangelib itself.
+        return
 
     def connect_account(self, username: str, password: str, email: str) -> Account:
         max_attempts = max(1, settings.ews_verify_max_attempts)
