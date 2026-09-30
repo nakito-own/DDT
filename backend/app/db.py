@@ -16,6 +16,9 @@ def _connect():
         charset="utf8mb4",
         cursorclass=DictCursor,
         autocommit=True,
+        connect_timeout=5,
+        read_timeout=30,
+        write_timeout=30,
     )
 
 

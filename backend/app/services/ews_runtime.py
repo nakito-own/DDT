@@ -79,15 +79,21 @@ async def run_ews(
     *args,
     **kwargs,
 ) -> T:
-    """Run a blocking exchangelib call off the asyncio event loop."""
+    """Run a blocking exchangelib call off the asyncio event loop.
+
+    The per-session lock is taken before a global slot so that one user's slow
+    Exchange call only queues that user's requests, not everyone's.
+    """
 
     def _run() -> T:
         return session_service.run_with_account(
             context,
-            lambda account: operation(account, *args, **kwargs),
+            lambda account: _run_gated(operation, account, *args, **kwargs),
+            lock_timeout=settings.ews_read_timeout_seconds,
         )
 
-    return await run_blocking(_run)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_get_executor(), _run)
 
 
 def shutdown_ews_executor() -> None:

@@ -6,7 +6,7 @@ from app.services.session_service import SessionContext, session_service
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-async def get_current_session(
+def get_current_session(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> SessionContext:
     if credentials is None or credentials.scheme.lower() != "bearer":
