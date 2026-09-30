@@ -1,9 +1,28 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:markdown_live/markdown_live.dart';
 
 /// Markdown controller that never shows raw syntax markers in the editor.
 class DdtMarkdownLiveController extends MarkdownLiveController {
   DdtMarkdownLiveController({super.text, super.theme});
+
+  bool _deferredNotifyScheduled = false;
+
+  /// [MarkdownLiveEditor] assigns [theme] during build, which notifies
+  /// [MarkdownLiveToolbar] listeners and triggers setState-in-build.
+  @override
+  void notifyListeners() {
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      super.notifyListeners();
+      return;
+    }
+    if (_deferredNotifyScheduled) return;
+    _deferredNotifyScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _deferredNotifyScheduled = false;
+      super.notifyListeners();
+    });
+  }
 
   static const TextStyle _hiddenSyntaxStyle = TextStyle(
     fontSize: 0.01,
