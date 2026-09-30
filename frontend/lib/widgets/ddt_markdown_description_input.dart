@@ -104,13 +104,7 @@ class _DdtMarkdownDescriptionInputState
     final brightness = Theme.of(context).brightness;
     if (_syncedBrightness == brightness) return;
     _syncedBrightness = brightness;
-    final theme = DdtMarkdownDescriptionInput.themeFor(context);
-    // MarkdownLiveEditor assigns controller.theme during build; defer to avoid
-    // setState-in-build via ChangeNotifier listeners on this widget.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.controller.theme = theme;
-    });
+    widget.controller.theme = DdtMarkdownDescriptionInput.themeFor(context);
   }
 
   @override
@@ -126,7 +120,6 @@ class _DdtMarkdownDescriptionInputState
 
   @override
   Widget build(BuildContext context) {
-    final mdTheme = DdtMarkdownDescriptionInput.themeFor(context);
     final fill = DdtTheme.inputFillColor(context);
     final border = _focused
         ? AppColors.primary
@@ -188,7 +181,6 @@ class _DdtMarkdownDescriptionInputState
               ),
               child: MarkdownLiveEditor(
                 controller: widget.controller,
-                theme: mdTheme,
                 focusNode: _focusNode,
                 minLines: widget.minLines,
                 maxLines: null,
