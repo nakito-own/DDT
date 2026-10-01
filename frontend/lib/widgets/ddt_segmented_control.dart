@@ -29,20 +29,24 @@ class DdtSegmentedControl<T> extends StatelessWidget {
     required this.segments,
     required this.selected,
     required this.onChanged,
+    this.compact = false,
   });
 
   static const double _segmentRadius = DdtTheme.borderRadius + 12;
   static const double _segmentPaddingHorizontal = 16;
   static const double _segmentPaddingVertical = 4;
+  static const double _segmentPaddingHorizontalCompact = 11;
+  static const double _segmentPaddingVerticalCompact = 2;
 
   final List<DdtSegmentedControlSegment<T>> segments;
   final T selected;
   final ValueChanged<T> onChanged;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(3.w),
+      padding: EdgeInsets.all(compact ? 2.w : 3.w),
       decoration: DdtTheme.shellSurfaceDecoration(
         context,
         addShadow: false,
@@ -56,6 +60,7 @@ class DdtSegmentedControl<T> extends StatelessWidget {
             _DdtSegmentedControlItem<T>(
               segment: segments[i],
               isSelected: segments[i].value == selected,
+              compact: compact,
               onTap: () => onChanged(segments[i].value),
             ),
           ],
@@ -70,11 +75,13 @@ class _DdtSegmentedControlItem<T> extends StatefulWidget {
     required this.segment,
     required this.isSelected,
     required this.onTap,
+    this.compact = false,
   });
 
   final DdtSegmentedControlSegment<T> segment;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   State<_DdtSegmentedControlItem<T>> createState() =>
@@ -120,8 +127,14 @@ class _DdtSegmentedControlItemState<T>
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
           padding: EdgeInsets.symmetric(
-            horizontal: DdtSegmentedControl._segmentPaddingHorizontal.w,
-            vertical: DdtSegmentedControl._segmentPaddingVertical.h,
+            horizontal: (widget.compact
+                    ? DdtSegmentedControl._segmentPaddingHorizontalCompact
+                    : DdtSegmentedControl._segmentPaddingHorizontal)
+                .w,
+            vertical: (widget.compact
+                    ? DdtSegmentedControl._segmentPaddingVerticalCompact
+                    : DdtSegmentedControl._segmentPaddingVertical)
+                .h,
           ),
           decoration: BoxDecoration(
             color: backgroundColor,
@@ -136,15 +149,17 @@ class _DdtSegmentedControlItemState<T>
               if (widget.segment.icon != null) ...[
                 DdtIcon(
                   widget.segment.icon!,
-                  size: 14.sp,
+                  size: (widget.compact ? 12 : 14).sp,
                   color: foregroundColor,
                 ),
-                SizedBox(width: 5.w),
+                SizedBox(width: (widget.compact ? 4 : 5).w),
               ],
               Text(
                 widget.segment.label,
                 style: DdtTheme.style(
-                  fontSize: DdtTypography.labelSmallSize,
+                  fontSize: widget.compact
+                      ? DdtTypography.microSize
+                      : DdtTypography.labelSmallSize,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: foregroundColor,
                 ),

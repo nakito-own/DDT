@@ -14,6 +14,7 @@ import '../widgets/task_side_panel.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
+import '../widgets/ddt_section_sidebar.dart';
 import '../widgets/tasks_filters_panel.dart';
 import '../theme/ddt_typography.dart';
 
@@ -105,18 +106,14 @@ class TasksListPage extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: DdtShellMetrics.fixedTopPadding(context),
-              child: SizedBox(
-                width: kTasksFiltersPanelWidth.w,
-                child: TasksFiltersPanel(
-                  onCreatePressed: () => _createTask(context),
-                ),
+            DdtSectionSidebarFrame(
+              child: TasksFiltersPanel(
+                onCreatePressed: () => _createTask(context),
               ),
             ),
-            DdtTheme.horizontalGap(),
+            DdtSectionSidebar.afterScrollbarGapBox(),
             const DdtSidePanelDivider(),
-            DdtTheme.horizontalGap(),
+            DdtSectionSidebar.dividerGap(),
             Expanded(
               child: tasks.isEmpty
                   ? Align(
@@ -133,9 +130,12 @@ class TasksListPage extends StatelessWidget {
                     )
                   : DdtScrollEdgeFade(
                       child: ListView.separated(
-                        padding: DdtShellMetrics.scrollPadding(context).copyWith(
-                          bottom: DdtScrollEdgeFade.listBottomPadding(context),
-                        ),
+                        padding: DdtShellMetrics.scrollPadding(context)
+                            .copyWith(
+                              bottom: DdtScrollEdgeFade.listBottomPadding(
+                                context,
+                              ),
+                            ),
                         clipBehavior: Clip.none,
                         itemCount: tasks.length,
                         separatorBuilder: (_, _) => SizedBox(height: 10.h),

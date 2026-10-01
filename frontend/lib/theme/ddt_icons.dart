@@ -41,6 +41,7 @@ abstract final class DdtIcons {
   static const FaIconData bell = FontAwesomeIcons.bell;
   static const FaIconData user = FontAwesomeIcons.user;
   static const FaIconData userCircle = FontAwesomeIcons.circleUser;
+  static const FaIconData signOut = FontAwesomeIcons.arrowRightFromBracket;
 
   // Time & place
   static const FaIconData clock = FontAwesomeIcons.clock;
