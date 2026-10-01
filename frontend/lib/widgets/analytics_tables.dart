@@ -11,7 +11,7 @@ import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
 import 'analytics_charts.dart';
 
-const _successColor = Color(0xFF2E7D32);
+const _successColor = analyticsPositiveColor;
 const _warningColor = Color(0xFFF9A825);
 const _dangerColor = Color(0xFFC62828);
 const _purpleColor = Color(0xFF7B1FA2);

@@ -116,7 +116,6 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
       state.copyWith(
         filters: filters,
         tableLimit: tablePageSize,
-        isRefreshing: true,
         errorMessage: () => null,
       ),
     );

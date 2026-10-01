@@ -21,6 +21,7 @@ import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_filter_dropdown.dart';
+import '../widgets/ddt_section_sidebar.dart';
 import '../widgets/ddt_icon.dart';
 
 enum AnalyticsSection {
@@ -264,8 +265,8 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
         if (!showSideFilters) {
           return Column(
             children: [
-              Padding(
-                padding: DdtShellMetrics.fixedTopPadding(context),
+              DdtSectionSidebarFrame(
+                constrainWidth: false,
                 child: SizedBox(height: 280.h, child: filtersPanel),
               ),
               SizedBox(height: 12.h),
@@ -279,13 +280,10 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: DdtShellMetrics.fixedTopPadding(context),
-              child: SizedBox(width: 300.w, child: filtersPanel),
-            ),
-            DdtTheme.horizontalGap(),
+            DdtSectionSidebarFrame(child: filtersPanel),
+            DdtSectionSidebar.afterScrollbarGapBox(),
             const DdtSidePanelDivider(),
-            DdtTheme.horizontalGap(),
+            DdtSectionSidebar.dividerGap(),
             Expanded(child: dashboardWithFades),
           ],
         );
@@ -341,6 +339,15 @@ class _DashboardHeader extends StatelessWidget {
           icon: DdtIcon(
             DdtIcons.refresh,
             color: AppColors.primary,
+            size: 22.sp,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Редактировать',
+          onPressed: null,
+          icon: DdtIcon(
+            DdtIcons.edit,
+            color: DdtTheme.textMuted(context),
             size: 22.sp,
           ),
         ),
@@ -413,7 +420,7 @@ class _StpKpiGrid extends StatelessWidget {
         kpi.slaKnown == 0
             ? '—'
             : '${(kpi.slaOk / kpi.slaKnown * 100).round()}%',
-        const Color(0xFF2E7D32),
+        analyticsPositiveColor,
         '${kpi.slaOk} из ${kpi.slaKnown}',
       ),
       (

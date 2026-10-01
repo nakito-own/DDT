@@ -11,8 +11,8 @@ import '../theme/ddt_typography.dart';
 import 'analytics_period_calendar.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_tappable.dart';
-import '../widgets/ddt_icon.dart';
 import 'ddt_scroll_edge_fade.dart';
+import 'ddt_section_sidebar.dart';
 
 const _kAnalyticsFiltersFadeHeight = kDdtScrollEdgeFadeHeightCompact;
 const _kAnalyticsFiltersSolidTail = 8.0;
@@ -21,7 +21,7 @@ const _kAnalyticsFiltersListGap = 4.0;
 /// Single source of truth for sticky header height vs [ListView] top padding.
 abstract final class _AnalyticsFiltersHeaderMetrics {
   static double titleRowHeight(BuildContext context) {
-    return DdtTypography.sectionTitleSize.sp + 8.h;
+    return DdtSectionSidebarTitle.rowHeight(context);
   }
 
   static double topOverlayHeight(BuildContext context) {
@@ -84,28 +84,23 @@ class AnalyticsFiltersPanel extends StatelessWidget {
 
     return ColoredBox(
       color: panelBackground,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(12.w, 2.h, 12.w, 4.h),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned.fill(
-              child: ClipRect(
-                child: ListView(
-                  clipBehavior: Clip.hardEdge,
-                  padding: EdgeInsets.only(
-                    top: _AnalyticsFiltersHeaderMetrics.listTopPadding(context),
-                    bottom: _AnalyticsFiltersHeaderMetrics.listBottomPadding(
-                      context,
-                    ),
-                    left: 8.w,
-                    right: 8.w,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned.fill(
+            child: DdtSectionSidebarScroll(
+              child: ListView(
+                clipBehavior: Clip.hardEdge,
+                padding: DdtSectionSidebar.scrollContentPadding(
+                  top: _AnalyticsFiltersHeaderMetrics.listTopPadding(context),
+                  bottom: _AnalyticsFiltersHeaderMetrics.listBottomPadding(
+                    context,
                   ),
+                ),
                   children: [
-                    SizedBox(height: 4.h),
-                    DdtFilterLabel('Тип фильтрации по дате'),
-                    SizedBox(height: 4.h),
-                    DdtFilterDropdownHoverSlot(
+                    DdtSectionSidebarField(
+                      label: 'Тип фильтрации по дате',
+                      gapAbove: false,
                       child: DdtSearchableFilterDropdown(
                         summary: selectedDateLabel ?? 'Выбрать колонку',
                         active: selectedDateKey.isNotEmpty,
@@ -124,13 +119,11 @@ class AnalyticsFiltersPanel extends StatelessWidget {
                         onSelected: onDateColumnChanged,
                       ),
                     ),
-                    SizedBox(height: 10.h),
-                    DdtFilterLabel('Период'),
-                    SizedBox(height: 4.h),
-                    Builder(
-                      builder: (anchorContext) {
-                        return DdtFilterDropdownHoverSlot(
-                          child: DdtFilterDropdownAnchor(
+                    DdtSectionSidebarField(
+                      label: 'Период',
+                      child: Builder(
+                        builder: (anchorContext) {
+                          return DdtFilterDropdownAnchor(
                             label: filters.periodStart == null
                                 ? 'Выбрать период'
                                 : filters.periodEnd == null ||
@@ -154,50 +147,49 @@ class AnalyticsFiltersPanel extends StatelessWidget {
                                 onApply: onPeriodChanged,
                               );
                             },
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                     if (computedColumns.isNotEmpty) ...[
-                      SizedBox(height: 12.h),
-                      DdtFilterLabel('Вычисляемые поля'),
-                      SizedBox(height: 4.h),
+                      SizedBox(height: DdtSectionSidebar.fieldGap),
+                      const DdtFilterLabel('Вычисляемые поля'),
+                      SizedBox(height: DdtSectionSidebar.labelGap),
                       for (final column in computedColumns)
                         _columnFilter(context, column),
                     ],
-                    SizedBox(height: 12.h),
-                    DdtFilterLabel('Колонки таблицы'),
-                    SizedBox(height: 4.h),
+                    SizedBox(height: DdtSectionSidebar.fieldGap),
+                    const DdtFilterLabel('Колонки таблицы'),
+                    SizedBox(height: DdtSectionSidebar.labelGap),
                     for (final column in sheetColumns)
                       _columnFilter(context, column),
                   ],
                 ),
               ),
             ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: RepaintBoundary(
-                child: _AnalyticsFiltersHeader(
-                  backgroundColor: panelBackground,
-                  showReset: filters.hasPeriod || filters.hasColumnFilters,
-                  onCleared: onCleared,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: DdtScrollEdgeFadeGradient(
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: RepaintBoundary(
+              child: _AnalyticsFiltersHeader(
                 backgroundColor: panelBackground,
-                atTop: false,
-                fadeHeight: _kAnalyticsFiltersFadeHeight,
+                showReset: filters.hasPeriod || filters.hasColumnFilters,
+                onCleared: onCleared,
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DdtScrollEdgeFadeGradient(
+              backgroundColor: panelBackground,
+              atTop: false,
+              fadeHeight: _kAnalyticsFiltersFadeHeight,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -213,19 +205,12 @@ class AnalyticsFiltersPanel extends StatelessWidget {
     ];
     final selected = filters.selectedValues[column.key] ?? const <String>{};
     return Padding(
-      padding: EdgeInsets.only(bottom: 8.h),
+      padding: EdgeInsets.only(bottom: DdtSectionSidebar.fieldGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            column.label,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSize,
-              fontWeight: FontWeight.w700,
-              color: DdtTheme.textSecondary(context),
-            ),
-          ),
-          SizedBox(height: 4.h),
+          DdtFilterLabel(column.label),
+          SizedBox(height: DdtSectionSidebar.labelGap),
           DdtFilterDropdownHoverSlot(
             child: DdtSearchableFilterDropdown(
               summary: ddtFilterSelectionSummary(selected, options),
@@ -276,25 +261,13 @@ class _AnalyticsFiltersHeader extends StatelessWidget {
           color: backgroundColor,
           child: SizedBox(
             height: _AnalyticsFiltersHeaderMetrics.titleRowHeight(context),
-            child: Row(
-              children: [
-                DdtIcon(
-                  DdtIcons.sliders,
-                  size: 18.sp,
-                  color: AppColors.primary.withValues(alpha: 0.9),
-                ),
-                SizedBox(width: 8.w),
-                Expanded(
-                  child: Text(
-                    'Фильтры',
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.sectionTitleSize,
-                      fontWeight: FontWeight.w800,
-                      color: DdtTheme.textPrimary(context),
-                    ),
-                  ),
-                ),
-                AnimatedSwitcher(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: DdtSectionSidebar.gutter.w,
+                right: DdtSectionSidebar.scrollRightInset.w,
+              ),
+              child: DdtSectionSidebarTitle(
+                trailing: AnimatedSwitcher(
                   duration: DdtTheme.selectionAnimationDuration,
                   switchInCurve: DdtTheme.selectionAnimationCurve,
                   switchOutCurve: DdtTheme.selectionAnimationCurve,
@@ -318,7 +291,7 @@ class _AnalyticsFiltersHeader extends StatelessWidget {
                         )
                       : const SizedBox.shrink(key: ValueKey('reset-hidden')),
                 ),
-              ],
+              ),
             ),
           ),
         ),
