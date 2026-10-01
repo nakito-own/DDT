@@ -21,6 +21,22 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   static const double barHeight = 56;
 
+  /// Shared compact controls for section actions and trailing app bar icons.
+  static const double actionIconLogicalSize = 17;
+  static const double actionButtonLogicalSize = 32;
+
+  static double actionIconSizeOf(BuildContext context) =>
+      DdtTheme.shellSizeOf(context, actionIconLogicalSize);
+
+  static BoxConstraints actionIconButtonConstraints(BuildContext context) =>
+      BoxConstraints(
+        minWidth: DdtTheme.shellSizeOf(context, actionButtonLogicalSize),
+        minHeight: DdtTheme.shellSizeOf(context, actionButtonLogicalSize),
+      );
+
+  static EdgeInsets actionIconButtonPadding(BuildContext context) =>
+      EdgeInsets.all(DdtTheme.shellSizeOf(context, 4));
+
   @override
   Size get preferredSize => Size.fromHeight(DdtTheme.shellSize(barHeight));
 
@@ -96,6 +112,9 @@ class _NotificationBellButton extends StatelessWidget {
           builder: (anchorContext) {
             return IconButton(
               tooltip: 'Уведомления',
+              visualDensity: VisualDensity.compact,
+              padding: DdtGlassAppBar.actionIconButtonPadding(context),
+              constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
               onPressed: () => _openPanel(anchorContext),
               icon: Badge(
                 isLabelVisible: unread > 0,
@@ -103,7 +122,7 @@ class _NotificationBellButton extends StatelessWidget {
                 child: DdtIcon(
                   DdtIcons.bell,
                   color: foregroundColor,
-                  size: DdtTheme.shellSizeOf(context, 24),
+                  size: DdtGlassAppBar.actionIconSizeOf(context),
                 ),
               ),
             );
@@ -332,18 +351,18 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                     context: context,
                     cornerRadius: _cornerRadius.r,
                     padding: EdgeInsets.symmetric(
-                      horizontal: DdtTheme.shellSizeOf(context, 14),
-                      vertical: DdtTheme.shellSizeOf(context, 8),
+                      horizontal: DdtTheme.shellSizeOf(context, 12),
+                      vertical: DdtTheme.shellSizeOf(context, 6),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         DdtIcon(
                           DdtIcons.userCircle,
-                          size: DdtTheme.shellSizeOf(context, 18),
+                          size: DdtGlassAppBar.actionIconSizeOf(context),
                           color: email != null ? AppColors.primary : mutedColor,
                         ),
-                        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                        SizedBox(width: DdtTheme.shellSizeOf(context, 6)),
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             maxWidth: DdtTheme.shellSizeOf(context, 220),
@@ -353,7 +372,7 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: DdtTheme.style(
-                              fontSize: DdtTypography.labelSize,
+                              fontSize: DdtTypography.labelSmallSize,
                               fontWeight: FontWeight.w500,
                               color: email != null ? textColor : mutedColor,
                             ),

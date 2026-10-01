@@ -12,7 +12,7 @@ import 'ddt_checkbox.dart';
 import 'ddt_context_menu.dart';
 import 'ddt_icon.dart';
 
-/// Room for focus shadow and hover border without clipping in the filter column.
+/// Vertical inset for hover scale and focus shadow; width comes from the sidebar.
 class DdtFilterDropdownHoverSlot extends StatelessWidget {
   const DdtFilterDropdownHoverSlot({required this.child, super.key});
 
@@ -21,8 +21,8 @@ class DdtFilterDropdownHoverSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 2.h),
-      child: child,
+      padding: EdgeInsets.symmetric(vertical: 2.h),
+      child: SizedBox(width: double.infinity, child: child),
     );
   }
 }
@@ -129,13 +129,16 @@ Future<void> showDdtSearchableFilterMenu({
   bool multi = false,
   String emptyLabel = 'Нет значений',
   bool matchAnchorWidth = false,
+  double? menuWidth,
 }) {
-  final anchorWidth = matchAnchorWidth
-      ? ddtContextMenuAnchorRect(
-          context: context,
-          anchorContext: anchorContext,
-        )?.width
-      : null;
+  final anchorWidth =
+      menuWidth ??
+      (matchAnchorWidth
+          ? ddtContextMenuAnchorRect(
+              context: context,
+              anchorContext: anchorContext,
+            )?.width
+          : null);
 
   return showDdtContextPanel(
     context: context,
@@ -154,6 +157,9 @@ Future<void> showDdtSearchableFilterMenu({
   );
 }
 
+/// Compact trigger used in the app bar. Must stay shorter than the bar.
+const double kDdtCompactFilterDropdownHeight = 32;
+
 class DdtFilterDropdownAnchor extends StatefulWidget {
   const DdtFilterDropdownAnchor({
     required this.label,
@@ -162,6 +168,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
     super.key,
     this.icon,
     this.badge = 0,
+    this.compact = false,
   });
 
   final String label;
@@ -169,9 +176,11 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
   final VoidCallback onTap;
   final FaIconData? icon;
   final int badge;
+  final bool compact;
 
   @override
-  State<DdtFilterDropdownAnchor> createState() => _DdtFilterDropdownAnchorState();
+  State<DdtFilterDropdownAnchor> createState() =>
+      _DdtFilterDropdownAnchorState();
 }
 
 class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
@@ -188,9 +197,9 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
         : DdtTheme.inputFillColor(context);
     final border = widget.active
         ? AppColors.primary.withValues(alpha: _hovered ? 0.62 : 0.42)
-        : DdtTheme.inputBorderColor(context).withValues(
-            alpha: _hovered ? 0.55 : 0.32,
-          );
+        : DdtTheme.inputBorderColor(
+            context,
+          ).withValues(alpha: _hovered ? 0.55 : 0.32);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -208,7 +217,13 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
             duration: DdtTheme.selectionAnimationDuration,
             curve: DdtTheme.selectionAnimationCurve,
             width: double.infinity,
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            height: widget.compact
+                ? kDdtCompactFilterDropdownHeight
+                : DdtTheme.compactInputControlHeight,
+            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.compact ? 10.w : 12.w,
+            ),
             decoration: BoxDecoration(
               borderRadius: DdtTheme.radius,
               border: Border.all(color: border),
@@ -226,18 +241,20 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
                     curve: DdtTheme.selectionAnimationCurve,
                     child: DdtIcon(
                       widget.icon!,
-                      size: 16.sp,
+                      size: (widget.compact ? 14 : 16).sp,
                       color: AppColors.primary,
                     ),
                   ),
-                  SizedBox(width: 8.w),
+                  SizedBox(width: (widget.compact ? 6 : 8).w),
                 ],
                 Expanded(
                   child: AnimatedDefaultTextStyle(
                     duration: DdtTheme.selectionAnimationDuration,
                     curve: DdtTheme.selectionAnimationCurve,
                     style: DdtTheme.style(
-                      fontSize: DdtTypography.labelSize,
+                      fontSize: widget.compact
+                          ? DdtTypography.labelSmallSize
+                          : DdtTypography.labelSize,
                       fontWeight: widget.active
                           ? FontWeight.w700
                           : FontWeight.w600,
@@ -529,9 +546,7 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
                     duration: DdtTheme.selectionAnimationDuration,
                     curve: DdtTheme.selectionAnimationCurve,
                     child: DdtIcon(
-                      widget.checked
-                          ? DdtIcons.radioOn
-                          : DdtIcons.radioOff,
+                      widget.checked ? DdtIcons.radioOn : DdtIcons.radioOff,
                       size: 16.sp,
                       color: widget.checked || _hovered
                           ? AppColors.primary

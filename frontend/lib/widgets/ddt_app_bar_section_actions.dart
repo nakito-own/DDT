@@ -13,8 +13,8 @@ import '../models/space.dart';
 import '../models/tasks_view_mode.dart';
 import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
-import 'compose_mail_panel.dart';
 import 'ddt_context_menu.dart';
+import 'ddt_glass_app_bar.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_segmented_control.dart';
 import '../widgets/ddt_icon.dart';
@@ -48,8 +48,9 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
   late final Future<List<Space>> _spaces = spacesApi.fetchSpaces();
 
   String? _spaceKeyFromLocation(String location) {
-    final board = RegExp(r'^/space/([^/]+)/(kanban|list|gantt)$')
-        .firstMatch(location);
+    final board = RegExp(
+      r'^/space/([^/]+)/(kanban|list|gantt)$',
+    ).firstMatch(location);
     if (board != null) return board.group(1);
     final task = RegExp(r'^/space/(.+)-\d+$').firstMatch(location);
     return task?.group(1);
@@ -105,8 +106,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               }
             }
 
-            final loading =
-                snapshot.connectionState == ConnectionState.waiting;
+            final loading = snapshot.connectionState == ConnectionState.waiting;
 
             return _AppBarFilterDropdown(
               width: 220,
@@ -123,9 +123,8 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
                   ? {selectedSpaceKey}
                   : const {},
               emptyLabel: 'Нет пространств',
-              onSelected: (key) => context.go(
-                activeMode.routePathForSpace(key),
-              ),
+              onSelected: (key) =>
+                  context.go(activeMode.routePathForSpace(key)),
             );
           },
         ),
@@ -177,6 +176,118 @@ class _TasksAppBarActions extends StatelessWidget {
   }
 }
 
+class _MailAppBarFolderStats extends StatelessWidget {
+  const _MailAppBarFolderStats();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shell = DdtTheme.shellSizeOf(context, 1);
+
+    return BlocBuilder<MailBloc, MailState>(
+      buildWhen: (previous, current) =>
+          previous.folders != current.folders ||
+          previous.inboxQueryErrorMessage != current.inboxQueryErrorMessage,
+      builder: (context, state) {
+        final folders = state.folders;
+        final hasError = state.inboxQueryErrorMessage != null;
+        final borderColor = hasError
+            ? AppColors.error.withValues(alpha: 0.55)
+            : AppColors.primary.withValues(alpha: isDark ? 0.35 : 0.22);
+
+        final stats = Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 10 * shell,
+            vertical: 4 * shell,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MailAppBarStatItem(
+                icon: DdtIcons.inbox,
+                label: 'Входящие',
+                value: folders == null ? '…' : '${folders.inbox}',
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10 * shell),
+                child: Container(
+                  width: 1,
+                  height: 12 * shell,
+                  color: AppColors.primary.withValues(
+                    alpha: isDark ? 0.35 : 0.25,
+                  ),
+                ),
+              ),
+              _MailAppBarStatItem(
+                icon: DdtIcons.mail,
+                label: 'Отправленные',
+                value: folders == null ? '…' : '${folders.sent}',
+              ),
+            ],
+          ),
+        );
+
+        if (hasError) {
+          return Tooltip(message: state.inboxQueryErrorMessage!, child: stats);
+        }
+        return stats;
+      },
+    );
+  }
+}
+
+class _MailAppBarStatItem extends StatelessWidget {
+  const _MailAppBarStatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shell = DdtTheme.shellSizeOf(context, 1);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DdtIcon(
+          icon,
+          size: 11 * shell,
+          color: AppColors.primary.withValues(alpha: 0.9),
+        ),
+        SizedBox(width: 4 * shell),
+        Text(
+          '$label:',
+          style: DdtTheme.style(
+            fontSize: DdtTypography.microSize,
+            fontWeight: FontWeight.w500,
+            color: DdtTheme.taskCardTextSecondary(context),
+          ),
+        ),
+        SizedBox(width: 3 * shell),
+        Text(
+          value,
+          style: DdtTheme.style(
+            fontSize: DdtTypography.captionSize,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MailAppBarActions extends StatelessWidget {
   const _MailAppBarActions();
 
@@ -214,13 +325,8 @@ class _MailAppBarActions extends StatelessWidget {
                 }
               },
             ),
-            SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-            _AppBarTextAction(
-              label: 'Написать',
-              icon: DdtIcons.edit,
-              filled: true,
-              onPressed: () => showComposeMailPanel(context),
-            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
+            const _MailAppBarFolderStats(),
           ],
         );
       },
@@ -288,11 +394,7 @@ class _CalendarAppBarActions extends StatelessWidget {
       label: 'Из интернета',
       onTap: _noop,
     ),
-    DdtContextMenuItem(
-      icon: DdtIcons.book,
-      label: 'Из каталога',
-      onTap: _noop,
-    ),
+    DdtContextMenuItem(icon: DdtIcons.book, label: 'Из каталога', onTap: _noop),
   ];
 
   static void _noop() {}
@@ -353,76 +455,27 @@ class _AppBarFilterDropdown extends StatelessWidget {
 
     return SizedBox(
       width: menuWidth,
+      height: kDdtCompactFilterDropdownHeight,
       child: Builder(
         builder: (anchorContext) {
           return DdtFilterDropdownAnchor(
             label: label,
             active: active,
+            compact: true,
             onTap: isBusy
                 ? () {}
                 : () => showDdtSearchableFilterMenu(
-                      context: context,
-                      anchorContext: anchorContext,
-                      options: options,
-                      selected: selected,
-                      onSelected: onSelected,
-                      multi: false,
-                      emptyLabel: emptyLabel,
-                      matchAnchorWidth: true,
-                    ),
+                    context: context,
+                    anchorContext: anchorContext,
+                    options: options,
+                    selected: selected,
+                    onSelected: onSelected,
+                    multi: false,
+                    emptyLabel: emptyLabel,
+                    menuWidth: menuWidth,
+                  ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _AppBarTextAction extends StatelessWidget {
-  const _AppBarTextAction({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.filled = false,
-  });
-
-  final String label;
-  final FaIconData icon;
-  final VoidCallback onPressed;
-  final bool filled;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final foregroundColor = filled
-        ? Colors.white
-        : (isDark ? Colors.white : AppColors.primary);
-
-    return TextButton.icon(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        foregroundColor: foregroundColor,
-        backgroundColor: filled ? AppColors.primary : null,
-        padding: EdgeInsets.symmetric(
-          horizontal: DdtTheme.shellSizeOf(context, 10),
-          vertical: DdtTheme.shellSizeOf(context, 6),
-        ),
-        shape: filled
-            ? RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(
-                  DdtTheme.shellSizeOf(context, 8),
-                ),
-              )
-            : null,
-        visualDensity: VisualDensity.compact,
-      ),
-      icon: DdtIcon(icon, size: DdtTheme.shellSizeOf(context, 16)),
-      label: Text(
-        label,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.bodySize,
-          fontWeight: FontWeight.w600,
-          color: foregroundColor,
-        ),
       ),
     );
   }
@@ -477,7 +530,7 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
     final foregroundColor = widget.isActive
         ? AppColors.primary
         : (isDark ? Colors.white : AppColors.primary);
-    final iconSize = DdtTheme.shellSizeOf(context, 20);
+    final iconSize = DdtGlassAppBar.actionIconSizeOf(context);
 
     final onPressed = widget.isBusy ? null : _handlePressed;
     final icon = widget.isBusy
@@ -497,6 +550,8 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
           ? IconButton(
               tooltip: widget.tooltip,
               visualDensity: VisualDensity.compact,
+              padding: DdtGlassAppBar.actionIconButtonPadding(context),
+              constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
               style: widget.isActive
                   ? IconButton.styleFrom(
                       backgroundColor: AppColors.primary.withValues(
@@ -515,8 +570,8 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
                   foregroundColor: foregroundColor,
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.symmetric(
-                    horizontal: DdtTheme.shellSizeOf(context, 10),
-                    vertical: DdtTheme.shellSizeOf(context, 6),
+                    horizontal: DdtTheme.shellSizeOf(context, 8),
+                    vertical: DdtTheme.shellSizeOf(context, 4),
                   ),
                   shape: RoundedRectangleBorder(borderRadius: DdtTheme.radius),
                 ),
@@ -525,7 +580,7 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
                 label: Text(
                   widget.label!,
                   style: DdtTheme.style(
-                    fontSize: DdtTypography.bodySize,
+                    fontSize: DdtTypography.labelSmallSize,
                     fontWeight: FontWeight.w600,
                     color: foregroundColor,
                   ),
