@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+
 import 'package:web/web.dart' as web;
 
 import '../models/calendar_event.dart';
+import '../models/colleague_calendar.dart';
 import '../models/contact.dart';
 import '../models/mail_inbox_options.dart';
 import '../models/mail_message.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
+import 'owa_client.dart';
 
 class EwsSession {
   const EwsSession({
@@ -39,11 +43,15 @@ class EwsSession {
 }
 
 class EwsApi {
-  EwsApi({ApiClient? client}) : _client = client ?? apiClient;
+  EwsApi({ApiClient? client})
+    : _client = client ?? apiClient,
+      _owa = OwaClient(client ?? apiClient);
 
   static const _sessionRestoreTimeout = Duration(seconds: 25);
 
   final ApiClient _client;
+  final OwaClient _owa;
+  String? _accountEmail;
 
   Future<EwsSession> login({
     required String username,
@@ -79,6 +87,7 @@ class EwsApi {
 
     final data = ApiClient.decodeMap(response);
     await _client.setSessionToken(data['session_token'] as String);
+    _accountEmail = data['email'] as String?;
 
     return _sessionFromAuthPayload(data, rememberMe: rememberMe, connected: true);
   }
@@ -99,6 +108,8 @@ class EwsApi {
 
   Future<void> logout() async {
     await _client.post('/api/ews/auth/logout');
+    _owa.clear();
+    _accountEmail = null;
     await _client.clearSessionToken();
   }
 
@@ -126,13 +137,13 @@ class EwsApi {
     if (response.statusCode != 200) {
       throw Exception('Session is invalid');
     }
-    return EwsSession.fromJson(ApiClient.decodeMap(response));
+    final data = ApiClient.decodeMap(response);
+    _accountEmail = data['email'] as String?;
+    return EwsSession.fromJson(data);
   }
 
-  Future<MailFolders> fetchMailFolders() async {
-    final response = await _client.get('/api/ews/mail/folders');
-    _ensureSuccess(response);
-    return MailFolders.fromJson(ApiClient.decodeMap(response));
+  Future<MailFolders> fetchMailFolders() {
+    return _owa.fetchMailFolders();
   }
 
   Future<List<MailMessage>> fetchInbox({
@@ -141,47 +152,79 @@ class EwsApi {
     MailInboxFilter filter = MailInboxFilter.all,
     MailInboxSort sort = MailInboxSort.dateDesc,
     String? folderId,
+    String? search,
   }) async {
-    final response = await _client.get(
-      '/api/ews/mail/inbox',
-      query: {
-        'limit': '$limit',
-        'offset': '$offset',
-        'filter': filter.apiValue,
-        'sort': sort.apiValue,
-        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-      },
+    return _owa.fetchInbox(
+      limit: limit,
+      offset: offset,
+      filter: filter,
+      sort: sort,
+      folderId: folderId,
+      userEmail: _accountEmail,
+      search: search,
     );
-    _ensureSuccess(response);
-    return ApiClient.decodeList(response).map(MailMessage.fromJson).toList();
+  }
+
+  Future<List<MailMessage>> fetchConversationMessages(String conversationId) {
+    return _owa.fetchConversationMessages(conversationId);
+  }
+
+  Future<void> pinMessage(String itemId, {required bool pinned}) {
+    return _owa.pinMessage(itemId, pinned: pinned);
+  }
+
+  Future<void> setConversationFlag({
+    required String conversationId,
+    required String? folderId,
+    required bool flagged,
+    String? itemId,
+  }) {
+    return _owa.setConversationFlag(
+      conversationId: conversationId,
+      folderId: folderId,
+      flagged: flagged,
+      itemId: itemId,
+    );
+  }
+
+  Future<void> markConversationUnread({
+    required String conversationId,
+    required String? folderId,
+    String? itemId,
+  }) {
+    return _owa.markConversationUnread(
+      conversationId: conversationId,
+      folderId: folderId,
+      itemId: itemId,
+    );
+  }
+
+  Future<void> deleteConversation({
+    required String conversationId,
+    required String? folderId,
+    String? itemId,
+  }) {
+    return _owa.deleteConversation(
+      conversationId: conversationId,
+      folderId: folderId,
+      itemId: itemId,
+    );
   }
 
   Future<MailMessage> fetchMessage(
     String messageId, {
     bool markRead = true,
     String? folderId,
-  }) async {
-    final encodedId = Uri.encodeComponent(messageId);
-    final response = await _client.get(
-      '/api/ews/mail/messages/$encodedId',
-      query: {
-        'mark_read': '$markRead',
-        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-      },
+  }) {
+    return _owa.fetchMessage(
+      messageId,
+      markRead: markRead,
+      folderId: folderId,
     );
-    _ensureSuccess(response);
-    return MailMessage.fromJson(ApiClient.decodeMap(response));
   }
 
-  Future<void> markMessageRead(String messageId, {String? folderId}) async {
-    final encodedId = Uri.encodeComponent(messageId);
-    final response = await _client.post(
-      '/api/ews/mail/messages/$encodedId/read',
-      query: {
-        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-      },
-    );
-    _ensureSuccess(response);
+  Future<void> markMessageRead(String messageId, {String? folderId}) {
+    return _owa.markMessageRead(messageId);
   }
 
   Future<void> sendMail({
@@ -189,12 +232,8 @@ class EwsApi {
     required String subject,
     required String body,
     List<String> cc = const [],
-  }) async {
-    final response = await _client.post(
-      '/api/ews/mail/send',
-      body: {'to': to, 'cc': cc, 'subject': subject, 'body': body},
-    );
-    _ensureSuccess(response);
+  }) {
+    return _owa.sendMail(to: to, subject: subject, body: body, cc: cc);
   }
 
   Future<void> downloadAttachment(
@@ -204,17 +243,9 @@ class EwsApi {
     required String contentType,
     String? folderId,
   }) async {
-    final encodedId = Uri.encodeComponent(messageId);
-    final response = await _client.get(
-      '/api/ews/mail/messages/$encodedId/attachment',
-      query: {
-        'attachment_id': attachmentId,
-        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-      },
-    );
-    _ensureSuccess(response);
+    final bytes = await _owa.fetchAttachmentBytes(attachmentId);
     _triggerBrowserDownload(
-      bytes: response.bodyBytes,
+      bytes: Uint8List.fromList(bytes),
       filename: filename,
       mimeType: contentType,
     );
@@ -223,36 +254,19 @@ class EwsApi {
   Future<MailArchiveResult> archiveMessages(
     List<String> messageIds, {
     String? folderId,
-  }) async {
-    final response = await _client.post(
-      '/api/ews/mail/archive',
-      body: {
-        'message_ids': messageIds,
-        if (folderId != null && folderId.isNotEmpty) 'folder_id': folderId,
-      },
-    );
-    _ensureSuccess(response);
-    return MailArchiveResult.fromJson(ApiClient.decodeMap(response));
+  }) {
+    return _owa.archiveMessages(messageIds);
   }
 
   Future<List<CalendarEvent>> fetchCalendarEvents({
     DateTime? start,
     DateTime? end,
-  }) async {
-    final query = <String, String>{};
-    if (start != null) {
-      query['start'] = start.toUtc().toIso8601String();
-    }
-    if (end != null) {
-      query['end'] = end.toUtc().toIso8601String();
-    }
+  }) {
+    return _owa.fetchCalendarEvents(start: start, end: end);
+  }
 
-    final response = await _client.get(
-      '/api/ews/calendar/events',
-      query: query,
-    );
-    _ensureSuccess(response);
-    return ApiClient.decodeList(response).map(CalendarEvent.fromJson).toList();
+  Future<CalendarEvent> fetchCalendarEventDetail(CalendarEvent event) {
+    return _owa.fetchCalendarEventDetail(event);
   }
 
   Future<CalendarEvent> createCalendarEvent({
@@ -261,60 +275,73 @@ class EwsApi {
     required DateTime end,
     String? location,
     String? body,
-  }) async {
-    final response = await _client.post(
-      '/api/ews/calendar/events',
-      body: {
-        'subject': subject,
-        'start': start.toUtc().toIso8601String(),
-        'end': end.toUtc().toIso8601String(),
-        if (location != null && location.isNotEmpty) 'location': location,
-        if (body != null && body.isNotEmpty) 'body': body,
-      },
+  }) {
+    return _owa.createCalendarEvent(
+      subject: subject,
+      start: start,
+      end: end,
+      location: location,
+      body: body,
     );
-    _ensureSuccess(response);
-    return CalendarEvent.fromJson(ApiClient.decodeMap(response));
   }
 
   Future<CalendarEvent> respondToCalendarEvent(
     String eventId,
     CalendarEventResponseAction action,
-  ) async {
-    final encodedId = Uri.encodeComponent(eventId);
-    final response = await _client.post(
-      '/api/ews/calendar/events/$encodedId/response',
-      body: {'response': action.apiValue},
+  ) {
+    return _owa.respondToCalendarEvent(eventId, action);
+  }
+
+  Future<List<CalendarPerson>> searchCalendarPeople(String query) {
+    return _owa.searchCalendarPeople(query, ownEmail: _accountEmail);
+  }
+
+  Future<ColleagueCalendar> fetchColleagueCalendar({
+    required String email,
+    required int colorIndex,
+    bool enabled = true,
+    DateTime? start,
+    DateTime? end,
+  }) {
+    return _owa.fetchColleagueCalendar(
+      email: email,
+      colorIndex: colorIndex,
+      enabled: enabled,
+      start: start,
+      end: end,
+      ownEmail: _accountEmail,
     );
-    _ensureSuccess(response);
-    return CalendarEvent.fromJson(ApiClient.decodeMap(response));
+  }
+
+  Future<List<ColleagueCalendar>> fetchColleagueCalendars({
+    required List<ColleagueCalendar> calendars,
+    DateTime? start,
+    DateTime? end,
+  }) {
+    if (calendars.isEmpty) return Future.value(const []);
+    return _owa.fetchColleagueCalendars(
+      calendars: calendars,
+      start: start,
+      end: end,
+      ownEmail: _accountEmail,
+    );
   }
 
   Future<List<Contact>> fetchContacts({
     int limit = 100,
     String search = '',
-  }) async {
-    final response = await _client.get(
-      '/api/ews/contacts',
-      query: {'limit': '$limit', if (search.isNotEmpty) 'search': search},
-    );
-    _ensureSuccess(response);
-    return ApiClient.decodeList(response).map(Contact.fromJson).toList();
-  }
-
-  void _ensureSuccess(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return;
-    }
-    throw Exception(_readError(response) ?? 'Ошибка запроса к Exchange');
+  }) {
+    return _owa.fetchContacts(limit: limit, search: search);
   }
 
   String? _readError(http.Response response) {
     try {
-      final data = ApiClient.decodeMap(response);
-      return data['detail']?.toString();
+      final data = jsonDecode(response.body);
+      if (data is Map) return data['detail']?.toString();
     } catch (_) {
       return null;
     }
+    return null;
   }
 }
 

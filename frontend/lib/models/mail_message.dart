@@ -64,6 +64,13 @@ class MailMessage {
     this.bodyType = 'text',
     this.attachments = const [],
     this.detailLoaded = false,
+    this.conversationId,
+    this.messageCount = 1,
+    this.isPinned = false,
+    this.isFlagged = false,
+    this.isExpanded = false,
+    this.isExpanding = false,
+    this.thread = const [],
   });
 
   final String id;
@@ -78,6 +85,15 @@ class MailMessage {
   final String bodyType;
   final List<MailAttachment> attachments;
   final bool detailLoaded;
+  final String? conversationId;
+  final int messageCount;
+  final bool isPinned;
+  final bool isFlagged;
+  final bool isExpanded;
+  final bool isExpanding;
+  final List<MailMessage> thread;
+
+  bool get canExpand => messageCount > 1 || thread.length > 1;
 
   factory MailMessage.fromJson(Map<String, dynamic> json) {
     final attachments = <MailAttachment>[];
@@ -121,6 +137,13 @@ class MailMessage {
     String? bodyType,
     List<MailAttachment>? attachments,
     bool? detailLoaded,
+    String? conversationId,
+    int? messageCount,
+    bool? isPinned,
+    bool? isFlagged,
+    bool? isExpanded,
+    bool? isExpanding,
+    List<MailMessage>? thread,
   }) {
     return MailMessage(
       id: id ?? this.id,
@@ -135,6 +158,13 @@ class MailMessage {
       bodyType: bodyType ?? this.bodyType,
       attachments: attachments ?? this.attachments,
       detailLoaded: detailLoaded ?? this.detailLoaded,
+      conversationId: conversationId ?? this.conversationId,
+      messageCount: messageCount ?? this.messageCount,
+      isPinned: isPinned ?? this.isPinned,
+      isFlagged: isFlagged ?? this.isFlagged,
+      isExpanded: isExpanded ?? this.isExpanded,
+      isExpanding: isExpanding ?? this.isExpanding,
+      thread: thread ?? this.thread,
     );
   }
 }

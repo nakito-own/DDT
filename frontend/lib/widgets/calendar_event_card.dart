@@ -1,10 +1,11 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart';
 import '../theme/ddt_icons.dart';
 
 import '../models/calendar_event.dart';
+import '../models/colleague_calendar.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
@@ -65,7 +66,7 @@ class _EventCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = event.needsResponse;
+    final confirmed = !event.needsResponse;
     final declined = event.isDeclined;
 
     return ClipRRect(
@@ -77,19 +78,100 @@ class _EventCardShell extends StatelessWidget {
             context: context,
             cornerRadius: cornerRadius,
             padding: padding,
-            highlighted: pending,
+            confirmed: confirmed,
+            accent: CalendarPalette.colorFor(event.colorIndex),
             onTap: onTap,
             child: Opacity(opacity: declined ? 0.72 : 1, child: child),
           ),
-          if (pending)
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(width: 3, color: AppColors.primary),
+          if (!confirmed)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _DashedBorderPainter(
+                    color: CalendarPalette.colorFor(event.colorIndex),
+                    radius: cornerRadius,
+                    strokeWidth: 1.5,
+                  ),
+                ),
+              ),
             ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: _EventAccent(
+              color: CalendarPalette.colorFor(event.colorIndex),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({
+    required this.color,
+    required this.radius,
+    required this.strokeWidth,
+  });
+
+  final Color color;
+  final double radius;
+  final double strokeWidth;
+
+  static const _dash = 4.0;
+  static const _gap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    final inset = strokeWidth;
+    final rect = Rect.fromLTWH(
+      inset,
+      inset,
+      math.max(0, size.width - strokeWidth * 2),
+      math.max(0, size.height - strokeWidth * 2),
+    );
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          rect,
+          Radius.circular(math.max(0, radius - inset)),
+        ),
+      );
+
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = math.min(distance + _dash, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + _gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.radius != radius ||
+        oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+class _EventAccent extends StatelessWidget {
+  const _EventAccent({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: color,
+      child: const SizedBox(width: 6),
     );
   }
 }
@@ -110,25 +192,18 @@ class _PlannerEventTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
-    final timeColor = DdtTheme.taskCardIconMuted(context);
-    final iconMuted = DdtTheme.taskCardIconMuted(context);
-    final pending = event.needsResponse;
-    final timeLabel = _formatTimeRange(DateFormat('HH:mm'));
-    final showTime = height >= 34 && timeLabel != null;
-    final showIcon = height >= 26;
-    final titleLines = showTime ? 1 : (height >= 24 ? 2 : 1);
-    final titleSize = (height * 0.36).clamp(
+    final titleSize = (height * 0.32).clamp(
       DdtTypography.microSize,
       DdtTypography.bodySize,
     );
-    final metaSize = (height * 0.26).clamp(
-      DdtTypography.microSize,
-      DdtTypography.captionSize,
-    );
+    const lineHeight = 1.2;
     final cornerRadius = _plannerCornerRadius(height);
-    final leftPad = pending ? 6.0 : (showIcon ? 6.0 : 5.0);
-    final hPad = showIcon ? leftPad : leftPad;
-    final vPad = height >= 34 ? 5.0 : 3.0;
+    final vPad = height >= 28 ? 4.0 : 2.0;
+    final contentHeight = math.max(0.0, height - vPad * 2);
+    final titleLines = math.max(
+      1,
+      (contentHeight / (titleSize * lineHeight)).floor(),
+    );
 
     return SizedBox(
       height: height,
@@ -137,88 +212,24 @@ class _PlannerEventTile extends StatelessWidget {
         event: event,
         onTap: onTap,
         cornerRadius: cornerRadius,
-        padding: EdgeInsets.fromLTRB(hPad, vPad, 5, vPad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (pending && height >= 22) ...[
-                      Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.only(top: 2, right: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                    if (showIcon && !pending) ...[
-                      DdtIcon(
-                        DdtIcons.calendar,
-                        size: (height * 0.22).clamp(11.0, 14.sp),
-                        color: iconMuted,
-                      ),
-                      SizedBox(width: 4.w),
-                    ],
-                    Expanded(
-                      child: Text(
-                        event.subject,
-                        maxLines: titleLines,
-                        overflow: TextOverflow.ellipsis,
-                        style: DdtTheme.style(
-                          fontSize: titleSize,
-                          fontWeight: pending
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          color: textPrimary,
-                          height: 1.15,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        padding: EdgeInsets.fromLTRB(10, vPad, 5, vPad),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Text(
+            event.subject,
+            softWrap: true,
+            maxLines: titleLines,
+            overflow: TextOverflow.ellipsis,
+            style: DdtTheme.style(
+              fontSize: titleSize,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+              height: lineHeight,
             ),
-            if (showTime) ...[
-              SizedBox(height: 2.h),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DdtIcon(DdtIcons.clock, size: metaSize, color: timeColor),
-                  SizedBox(width: 3.w),
-                  Flexible(
-                    child: Text(
-                      timeLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: DdtTheme.style(
-                        fontSize: metaSize,
-                        fontWeight: FontWeight.w500,
-                        color: timeColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
-  }
-
-  String? _formatTimeRange(DateFormat timeFormat) {
-    final start = event.start?.toLocal();
-    final end = event.end?.toLocal();
-    if (start == null) return null;
-    if (end == null) return timeFormat.format(start);
-    return '${timeFormat.format(start)} – ${timeFormat.format(end)}';
   }
 }
 
@@ -237,81 +248,41 @@ class _StandardEventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
-    final timeColor = DdtTheme.taskCardIconMuted(context);
-    final iconMuted = DdtTheme.taskCardIconMuted(context);
-    final pending = event.needsResponse;
-    final timeFormat = DateFormat('HH:mm');
-    final timeLabel = _formatTimeRange(timeFormat);
     final cornerRadius = compact
         ? _calendarCardRadiusCompact.r
         : _calendarCardRadius.r;
+    final hasLocation =
+        !compact && event.location != null && event.location!.isNotEmpty;
 
     return _EventCardShell(
       event: event,
       onTap: onTap,
       cornerRadius: cornerRadius,
       padding: EdgeInsets.fromLTRB(
-        pending
-            ? (compact ? 10.w : 14.w)
-            : (compact ? 8.w : DdtTheme.spacing.w),
+        compact ? 10.w : 12.w,
         compact ? 6.h : 10.h,
-        compact ? 8.w : DdtTheme.spacing.w,
+        compact ? 8.w : 10.w,
         compact ? 6.h : 10.h,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!compact && !pending) ...[
-                DdtIcon(DdtIcons.calendar, size: 18.sp, color: iconMuted),
-                SizedBox(width: 8.w),
-              ],
-              if (pending) ...[
-                Container(
-                  width: 8.w,
-                  height: 8.w,
-                  margin: EdgeInsets.only(top: compact ? 2.h : 4.h, right: 6.w),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-              Expanded(
-                child: Text(
-                  event.subject,
-                  maxLines: compact ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: DdtTheme.style(
-                    fontSize: compact
-                        ? DdtTypography.captionSize
-                        : DdtTypography.bodySize,
-                    fontWeight: pending ? FontWeight.w700 : FontWeight.w600,
-                    color: textPrimary,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (timeLabel != null) ...[
-            SizedBox(height: compact ? 4.h : 8.h),
-            _MetaRow(
-              icon: DdtIcons.clock,
-              label: timeLabel,
-              color: timeColor,
+          Text(
+            event.subject,
+            softWrap: true,
+            maxLines: compact ? 2 : 4,
+            overflow: TextOverflow.ellipsis,
+            style: DdtTheme.style(
               fontSize: compact
-                  ? DdtTypography.microSize
-                  : DdtTypography.labelSmallSize,
-              iconSize: compact ? 12.sp : 14.sp,
+                  ? DdtTypography.captionSize
+                  : DdtTypography.bodySize,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+              height: 1.2,
             ),
-          ],
-          if (!compact &&
-              event.location != null &&
-              event.location!.isNotEmpty) ...[
+          ),
+          if (hasLocation) ...[
             SizedBox(height: 6.h),
             _MetaRow(
               icon: DdtIcons.location,
@@ -324,14 +295,6 @@ class _StandardEventCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String? _formatTimeRange(DateFormat timeFormat) {
-    final start = event.start?.toLocal();
-    final end = event.end?.toLocal();
-    if (start == null) return null;
-    if (end == null) return timeFormat.format(start);
-    return '${timeFormat.format(start)} – ${timeFormat.format(end)}';
   }
 }
 

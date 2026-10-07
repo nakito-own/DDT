@@ -2,11 +2,15 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/ddt_icons.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
+import '../models/calendar_meeting_link.dart';
+import '../services/ews_api.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import 'ddt_side_panel.dart';
@@ -34,14 +38,33 @@ class CalendarEventSidePanel extends StatefulWidget {
 
 class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
   late CalendarEvent _event;
+  bool _loadingDetail = false;
 
   @override
   void initState() {
     super.initState();
     _event = widget.event;
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    if (_event.detailLoaded || _event.isColleague || _event.isLimited) return;
+    setState(() => _loadingDetail = true);
+    try {
+      final detailed = await ewsApi.fetchCalendarEventDetail(_event);
+      if (!mounted) return;
+      setState(() {
+        _event = detailed;
+        _loadingDetail = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingDetail = false);
+    }
   }
 
   Future<void> _respond(CalendarEventResponseAction action) async {
+    if (_event.isColleague) return;
     context.read<CalendarBloc>().add(
       CalendarEventRespondRequested(event: _event, action: action),
     );
@@ -62,20 +85,18 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
     };
   }
 
-  static final _dateFormat = DateFormat('dd.MM.yyyy HH:mm');
-
   @override
   Widget build(BuildContext context) {
-    final textPrimary = DdtTheme.sidePanelTextPrimary(context);
-    final textSecondary = DdtTheme.sidePanelTextSecondary(context);
-    final pending = _event.needsResponse;
+    final link = meetingLinkFor(location: _event.location, html: _event.body);
+    final place = locationWithoutLinks(_event.location);
+    final when = _whenLabel(_event);
 
     return BlocBuilder<CalendarBloc, CalendarState>(
       buildWhen: (previous, current) =>
           previous.isResponding != current.isResponding,
       builder: (context, state) => DdtSidePanelShell(
-        title: 'Событие',
-        footer: _event.isMeeting
+        title: _event.subject,
+        footer: _event.isMeeting && !_event.isColleague
             ? _ResponseActions(
                 event: _event,
                 isLoading: state.isResponding,
@@ -83,56 +104,84 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
               )
             : null,
         child: SingleChildScrollView(
-          padding: EdgeInsets.only(top: 16.h, bottom: 24.h),
+          padding: EdgeInsets.only(top: 36.h, bottom: 24.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                _event.subject,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.entityTitleSize,
-                  fontWeight: pending ? FontWeight.w800 : FontWeight.w700,
-                  color: textPrimary,
-                ),
-              ),
-              if (_event.isMeeting) ...[
+              if (_event.isMeeting && !_event.isColleague)
+                _ResponseStatusBadge(event: _event),
+              if (when != null ||
+                  (place != null && place.isNotEmpty) ||
+                  (_event.organizer != null && _event.organizer!.isNotEmpty) ||
+                  (_event.isColleague &&
+                      _event.ownerName != null &&
+                      _event.ownerName!.isNotEmpty) ||
+                  _event.isLimited) ...[
                 SizedBox(height: 12.h),
-                _ResponseStatusBadge(event: _event, color: textSecondary),
-              ],
-              SizedBox(height: 20.h),
-              if (_event.start != null)
-                _InfoField(
-                  icon: DdtIcons.clock,
-                  label: 'Начало',
-                  value: _dateFormat.format(_event.start!.toLocal()),
-                  color: textSecondary,
-                ),
-              if (_event.end != null) ...[
-                SizedBox(height: 14.h),
-                _InfoField(
-                  icon: DdtIcons.clock,
-                  label: 'Окончание',
-                  value: _dateFormat.format(_event.end!.toLocal()),
-                  color: textSecondary,
-                ),
-              ],
-              if (_event.location != null && _event.location!.isNotEmpty) ...[
-                SizedBox(height: 14.h),
-                _InfoField(
-                  icon: DdtIcons.location,
-                  label: 'Место',
-                  value: _event.location!,
-                  color: textSecondary,
+                _DetailCard(
+                  children: [
+                    if (when != null)
+                      _DetailRow(icon: DdtIcons.clock, text: when),
+                    if (place != null && place.isNotEmpty)
+                      _DetailRow(icon: DdtIcons.location, text: place),
+                    if (_event.organizer != null &&
+                        _event.organizer!.isNotEmpty)
+                      _DetailRow(icon: DdtIcons.user, text: _event.organizer!),
+                    if (_event.isColleague &&
+                        _event.ownerName != null &&
+                        _event.ownerName!.isNotEmpty)
+                      _DetailRow(
+                        icon: DdtIcons.calendarDay,
+                        text: _event.ownerName!,
+                      ),
+                    if (_event.isLimited)
+                      const _DetailRow(
+                        icon: DdtIcons.info,
+                        text: 'Ограниченные сведения (занятость)',
+                      ),
+                  ],
                 ),
               ],
-              if (_event.organizer != null && _event.organizer!.isNotEmpty) ...[
-                SizedBox(height: 14.h),
-                _InfoField(
-                  icon: DdtIcons.user,
-                  label: 'Организатор',
-                  value: _event.organizer!,
-                  color: textSecondary,
+              if (link != null) ...[
+                SizedBox(height: 12.h),
+                _JoinButton(link: link),
+              ],
+              if (_loadingDetail) ...[
+                SizedBox(height: 16.h),
+                const Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
+              ],
+              if (_event.body != null && _event.body!.trim().isNotEmpty) ...[
+                SizedBox(height: 12.h),
+                _DetailCard(
+                  child: _event.bodyType == 'html'
+                      ? HtmlWidget(
+                          _event.body!,
+                          textStyle: DdtTheme.style(
+                            fontSize: DdtTypography.bodySize,
+                            height: 1.45,
+                            color: DdtTheme.sidePanelTextPrimary(context),
+                          ),
+                          onTapUrl: _openUrl,
+                        )
+                      : Text(
+                          _event.body!,
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.bodySize,
+                            height: 1.45,
+                            color: DdtTheme.sidePanelTextPrimary(context),
+                          ),
+                        ),
+                ),
+              ],
+              if (_event.attendees.isNotEmpty) ...[
+                SizedBox(height: 12.h),
+                _AttendeeSection(attendees: _event.attendees),
               ],
             ],
           ),
@@ -142,53 +191,297 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
   }
 }
 
+String? _whenLabel(CalendarEvent event) {
+  final start = event.start?.toLocal();
+  if (start == null) return null;
+  final end = event.end?.toLocal();
+  final day = DateFormat('dd.MM.yyyy');
+  final time = DateFormat('HH:mm');
+  if (end == null) return '${day.format(start)}, ${time.format(start)}';
+  final sameDay =
+      start.year == end.year &&
+      start.month == end.month &&
+      start.day == end.day;
+  if (sameDay) {
+    return '${day.format(start)}, ${time.format(start)} – ${time.format(end)}';
+  }
+  return '${day.format(start)} ${time.format(start)} – ${day.format(end)} ${time.format(end)}';
+}
+
+Future<bool> _openUrl(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return false;
+  return launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
 class _ResponseStatusBadge extends StatelessWidget {
-  const _ResponseStatusBadge({required this.event, required this.color});
+  const _ResponseStatusBadge({required this.event});
 
   final CalendarEvent event;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pending = event.needsResponse;
-    final background = pending
-        ? AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.1)
-        : (event.isDeclined
-              ? Colors.grey.withValues(alpha: isDark ? 0.18 : 0.12)
-              : AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08));
-    final borderColor = pending
-        ? AppColors.primary.withValues(alpha: 0.55)
-        : color.withValues(alpha: 0.25);
+    final declined = event.isDeclined;
+    final color = pending
+        ? AppColors.primary
+        : (declined
+              ? DdtTheme.sidePanelTextSecondary(context)
+              : AppColors.primary);
+    final background = color.withValues(alpha: isDark ? 0.16 : 0.1);
+    final icon = pending
+        ? DdtIcons.clock
+        : (declined ? DdtIcons.closeCircle : DdtIcons.checkCircle);
 
+    return _DetailCard(
+      background: background,
+      children: [
+        _DetailRow(icon: icon, text: event.responseLabel, color: color),
+      ],
+    );
+  }
+}
+
+class _DetailCard extends StatelessWidget {
+  const _DetailCard({this.child, this.children, this.background});
+
+  final Widget? child;
+  final List<Widget>? children;
+  final Color? background;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
       decoration: BoxDecoration(
-        color: background,
+        color:
+            background ??
+            AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08),
         borderRadius: DdtTheme.radius,
-        border: Border.all(color: borderColor, width: pending ? 1.5 : 1),
+      ),
+      child: child ??
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < children!.length; index++) ...[
+                if (index > 0) SizedBox(height: 8.h),
+                children![index],
+              ],
+            ],
+          ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.icon, required this.text, this.color});
+
+  final FaIconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = color ?? DdtTheme.sidePanelTextPrimary(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: 2.h),
+          child: DdtIcon(icon, size: 14.sp, color: tint),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              fontWeight: FontWeight.w500,
+              color: tint,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttendeeSection extends StatefulWidget {
+  const _AttendeeSection({required this.attendees});
+
+  final List<CalendarAttendee> attendees;
+
+  @override
+  State<_AttendeeSection> createState() => _AttendeeSectionState();
+}
+
+class _AttendeeSectionState extends State<_AttendeeSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: _DetailCard(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _DetailRow(
+                      icon: DdtIcons.users,
+                      text: 'Приглашённые · ${widget.attendees.length}',
+                    ),
+                  ),
+                  DdtIcon(
+                    _expanded ? DdtIcons.chevronDown : DdtIcons.chevronRight,
+                    size: 12.sp,
+                    color: DdtTheme.sidePanelTextSecondary(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        AnimatedSize(
+          duration: DdtTheme.selectionAnimationDuration,
+          curve: DdtTheme.selectionAnimationCurve,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Padding(
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: Column(
+                    children: [
+                      for (var index = 0; index < widget.attendees.length; index++) ...[
+                        if (index > 0) SizedBox(height: 8.h),
+                        _AttendeeRow(attendee: widget.attendees[index]),
+                      ],
+                    ],
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttendeeRow extends StatelessWidget {
+  const _AttendeeRow({required this.attendee});
+
+  final CalendarAttendee attendee;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = DdtTheme.sidePanelTextSecondary(context);
+    final status = attendee.responseLabel;
+    return Container(
+      padding: EdgeInsets.fromLTRB(8.w, 8.h, 12.w, 8.h),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16.r),
       ),
       child: Row(
         children: [
-          if (pending)
-            Container(
-              width: 8.w,
-              height: 8.w,
-              margin: EdgeInsets.only(right: 8.w),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
+          Container(
+            width: 28.w,
+            height: 28.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
             ),
-          Text(
-            event.responseLabel,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSize,
-              fontWeight: pending ? FontWeight.w700 : FontWeight.w600,
-              color: pending ? AppColors.primary : color,
+            child: DdtIcon(
+              DdtIcons.user,
+              size: 13.sp,
+              color: AppColors.primary,
+              fitParent: true,
             ),
           ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Text(
+              attendee.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.bodySize,
+                color: DdtTheme.sidePanelTextPrimary(context),
+              ),
+            ),
+          ),
+          if (status.isNotEmpty) ...[
+            SizedBox(width: 8.w),
+            Text(
+              status,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSmallSize,
+                color: muted,
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _JoinButton extends StatelessWidget {
+  const _JoinButton({required this.link});
+
+  final CalendarMeetingLink link;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary,
+      borderRadius: DdtTheme.radius,
+      child: InkWell(
+        borderRadius: DdtTheme.radius,
+        onTap: () => _openUrl(link.url),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+          child: Row(
+            children: [
+              if (link.asset.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.r),
+                  child: Image.asset(
+                    link.asset,
+                    width: 18.w,
+                    height: 18.w,
+                    fit: BoxFit.contain,
+                  ),
+                )
+              else
+                DdtIcon(
+                  DdtIcons.link,
+                  size: 16.sp,
+                  color: Colors.white,
+                ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  'Подключиться',
+                  style: DdtTheme.style(
+                    fontSize: DdtTypography.bodySize,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              DdtIcon(DdtIcons.arrowUpRight, size: 14.sp, color: Colors.white),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -279,47 +572,3 @@ class _ResponseActions extends StatelessWidget {
   }
 }
 
-class _InfoField extends StatelessWidget {
-  const _InfoField({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final FaIconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            DdtIcon(icon, size: 15.sp, color: color),
-            SizedBox(width: 6.w),
-            Text(
-              label,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.labelSmallSize,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 6.h),
-        Text(
-          value,
-          style: DdtTheme.style(
-            fontSize: DdtTypography.bodyLargeSize,
-            color: DdtTheme.sidePanelTextPrimary(context),
-          ),
-        ),
-      ],
-    );
-  }
-}

@@ -95,6 +95,9 @@ class DdtShellLayout extends StatelessWidget {
                   actions: DdtAppBarSectionActions(
                     section: selectedSection,
                   ),
+                  center: selectedSection == AppSection.calendar
+                      ? const CalendarAppBarDateNav()
+                      : null,
                 ),
               ),
             ],

@@ -52,3 +52,6 @@ flutter:
 
   assets:
     - assets/images/login/
+    - assets/images/иконка_зум.png
+    - assets/images/иконка_телемост.png
+    - assets/images/иконка_дит.png
