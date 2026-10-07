@@ -105,7 +105,9 @@ class _DdtAppState extends State<DdtApp> {
         BlocProvider.value(value: _authBloc),
         BlocProvider(create: (_) => TasksBloc()),
         BlocProvider(create: (_) => MailBloc()),
-        BlocProvider(create: (_) => CalendarBloc()),
+        BlocProvider(
+          create: (_) => CalendarBloc(storage: GetStorage(_themeStorageBox)),
+        ),
         BlocProvider(create: (_) => AnalyticsBloc()),
       ],
       child: MultiBlocListener(
@@ -122,6 +124,12 @@ class _DdtAppState extends State<DdtApp> {
               if (authState is AuthAuthenticated) {
                 notif.add(const NotificationsConnectRequested());
                 context.read<MailBloc>().add(const MailInboxLoadRequested());
+                context.read<CalendarBloc>().add(
+                  CalendarOwnerConfigured(
+                    email: authState.email,
+                    displayName: authState.user.label,
+                  ),
+                );
                 context.read<CalendarBloc>().add(
                   const CalendarEventsLoadRequested(),
                 );

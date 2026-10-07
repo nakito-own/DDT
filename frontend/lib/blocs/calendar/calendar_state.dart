@@ -12,6 +12,13 @@ final class CalendarState extends Equatable {
     this.errorMessage,
     this.viewMode = CalendarViewMode.week,
     this.focusedDate,
+    this.ownerEmail,
+    this.ownerDisplayName,
+    this.ownCalendarEnabled = true,
+    this.colleagues = const [],
+    this.peopleQuery = '',
+    this.peopleResults = const [],
+    this.isSearchingPeople = false,
   });
 
   final List<CalendarEvent> events;
@@ -22,8 +29,29 @@ final class CalendarState extends Equatable {
   final String? errorMessage;
   final CalendarViewMode viewMode;
   final DateTime? focusedDate;
+  final String? ownerEmail;
+  final String? ownerDisplayName;
+  final bool ownCalendarEnabled;
+  final List<ColleagueCalendar> colleagues;
+  final String peopleQuery;
+  final List<CalendarPerson> peopleResults;
+  final bool isSearchingPeople;
 
   DateTime get effectiveFocusedDate => focusedDate ?? DateTime.now();
+
+  String get ownCalendarLabel {
+    final name = ownerDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return 'Мой календарь';
+  }
+
+  List<CalendarEvent> get visibleEvents {
+    return [
+      if (ownCalendarEnabled) ...events,
+      for (final calendar in colleagues)
+        if (calendar.enabled) ...calendar.events,
+    ];
+  }
 
   static const startOfWeekDay = DateTime.monday;
 
@@ -58,6 +86,13 @@ final class CalendarState extends Equatable {
     String? Function()? errorMessage,
     CalendarViewMode? viewMode,
     DateTime? Function()? focusedDate,
+    String? Function()? ownerEmail,
+    String? Function()? ownerDisplayName,
+    bool? ownCalendarEnabled,
+    List<ColleagueCalendar>? colleagues,
+    String? peopleQuery,
+    List<CalendarPerson>? peopleResults,
+    bool? isSearchingPeople,
   }) {
     return CalendarState(
       events: events ?? this.events,
@@ -68,6 +103,15 @@ final class CalendarState extends Equatable {
       errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       viewMode: viewMode ?? this.viewMode,
       focusedDate: focusedDate != null ? focusedDate() : this.focusedDate,
+      ownerEmail: ownerEmail != null ? ownerEmail() : this.ownerEmail,
+      ownerDisplayName: ownerDisplayName != null
+          ? ownerDisplayName()
+          : this.ownerDisplayName,
+      ownCalendarEnabled: ownCalendarEnabled ?? this.ownCalendarEnabled,
+      colleagues: colleagues ?? this.colleagues,
+      peopleQuery: peopleQuery ?? this.peopleQuery,
+      peopleResults: peopleResults ?? this.peopleResults,
+      isSearchingPeople: isSearchingPeople ?? this.isSearchingPeople,
     );
   }
 
@@ -119,5 +163,12 @@ final class CalendarState extends Equatable {
     errorMessage,
     viewMode,
     focusedDate,
+    ownerEmail,
+    ownerDisplayName,
+    ownCalendarEnabled,
+    colleagues,
+    peopleQuery,
+    peopleResults,
+    isSearchingPeople,
   ];
 }

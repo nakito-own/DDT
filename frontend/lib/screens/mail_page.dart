@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,6 +24,7 @@ import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_panel_primary_button.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
+import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_section_sidebar.dart';
 
 class MailPage extends StatelessWidget {
@@ -816,7 +819,8 @@ class _MailListState extends State<_MailList> {
     // Listener 1: reset scroll only when the active folder changes.
     return BlocListener<MailBloc, MailState>(
       listenWhen: (previous, current) =>
-          previous.selectedFolderId != current.selectedFolderId,
+          previous.selectedFolderId != current.selectedFolderId ||
+          previous.searchQuery != current.searchQuery,
       listener: (context, state) {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -859,6 +863,13 @@ class _MailListState extends State<_MailList> {
                         SizedBox(
                           height: DdtSectionSidebar.afterPrimaryButtonGap,
                         ),
+                        DdtSectionSidebarField(
+                          label: 'Поиск',
+                          gapAbove: false,
+                          child: _MailSearchField(
+                            onBeforeQueryChange: _resetMessageListScroll,
+                          ),
+                        ),
                         _MailInboxFilters(
                           onBeforeInboxQueryChange: _resetMessageListScroll,
                         ),
@@ -891,6 +902,7 @@ class _MailListState extends State<_MailList> {
                   BlocBuilder<MailBloc, MailState>(
                     buildWhen: (previous, current) =>
                         previous.messages != current.messages ||
+                        previous.searchQuery != current.searchQuery ||
                         previous.isLoadingMore != current.isLoadingMore ||
                         previous.isRefreshingInbox !=
                             current.isRefreshingInbox ||
@@ -913,7 +925,9 @@ class _MailListState extends State<_MailList> {
                             isRefreshing: state.isRefreshingInbox,
                             child: Center(
                               child: Text(
-                                'В этой папке нет писем',
+                                state.searchQuery.isEmpty
+                                    ? 'В этой папке нет писем'
+                                    : 'Ничего не найдено',
                                 style: DdtTheme.style(
                                   fontSize: DdtTypography.bodySize,
                                 ),
@@ -942,7 +956,7 @@ class _MailListState extends State<_MailList> {
                           3.w,
                           DdtScrollEdgeFade.listBottomPadding(context),
                         ),
-                        cacheExtent: 480,
+                        cacheExtent: 720,
                         itemCount: 1 + messages.length + (showFooter ? 1 : 0),
                         separatorBuilder: (context, index) {
                           if (index == 0 || index >= messages.length) {
@@ -1553,10 +1567,7 @@ class _MailListSelectionLeading extends StatelessWidget {
           return Stack(
             alignment: Alignment.centerLeft,
             clipBehavior: Clip.none,
-            children: [
-              ...previousChildren,
-              if (currentChild != null) currentChild,
-            ],
+            children: [...previousChildren, ?currentChild],
           );
         },
         child: leading,
@@ -1783,13 +1794,100 @@ class _AttachmentChip extends StatelessWidget {
 
 // ─── Mail list item ───────────────────────────────────────────────────────────
 
-class _MailListRowConnector extends StatelessWidget {
-  const _MailListRowConnector({super.key, required this.message});
+class _MailListRowConnector extends StatefulWidget {
+  const _MailListRowConnector({
+    super.key,
+    required this.message,
+    this.nested = false,
+  });
 
   final MailMessage message;
+  final bool nested;
+
+  @override
+  State<_MailListRowConnector> createState() => _MailListRowConnectorState();
+}
+
+class _MailListRowConnectorState extends State<_MailListRowConnector>
+    with SingleTickerProviderStateMixin {
+  bool _hover = false;
+  ScrollPosition? _scrollPosition;
+  late final AnimationController _expand;
+  late final CurvedAnimation _expandCurve;
+
+  @override
+  void initState() {
+    super.initState();
+    _expand = AnimationController(
+      vsync: this,
+      duration: DdtTheme.selectionAnimationDuration,
+      reverseDuration: DdtTheme.selectionAnimationDuration,
+    );
+    _expandCurve = CurvedAnimation(
+      parent: _expand,
+      curve: DdtTheme.selectionAnimationCurve,
+      reverseCurve: Curves.easeInCubic,
+    );
+    if (widget.message.isExpanded || widget.message.isExpanding) {
+      _expand.value = 1;
+    }
+    _expand.addStatusListener(_onExpandStatus);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = Scrollable.maybeOf(context)?.position;
+    if (_scrollPosition == next) return;
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollActivity);
+    _scrollPosition = next;
+    _scrollPosition?.isScrollingNotifier.addListener(_onScrollActivity);
+  }
+
+  @override
+  void didUpdateWidget(_MailListRowConnector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final open = widget.message.isExpanded || widget.message.isExpanding;
+    if (open) {
+      _expand.forward();
+    } else {
+      _expand.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollActivity);
+    _expand.removeStatusListener(_onExpandStatus);
+    _expandCurve.dispose();
+    _expand.dispose();
+    super.dispose();
+  }
+
+  void _onExpandStatus(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed) setState(() {});
+  }
+
+  void _onScrollActivity() {
+    if (_scrollPosition?.isScrollingNotifier.value != true || !_hover) return;
+    setState(() => _hover = false);
+  }
+
+  void _setHover(bool value) {
+    if (_scrollPosition?.isScrollingNotifier.value == true) return;
+    if (_hover == value) return;
+    setState(() => _hover = value);
+  }
+
+  void _action(MailQuickAction action) {
+    context.read<MailBloc>().add(
+      MailMessageActionRequested(widget.message, action),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final message = widget.message;
     return BlocSelector<
       MailBloc,
       MailState,
@@ -1800,15 +1898,245 @@ class _MailListRowConnector extends StatelessWidget {
         selectionModeActive: state.isSelectionModeActive,
         isChecked: state.selectedMessageIds.contains(message.id),
       ),
-      builder: (context, selection) => MailListItem(
-        message: message,
-        selected: selection.selected,
-        selectionModeActive: selection.selectionModeActive,
-        isChecked: selection.isChecked,
-        onTap: () => context.read<MailBloc>().add(MailMessageSelected(message)),
-        onCheckedChanged: () =>
-            context.read<MailBloc>().add(MailSelectionToggled(message.id)),
+      builder: (context, selection) {
+        final row = MouseRegion(
+          onEnter: (_) => _setHover(true),
+          onExit: (_) => _setHover(false),
+          child: Stack(
+            children: [
+              MailListItem(
+                message: message,
+                selected: selection.selected,
+                selectionModeActive: selection.selectionModeActive,
+                isChecked: selection.isChecked,
+                showDate: !_hover,
+                onTap: () =>
+                    context.read<MailBloc>().add(MailMessageSelected(message)),
+                onCheckedChanged: () => context.read<MailBloc>().add(
+                  MailSelectionToggled(message.id),
+                ),
+                onToggleThread: message.canExpand && !widget.nested
+                    ? () => context.read<MailBloc>().add(
+                        MailConversationToggled(message.id),
+                      )
+                    : null,
+              ),
+              if (_hover)
+                Positioned(
+                  top: 4,
+                  right: 6,
+                  child: _MailHoverActions(
+                    message: message,
+                    onPin: () => _action(MailQuickAction.pin),
+                    onFlag: () => _action(MailQuickAction.flag),
+                    onUnread: () => _action(MailQuickAction.unread),
+                    onDelete: () => _action(MailQuickAction.delete),
+                  ),
+                ),
+            ],
+          ),
+        );
+        final showThread =
+            !widget.nested &&
+            (message.isExpanded ||
+                message.isExpanding ||
+                _expand.status != AnimationStatus.dismissed);
+        if (!showThread) return row;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            row,
+            ClipRect(
+              child: SizeTransition(
+                sizeFactor: _expandCurve,
+                axisAlignment: -1,
+                child: _MailThreadChildren(message: message),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MailThreadChildren extends StatelessWidget {
+  const _MailThreadChildren({required this.message});
+
+  final MailMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final lineColor = DdtTheme.glassBorderColor(
+      Theme.of(context).brightness,
+    ).withValues(alpha: 0.55);
+    final children = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (message.isExpanding && message.thread.isEmpty)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.h),
+            child: const Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+        for (final child in message.thread)
+          Padding(
+            padding: EdgeInsets.only(top: 8.h),
+            child: _MailListRowConnector(
+              key: ValueKey(child.id),
+              message: child,
+              nested: true,
+            ),
+          ),
+      ],
+    );
+    if (message.thread.isEmpty) return children;
+    return Padding(
+      padding: EdgeInsets.only(top: 2.h, left: 6.w),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ColoredBox(color: lineColor, child: SizedBox(width: 2.w)),
+            SizedBox(width: 10.w),
+            Expanded(child: children),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _MailHoverActions extends StatelessWidget {
+  const _MailHoverActions({
+    required this.message,
+    required this.onPin,
+    required this.onFlag,
+    required this.onUnread,
+    required this.onDelete,
+  });
+
+  final MailMessage message;
+  final VoidCallback onPin;
+  final VoidCallback onFlag;
+  final VoidCallback onUnread;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = DdtTheme.taskCardTextSecondary(context);
+    return Material(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.94),
+      borderRadius: DdtTheme.radius,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MailHoverButton(
+            tooltip: message.isPinned ? 'Открепить' : 'Закрепить',
+            icon: DdtIcons.pin,
+            color: message.isPinned ? AppColors.primary : muted,
+            onPressed: onPin,
+          ),
+          _MailHoverButton(
+            tooltip: message.isFlagged ? 'Снять пометку' : 'Пометить',
+            icon: DdtIcons.flag,
+            color: message.isFlagged ? AppColors.primary : muted,
+            onPressed: onFlag,
+          ),
+          _MailHoverButton(
+            tooltip: 'Отметить как непрочитанное',
+            icon: DdtIcons.envelopeOpen,
+            color: muted,
+            onPressed: onUnread,
+          ),
+          _MailHoverButton(
+            tooltip: 'Удалить',
+            icon: DdtIcons.trash,
+            color: muted,
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MailHoverButton extends StatelessWidget {
+  const _MailHoverButton({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final FaIconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: DdtTheme.radius,
+        child: Padding(
+          padding: EdgeInsets.all(6.w),
+          child: DdtIcon(icon, size: 13.sp, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _MailSearchField extends StatefulWidget {
+  const _MailSearchField({required this.onBeforeQueryChange});
+
+  final VoidCallback onBeforeQueryChange;
+
+  @override
+  State<_MailSearchField> createState() => _MailSearchFieldState();
+}
+
+class _MailSearchFieldState extends State<_MailSearchField> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(String value) {
+    _debounce?.cancel();
+    widget.onBeforeQueryChange();
+    context.read<MailBloc>().add(MailSearchQueryChanged(value));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DdtAppInput(
+      hint: 'Поиск в почте',
+      controller: _controller,
+      type: InputType.search,
+      variant: DdtInputVariant.compact,
+      prefixIcon: DdtIcons.search,
+      borderRadius: DdtTheme.radius,
+      onChanged: (value) {
+        _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 400), () {
+          if (!mounted) return;
+          _submit(value);
+        });
+      },
     );
   }
 }
@@ -1892,6 +2220,8 @@ class MailListItem extends StatelessWidget {
     this.selectionModeActive = false,
     this.isChecked = false,
     this.onCheckedChanged,
+    this.onToggleThread,
+    this.showDate = true,
   });
 
   final MailMessage message;
@@ -1900,6 +2230,8 @@ class MailListItem extends StatelessWidget {
   final bool selectionModeActive;
   final bool isChecked;
   final VoidCallback? onCheckedChanged;
+  final VoidCallback? onToggleThread;
+  final bool showDate;
 
   static final _dateFormat = DateFormat('dd.MM HH:mm');
 
@@ -1979,6 +2311,34 @@ class MailListItem extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (onToggleThread != null)
+                    Padding(
+                      padding: EdgeInsets.only(right: 4.w),
+                      child: InkWell(
+                        onTap: onToggleThread,
+                        borderRadius: DdtTheme.radius,
+                        child: Padding(
+                          padding: EdgeInsets.all(2.w),
+                          child: message.isExpanding
+                              ? SizedBox(
+                                  width: 14.sp,
+                                  height: 14.sp,
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : DdtIcon(
+                                  message.isExpanded
+                                      ? DdtIcons.chevronDown
+                                      : DdtIcons.chevronRight,
+                                  size: 12.sp,
+                                  color: DdtTheme.taskCardTextSecondary(
+                                    context,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
                   _MailListSelectionLeading(
                     showCheckbox: showCheckbox,
                     isUnread: isUnread,
@@ -2018,7 +2378,19 @@ class MailListItem extends StatelessWidget {
                             color: DdtTheme.taskCardTextSecondary(context),
                           ),
                         ),
-                      if (message.datetimeReceived != null)
+                      if (message.messageCount > 1)
+                        Padding(
+                          padding: EdgeInsets.only(right: 4.w),
+                          child: Text(
+                            '${message.messageCount}',
+                            style: DdtTheme.style(
+                              fontSize: DdtTypography.microSize,
+                              fontWeight: FontWeight.w600,
+                              color: DdtTheme.textMuted(context),
+                            ),
+                          ),
+                        ),
+                      if (showDate && message.datetimeReceived != null)
                         Text(
                           MailListItem._dateFormat.format(
                             message.datetimeReceived!.toLocal(),

@@ -8,6 +8,7 @@ final class MailState extends Equatable {
     this.selectedFolderId,
     this.filter = MailInboxFilter.all,
     this.sort = MailInboxSort.dateDesc,
+    this.searchQuery = '',
     this.isLoading = false,
     this.isRefreshingInbox = false,
     this.isLoadingMore = false,
@@ -30,6 +31,7 @@ final class MailState extends Equatable {
   final String? selectedFolderId;
   final MailInboxFilter filter;
   final MailInboxSort sort;
+  final String searchQuery;
   final bool isLoading;
   final bool isRefreshingInbox;
   final bool isLoadingMore;
@@ -59,6 +61,7 @@ final class MailState extends Equatable {
     String? Function()? selectedFolderId,
     MailInboxFilter? filter,
     MailInboxSort? sort,
+    String? searchQuery,
     bool? isLoading,
     bool? isRefreshingInbox,
     bool? isLoadingMore,
@@ -85,6 +88,7 @@ final class MailState extends Equatable {
           : this.selectedFolderId,
       filter: filter ?? this.filter,
       sort: sort ?? this.sort,
+      searchQuery: searchQuery ?? this.searchQuery,
       isLoading: isLoading ?? this.isLoading,
       isRefreshingInbox: isRefreshingInbox ?? this.isRefreshingInbox,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
@@ -119,6 +123,7 @@ final class MailState extends Equatable {
     selectedFolderId,
     filter,
     sort,
+    searchQuery,
     isLoading,
     isRefreshingInbox,
     isLoadingMore,

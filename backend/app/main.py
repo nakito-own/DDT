@@ -10,11 +10,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routers import (
     analytics,
     ews_auth,
-    ews_calendar,
-    ews_contacts,
-    ews_mail,
     ews_notifications,
     health,
+    owa,
     spaces,
     static_assets,
     task_types,
@@ -74,13 +72,7 @@ app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(spaces.router, prefix="/api/spaces", tags=["spaces"])
 app.include_router(task_types.router, prefix="/api/task-types", tags=["task-types"])
 app.include_router(ews_auth.router, prefix="/api/ews/auth", tags=["ews-auth"])
-app.include_router(ews_mail.router, prefix="/api/ews/mail", tags=["ews-mail"])
-app.include_router(
-    ews_calendar.router, prefix="/api/ews/calendar", tags=["ews-calendar"]
-)
-app.include_router(
-    ews_contacts.router, prefix="/api/ews/contacts", tags=["ews-contacts"]
-)
+app.include_router(owa.router, prefix="/api/owa", tags=["owa"])
 app.include_router(
     ews_notifications.router,
     prefix="/api/ews/notifications",
