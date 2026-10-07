@@ -14,10 +14,18 @@ import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 
 class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const DdtGlassAppBar({super.key, required this.title, this.actions});
+  const DdtGlassAppBar({
+    super.key,
+    required this.title,
+    this.actions,
+    this.center,
+  });
 
   final String title;
   final Widget? actions;
+
+  /// Horizontally centered in the bar, above the title row.
+  final Widget? center;
 
   static const double barHeight = 56;
 
@@ -52,28 +60,34 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
       context: context,
       height: height,
       width: double.infinity,
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          SizedBox(width: horizontalPadding),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.panelTitleSize,
-              fontWeight: FontWeight.w600,
-              color: foregroundColor,
-            ),
+          Row(
+            children: [
+              SizedBox(width: horizontalPadding),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.panelTitleSize,
+                  fontWeight: FontWeight.w600,
+                  color: foregroundColor,
+                ),
+              ),
+              if (actions != null) ...[
+                SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
+                actions!,
+              ],
+              const Spacer(),
+              const _NotificationBellButton(),
+              SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+              const _UserEmailIsland(),
+              SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+            ],
           ),
-          if (actions != null) ...[
-            SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
-            actions!,
-          ],
-          const Spacer(),
-          const _NotificationBellButton(),
-          SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
-          const _UserEmailIsland(),
-          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+          ?center,
         ],
       ),
     );

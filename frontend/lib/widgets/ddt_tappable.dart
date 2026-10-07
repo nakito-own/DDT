@@ -39,6 +39,34 @@ class DdtTappable extends StatefulWidget {
 
 class _DdtTappableState extends State<DdtTappable> {
   bool _hovered = false;
+  ScrollPosition? _scrollPosition;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = Scrollable.maybeOf(context)?.position;
+    if (_scrollPosition == next) return;
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollActivity);
+    _scrollPosition = next;
+    _scrollPosition?.isScrollingNotifier.addListener(_onScrollActivity);
+  }
+
+  @override
+  void dispose() {
+    _scrollPosition?.isScrollingNotifier.removeListener(_onScrollActivity);
+    super.dispose();
+  }
+
+  void _onScrollActivity() {
+    if (_scrollPosition?.isScrollingNotifier.value != true || !_hovered) return;
+    setState(() => _hovered = false);
+  }
+
+  void _setHovered(bool value) {
+    if (_scrollPosition?.isScrollingNotifier.value == true) return;
+    if (_hovered == value) return;
+    setState(() => _hovered = value);
+  }
 
   Color? _resolveBackgroundColor(BuildContext context) {
     final base = widget.selected
@@ -84,8 +112,8 @@ class _DdtTappableState extends State<DdtTappable> {
         cursor: widget.onTap != null
             ? SystemMouseCursors.click
             : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
         child: content,
       );
     }

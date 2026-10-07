@@ -34,12 +34,16 @@ class DdtScrollEdgeFade extends StatelessWidget {
     this.backgroundColor,
     this.showTop = true,
     this.showBottom = true,
+    this.edgeFadeHeight = kDdtScrollEdgeFadeHeight,
   });
 
   final Widget child;
   final Color? backgroundColor;
   final bool showTop;
   final bool showBottom;
+
+  /// Logical height of each edge gradient before screen scaling.
+  final double edgeFadeHeight;
 
   static double fadeHeight(BuildContext context) => kDdtScrollEdgeFadeHeight.h;
 
@@ -64,7 +68,7 @@ class DdtScrollEdgeFade extends StatelessWidget {
             child: DdtScrollEdgeFadeGradient(
               backgroundColor: bg,
               atTop: true,
-              fadeHeight: kDdtScrollEdgeFadeHeight,
+              fadeHeight: edgeFadeHeight,
             ),
           ),
         if (showBottom)
@@ -75,7 +79,7 @@ class DdtScrollEdgeFade extends StatelessWidget {
             child: DdtScrollEdgeFadeGradient(
               backgroundColor: bg,
               atTop: false,
-              fadeHeight: kDdtScrollEdgeFadeHeight,
+              fadeHeight: edgeFadeHeight,
             ),
           ),
       ],

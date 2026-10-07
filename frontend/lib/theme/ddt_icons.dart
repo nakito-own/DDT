@@ -40,6 +40,7 @@ abstract final class DdtIcons {
   // People & notifications
   static const FaIconData bell = FontAwesomeIcons.bell;
   static const FaIconData user = FontAwesomeIcons.user;
+  static const FaIconData users = FontAwesomeIcons.userGroup;
   static const FaIconData userCircle = FontAwesomeIcons.circleUser;
   static const FaIconData signOut = FontAwesomeIcons.arrowRightFromBracket;
 
@@ -53,6 +54,8 @@ abstract final class DdtIcons {
   static const FaIconData comment = FontAwesomeIcons.comment;
   static const FaIconData inbox = FontAwesomeIcons.inbox;
   static const FaIconData flag = FontAwesomeIcons.flag;
+  static const FaIconData pin = FontAwesomeIcons.thumbtack;
+  static const FaIconData envelopeOpen = FontAwesomeIcons.envelopeOpen;
   static const FaIconData at = FontAwesomeIcons.at;
   static const FaIconData subject = FontAwesomeIcons.font;
   static const FaIconData paperclip = FontAwesomeIcons.paperclip;

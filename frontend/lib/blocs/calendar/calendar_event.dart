@@ -106,3 +106,72 @@ final class CalendarEventRespondRequested extends CalendarBlocEvent {
   @override
   List<Object?> get props => [event, action];
 }
+
+/// Владелец сессии известен — восстановить сохранённые календари коллег.
+final class CalendarOwnerConfigured extends CalendarBlocEvent {
+  const CalendarOwnerConfigured({
+    required this.email,
+    required this.displayName,
+  });
+
+  final String email;
+  final String displayName;
+
+  @override
+  List<Object?> get props => [email, displayName];
+}
+
+/// Включить/выключить свой календарь.
+final class CalendarOwnToggled extends CalendarBlocEvent {
+  const CalendarOwnToggled({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+/// Включить/выключить календарь коллеги.
+final class CalendarColleagueToggled extends CalendarBlocEvent {
+  const CalendarColleagueToggled({required this.email, required this.enabled});
+
+  final String email;
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [email, enabled];
+}
+
+/// Добавить календарь коллеги в список просмотра.
+final class CalendarColleagueAdded extends CalendarBlocEvent {
+  const CalendarColleagueAdded({
+    required this.email,
+    required this.displayName,
+  });
+
+  final String email;
+  final String displayName;
+
+  @override
+  List<Object?> get props => [email, displayName];
+}
+
+/// Убрать календарь коллеги из списка.
+final class CalendarColleagueRemoved extends CalendarBlocEvent {
+  const CalendarColleagueRemoved(this.email);
+
+  final String email;
+
+  @override
+  List<Object?> get props => [email];
+}
+
+/// Поиск коллег в адресной книге Exchange.
+final class CalendarPeopleSearchRequested extends CalendarBlocEvent {
+  const CalendarPeopleSearchRequested(this.query);
+
+  final String query;
+
+  @override
+  List<Object?> get props => [query];
+}

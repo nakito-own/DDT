@@ -15,6 +15,9 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     on<MailInboxRefreshRequested>(_onInboxRefreshRequested);
     on<MailInboxLoadMoreRequested>(_onInboxLoadMoreRequested);
     on<MailInboxQueryChanged>(_onInboxQueryChanged);
+    on<MailSearchQueryChanged>(_onSearchQueryChanged);
+    on<MailConversationToggled>(_onConversationToggled);
+    on<MailMessageActionRequested>(_onMessageActionRequested);
     on<MailMessageSelected>(_onMessageSelected);
     on<MailMessageSendRequested>(_onMessageSendRequested);
     on<MailSelectionModeEntered>(_onSelectionModeEntered);
@@ -106,6 +109,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         filter: state.filter,
         sort: state.sort,
         folderId: state.selectedFolderId,
+        search: state.searchQuery,
       );
       if (generation != _inboxRequestGeneration) return;
 
@@ -159,6 +163,176 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     await _reloadInbox(emit, showAnimation: showAnimation);
   }
 
+  Future<void> _onSearchQueryChanged(
+    MailSearchQueryChanged event,
+    Emitter<MailState> emit,
+  ) async {
+    final next = event.query.trim();
+    if (next == state.searchQuery) return;
+    emit(
+      state.copyWith(
+        searchQuery: next,
+        selectedMessageIds: const {},
+        isSelectionModeActive: false,
+        inboxQueryErrorMessage: () => null,
+      ),
+    );
+    await _reloadInbox(emit, showAnimation: true);
+  }
+
+  Future<void> _onConversationToggled(
+    MailConversationToggled event,
+    Emitter<MailState> emit,
+  ) async {
+    final index = state.messages.indexWhere(
+      (message) => message.id == event.messageId,
+    );
+    if (index < 0) return;
+    final message = state.messages[index];
+    if (!message.canExpand) return;
+    if (message.isExpanded) {
+      emit(
+        state.copyWith(
+          messages: _replaceMessage(
+            state.messages,
+            index,
+            message.copyWith(isExpanded: false),
+          ),
+        ),
+      );
+      return;
+    }
+    if (message.thread.isNotEmpty) {
+      emit(
+        state.copyWith(
+          messages: _replaceMessage(
+            state.messages,
+            index,
+            message.copyWith(isExpanded: true),
+          ),
+        ),
+      );
+      return;
+    }
+    final conversationId = message.conversationId;
+    if (conversationId == null || conversationId.isEmpty) return;
+    emit(
+      state.copyWith(
+        messages: _replaceMessage(
+          state.messages,
+          index,
+          message.copyWith(isExpanding: true),
+        ),
+      ),
+    );
+    try {
+      final items = await _api.fetchConversationMessages(conversationId);
+      final currentIndex = state.messages.indexWhere(
+        (item) => item.id == event.messageId,
+      );
+      if (currentIndex < 0) return;
+      final current = state.messages[currentIndex];
+      final children = [
+        for (final item in items)
+          if (item.id != current.id) item,
+      ];
+      emit(
+        state.copyWith(
+          messages: _replaceMessage(
+            state.messages,
+            currentIndex,
+            current.copyWith(
+              isExpanding: false,
+              isExpanded: true,
+              thread: children,
+              messageCount: children.length + 1,
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      final currentIndex = state.messages.indexWhere(
+        (item) => item.id == event.messageId,
+      );
+      if (currentIndex < 0) return;
+      emit(
+        state.copyWith(
+          messages: _replaceMessage(
+            state.messages,
+            currentIndex,
+            state.messages[currentIndex].copyWith(isExpanding: false),
+          ),
+          archiveErrorMessage: () =>
+              error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onMessageActionRequested(
+    MailMessageActionRequested event,
+    Emitter<MailState> emit,
+  ) async {
+    final message = event.message;
+    final previous = state.messages;
+    final next = switch (event.action) {
+      MailQuickAction.pin => _mapMessage(
+        previous,
+        message.id,
+        (item) => item.copyWith(isPinned: !item.isPinned),
+      ),
+      MailQuickAction.flag => _mapMessage(
+        previous,
+        message.id,
+        (item) => item.copyWith(isFlagged: !item.isFlagged),
+      ),
+      MailQuickAction.unread => _mapMessage(
+        previous,
+        message.id,
+        (item) => item.copyWith(isRead: false),
+      ),
+      MailQuickAction.delete => _removeMessage(previous, message.id),
+    };
+    emit(state.copyWith(messages: next, archiveErrorMessage: () => null));
+    try {
+      final folderId = message.folderId.isEmpty
+          ? state.selectedFolderId
+          : message.folderId;
+      final isTopLevel = previous.any((item) => item.id == message.id);
+      switch (event.action) {
+        case MailQuickAction.pin:
+          await _api.pinMessage(message.id, pinned: !message.isPinned);
+        case MailQuickAction.flag:
+          await _api.setConversationFlag(
+            conversationId: message.conversationId ?? '',
+            folderId: folderId,
+            flagged: !message.isFlagged,
+            itemId: message.id,
+          );
+        case MailQuickAction.unread:
+          await _api.markConversationUnread(
+            conversationId: isTopLevel ? (message.conversationId ?? '') : '',
+            folderId: folderId,
+            itemId: message.id,
+          );
+        case MailQuickAction.delete:
+          await _api.deleteConversation(
+            conversationId: isTopLevel ? (message.conversationId ?? '') : '',
+            folderId: folderId,
+            itemId: message.id,
+          );
+      }
+    } catch (error) {
+      emit(
+        state.copyWith(
+          messages: previous,
+          archiveErrorMessage: () =>
+              error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
+  }
+
   Future<void> _reloadInbox(
     Emitter<MailState> emit, {
     required bool showAnimation,
@@ -182,11 +356,13 @@ class MailBloc extends Bloc<MailEvent, MailState> {
 
     try {
       final foldersFuture = _api.fetchMailFolders();
+      final search = state.searchQuery;
       final messagesFuture = _api.fetchInbox(
         limit: _pageSize,
         filter: filter,
         sort: sort,
         folderId: folderId,
+        search: search,
       );
 
       final freshMessages = await messagesFuture;
@@ -612,18 +788,73 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       if (existing == null) return freshMsg;
 
       final hasCachedBody = existing.body != null && existing.body!.isNotEmpty;
-      if (!hasCachedBody) return freshMsg;
-
       return freshMsg.copyWith(
-        body: existing.body,
-        bodyType: existing.bodyType,
+        body: hasCachedBody ? existing.body : freshMsg.body,
+        bodyType: hasCachedBody ? existing.bodyType : freshMsg.bodyType,
         hasAttachments: freshMsg.hasAttachments || existing.hasAttachments,
         attachments: existing.attachments.isNotEmpty
             ? existing.attachments
             : freshMsg.attachments,
-        detailLoaded: existing.detailLoaded,
+        detailLoaded: existing.detailLoaded || freshMsg.detailLoaded,
+        isPinned: existing.isPinned,
+        isFlagged: existing.isFlagged || freshMsg.isFlagged,
+        isExpanded: existing.isExpanded,
+        thread: existing.thread,
+        conversationId: freshMsg.conversationId ?? existing.conversationId,
       );
     }).toList();
+  }
+
+  List<MailMessage> _replaceMessage(
+    List<MailMessage> messages,
+    int index,
+    MailMessage message,
+  ) {
+    return [
+      for (var i = 0; i < messages.length; i++)
+        if (i == index) message else messages[i],
+    ];
+  }
+
+  List<MailMessage> _mapMessage(
+    List<MailMessage> messages,
+    String id,
+    MailMessage Function(MailMessage message) update,
+  ) {
+    return [
+      for (final message in messages)
+        if (message.id == id)
+          update(message)
+        else if (message.thread.any((child) => child.id == id))
+          message.copyWith(
+            thread: [
+              for (final child in message.thread)
+                if (child.id == id) update(child) else child,
+            ],
+          )
+        else
+          message,
+    ];
+  }
+
+  List<MailMessage> _removeMessage(List<MailMessage> messages, String id) {
+    return [
+      for (final message in messages)
+        if (message.id == id)
+          null
+        else if (message.thread.any((child) => child.id == id))
+          message.copyWith(
+            thread: [
+              for (final child in message.thread)
+                if (child.id != id) child,
+            ],
+            messageCount: message.messageCount > 1
+                ? message.messageCount - 1
+                : 1,
+          )
+        else
+          message,
+    ].whereType<MailMessage>().toList();
   }
 
   /// Returns true if the two lists differ in a way visible to the user.
@@ -639,7 +870,11 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       if (o.id != n.id ||
           o.isRead != n.isRead ||
           o.subject != n.subject ||
-          o.hasAttachments != n.hasAttachments) {
+          o.hasAttachments != n.hasAttachments ||
+          o.isPinned != n.isPinned ||
+          o.isFlagged != n.isFlagged ||
+          o.messageCount != n.messageCount ||
+          o.isExpanded != n.isExpanded) {
         return true;
       }
     }

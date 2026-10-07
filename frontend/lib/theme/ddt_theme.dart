@@ -86,11 +86,11 @@ class DdtTheme {
       _isDark(context) ? lightTextPrimary : Colors.white;
 
   static TextStyle chartTooltipTextStyle(BuildContext context) => style(
-        fontSize: DdtTypography.labelSmallSize,
-        fontWeight: FontWeight.w600,
-        height: 1.35,
-        color: chartTooltipForeground(context),
-      );
+    fontSize: DdtTypography.labelSmallSize,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+    color: chartTooltipForeground(context),
+  );
 
   static TooltipThemeData tooltipThemeData(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
@@ -420,15 +420,18 @@ class DdtTheme {
     VoidCallback? onTap,
     double blurIntensity = 6,
     double? cornerRadius,
-    bool highlighted = false,
+    bool confirmed = true,
+    Color? accent,
   }) {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
     final radius = cornerRadius ?? 5.r;
     final baseNeutral = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-    final blueMix = highlighted
-        ? (isDark ? 0.26 : 0.14)
-        : (isDark ? 0.08 : 0.04);
+    final confirmedTint = Color.lerp(
+      baseNeutral,
+      accent ?? AppColors.primary,
+      isDark ? 0.32 : 0.18,
+    )!;
 
     return GlassContainer(
       type: GlassType.custom,
@@ -436,21 +439,13 @@ class DdtTheme {
       radius: radius,
       padding: padding,
       blurIntensity: blurIntensity,
-      backgroundColor: highlighted
-          ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08)
-          : Color.lerp(
-              baseNeutral,
-              AppColors.primary,
-              blueMix,
-            )!.withValues(alpha: isDark ? 0.32 : 0.3),
-      backgroundOpacity: highlighted
-          ? (isDark ? 0.22 : 0.18)
-          : (isDark ? 0.2 : 0.16),
-      borderColor: highlighted
-          ? AppColors.primary
-          : glassBorderColor(brightness),
-      borderOpacity: highlighted ? 0.5 : glassBorderOpacity(brightness) * 0.55,
-      borderWidth: highlighted ? 1.5 : 1,
+      backgroundColor: confirmed ? confirmedTint : baseNeutral,
+      backgroundOpacity: confirmed
+          ? (isDark ? 0.46 : 0.72)
+          : (isDark ? 0.34 : 0.55),
+      borderColor: confirmed ? glassBorderColor(brightness) : Colors.transparent,
+      borderOpacity: confirmed ? glassBorderOpacity(brightness) * 0.55 : 0,
+      borderWidth: confirmed ? 1 : 0,
       addShadow: false,
       onTap: onTap,
       child: child,
@@ -685,10 +680,7 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
-        iconTheme: IconThemeData(
-          size: 20,
-          color: lightTextSecondary,
-        ),
+        iconTheme: IconThemeData(size: 20, color: lightTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: lightBackground,
@@ -804,10 +796,7 @@ class DdtTheme {
 
     return _applyInteractionTheme(
       theme.copyWith(
-        iconTheme: IconThemeData(
-          size: 20,
-          color: darkTextSecondary,
-        ),
+        iconTheme: IconThemeData(size: 20, color: darkTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: darkBackground,
@@ -873,9 +862,7 @@ class DdtTheme {
           constraints: const BoxConstraints(minHeight: inputControlHeight),
           contentPadding: inputContentPadding(),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          labelStyle: typography.bodyMedium?.copyWith(
-            color: darkTextSecondary,
-          ),
+          labelStyle: typography.bodyMedium?.copyWith(color: darkTextSecondary),
           floatingLabelStyle: typography.bodySmall?.copyWith(
             color: darkTextMuted,
           ),

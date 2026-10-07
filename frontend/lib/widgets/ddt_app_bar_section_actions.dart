@@ -375,6 +375,56 @@ class _AnalyticsAppBarActions extends StatelessWidget {
   }
 }
 
+/// Date and previous/next controls centered in the calendar app bar.
+class CalendarAppBarDateNav extends StatelessWidget {
+  const CalendarAppBarDateNav({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor = isDark ? Colors.white : AppColors.primary;
+
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) =>
+          previous.viewMode != current.viewMode ||
+          previous.focusedDate != current.focusedDate,
+      builder: (context, state) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AppBarIconAction(
+              tooltip: 'Назад',
+              icon: DdtIcons.chevronLeft,
+              onPressed: () => context.read<CalendarBloc>().add(
+                const CalendarGoPreviousRequested(),
+              ),
+            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+            Text(
+              state.titleLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.panelTitleSize,
+                fontWeight: FontWeight.w600,
+                color: foregroundColor,
+              ),
+            ),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+            _AppBarIconAction(
+              tooltip: 'Вперёд',
+              icon: DdtIcons.chevronRight,
+              onPressed: () => context.read<CalendarBloc>().add(
+                const CalendarGoNextRequested(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _CalendarAppBarActions extends StatelessWidget {
   const _CalendarAppBarActions();
 
@@ -404,10 +454,35 @@ class _CalendarAppBarActions extends StatelessWidget {
     return BlocBuilder<CalendarBloc, CalendarState>(
       buildWhen: (previous, current) =>
           previous.isLoading != current.isLoading ||
-          previous.isRefreshing != current.isRefreshing,
+          previous.isRefreshing != current.isRefreshing ||
+          previous.viewMode != current.viewMode,
       builder: (context, state) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          DdtSegmentedControl<CalendarViewMode>(
+            segments: const [
+              DdtSegmentedControlSegment(
+                value: CalendarViewMode.day,
+                label: 'День',
+                icon: DdtIcons.clock,
+              ),
+              DdtSegmentedControlSegment(
+                value: CalendarViewMode.week,
+                label: 'Неделя',
+                icon: DdtIcons.calendar,
+              ),
+              DdtSegmentedControlSegment(
+                value: CalendarViewMode.month,
+                label: 'Месяц',
+                icon: DdtIcons.calendarPlus,
+              ),
+            ],
+            selected: state.viewMode,
+            onChanged: (mode) => context.read<CalendarBloc>().add(
+              CalendarViewModeChanged(mode),
+            ),
+          ),
+          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
           _AppBarIconAction(
             tooltip: 'Обновить календарь',
             icon: DdtIcons.refresh,

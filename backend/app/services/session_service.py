@@ -300,8 +300,10 @@ class SessionService:
 
     def delete_session(self, token_hash: str) -> None:
         from app.services.ews_notification_service import ews_notification_service
+        from app.services.owa_transport import owa_transport
 
         ews_notification_service.stop_for_session(token_hash)
+        owa_transport.drop_session(token_hash)
         with self._lock:
             self._memory_sessions.pop(token_hash, None)
             account = self._account_cache.pop(token_hash, None)

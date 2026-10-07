@@ -50,6 +50,39 @@ final class MailInboxQueryChanged extends MailEvent {
   List<Object?> get props => [filter, sort, folderId];
 }
 
+/// Поиск по текущей папке.
+final class MailSearchQueryChanged extends MailEvent {
+  const MailSearchQueryChanged(this.query);
+
+  final String query;
+
+  @override
+  List<Object?> get props => [query];
+}
+
+/// Раскрыть или свернуть беседу.
+final class MailConversationToggled extends MailEvent {
+  const MailConversationToggled(this.messageId);
+
+  final String messageId;
+
+  @override
+  List<Object?> get props => [messageId];
+}
+
+enum MailQuickAction { pin, flag, unread, delete }
+
+/// Закрепить, пометить, отметить непрочитанным или удалить письмо.
+final class MailMessageActionRequested extends MailEvent {
+  const MailMessageActionRequested(this.message, this.action);
+
+  final MailMessage message;
+  final MailQuickAction action;
+
+  @override
+  List<Object?> get props => [message.id, action];
+}
+
 /// Пользователь выбрал письмо из списка.
 final class MailMessageSelected extends MailEvent {
   const MailMessageSelected(this.message);
