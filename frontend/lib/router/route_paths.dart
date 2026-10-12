@@ -13,6 +13,7 @@ abstract final class RoutePaths {
   static const tasksKanban = '/tasks/kanban';
   static const tasksList = '/tasks/list';
   static const tasksGantt = '/tasks/gantt';
+  static const tasksArchive = '/tasks/archive';
   static const taskDetails = '/tasks/:taskKey';
 
   static String task(String taskKey) => '/tasks/$taskKey';
@@ -34,11 +35,13 @@ abstract final class RoutePaths {
   static const spaceKanban = '/space/:spaceKey/kanban';
   static const spaceList = '/space/:spaceKey/list';
   static const spaceGantt = '/space/:spaceKey/gantt';
+  static const spaceArchive = '/space/:spaceKey/archive';
   static const defaultSpaceKey = 'TEST';
 
   static String spaceKanbanFor(String spaceKey) => '/space/$spaceKey/kanban';
   static String spaceListFor(String spaceKey) => '/space/$spaceKey/list';
   static String spaceGanttFor(String spaceKey) => '/space/$spaceKey/gantt';
+  static String spaceArchiveFor(String spaceKey) => '/space/$spaceKey/archive';
   static String spaceTask(String taskKey) => '/space/$taskKey';
   static const automations = '/automations';
   static const notes = '/notes';
@@ -47,7 +50,7 @@ abstract final class RoutePaths {
   static const linkArchive = '/link-archive';
 
   static final taskKeyPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*-\d+$');
-  static const reservedTaskSegments = {'kanban', 'list', 'gantt'};
+  static const reservedTaskSegments = {'kanban', 'list', 'gantt', 'archive'};
 
   static bool isTaskKey(String value) => taskKeyPattern.hasMatch(value);
 
@@ -66,6 +69,7 @@ abstract final class RoutePaths {
   static const nameTasksKanban = 'tasks-kanban';
   static const nameTasksList = 'tasks-list';
   static const nameTasksGantt = 'tasks-gantt';
+  static const nameTasksArchive = 'tasks-archive';
   static const nameTaskDetails = 'task-details';
   static const nameMail = 'mail';
   static const nameCalendar = 'calendar';
@@ -76,6 +80,7 @@ abstract final class RoutePaths {
   static const nameSpaceKanban = 'space-kanban';
   static const nameSpaceList = 'space-list';
   static const nameSpaceGantt = 'space-gantt';
+  static const nameSpaceArchive = 'space-archive';
   static const nameSpaceTaskDetails = 'space-task-details';
   static const nameAutomations = 'automations';
   static const nameNotes = 'notes';
@@ -84,4 +89,6 @@ abstract final class RoutePaths {
   static const nameLinkArchive = 'link-archive';
 
   static bool isKanbanRoute(String location) => location.endsWith('/kanban');
+
+  static bool isArchiveRoute(String location) => location.endsWith('/archive');
 }

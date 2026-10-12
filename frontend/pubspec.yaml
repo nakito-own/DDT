@@ -40,12 +40,32 @@ dependencies:
 dependency_overrides:
   get_storage:
     path: packages/get_storage
+  flutter_gantt:
+    path: packages/flutter_gantt
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  image_path: assets/echo-logo.png
+  android: true
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: assets/echo-logo.png
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    background_color: "#000000"
+    theme_color: "#00A8FF"
+  windows:
+    generate: true
+    icon_size: 256
+  macos:
+    generate: true
 
 flutter:
   uses-material-design: true

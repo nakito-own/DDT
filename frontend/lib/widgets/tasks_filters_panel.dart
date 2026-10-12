@@ -13,6 +13,7 @@ import '../theme/ddt_typography.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_panel_primary_button.dart';
 import 'ddt_section_sidebar.dart';
+import 'ddt_switch.dart';
 
 class TasksFiltersPanel extends StatefulWidget {
   const TasksFiltersPanel({super.key, this.onCreatePressed});
@@ -80,7 +81,8 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
         !allStatuses ||
         state.priorityFilter != null ||
         state.typeFilter != null ||
-        state.sortOption != TasksSortOption.deadlineAsc;
+        state.sortOption != TasksSortOption.deadlineAsc ||
+        state.showArchived;
   }
 
   @override
@@ -98,6 +100,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
           previous.priorityFilter != current.priorityFilter ||
           previous.typeFilter != current.typeFilter ||
           previous.sortOption != current.sortOption ||
+          previous.showArchived != current.showArchived ||
           previous.taskTypes != current.taskTypes ||
           previous.filteredTasks.length != current.filteredTasks.length,
       builder: (context, state) {
@@ -242,6 +245,10 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                   },
                 ),
               ),
+              if (!context.read<TasksBloc>().archivedOnly) ...[
+                SizedBox(height: DdtSectionSidebar.fieldGap),
+                _ShowArchivedSwitch(enabled: state.showArchived),
+              ],
               SizedBox(height: DdtSectionSidebar.blockGap),
               Divider(height: 1, thickness: 1, color: dividerColor),
               SizedBox(height: DdtSectionSidebar.afterDividerGap),
@@ -294,6 +301,46 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ShowArchivedSwitch extends StatelessWidget {
+  const _ShowArchivedSwitch({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
+        borderRadius: DdtTheme.radius,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Показывать архивные',
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSize,
+                fontWeight: FontWeight.w600,
+                color: DdtTheme.taskCardTextPrimary(context),
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          DdtSwitch(
+            value: enabled,
+            onChanged: (value) => context.read<TasksBloc>().add(
+              TasksShowArchivedChanged(value),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

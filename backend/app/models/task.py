@@ -79,6 +79,8 @@ def map_task_row(row, *, type_=None, links=None, comments=None, parent=None, chi
         "time_end": row["time_end"],
         "deadline": row["deadline"],
         "priority": row["priority"],
+        "deleted": bool(row.get("deleted")),
+        "archive": bool(row.get("archive")),
         "links": links or [],
         "comments": comments or [],
         "parent": parent,

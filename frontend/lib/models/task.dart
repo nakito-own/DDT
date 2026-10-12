@@ -29,6 +29,8 @@ class Task {
     this.timeEnd,
     this.deadline,
     this.priority,
+    this.deleted = false,
+    this.archive = false,
     this.links,
     this.comments = const [],
     this.createdAt,
@@ -56,6 +58,8 @@ class Task {
   final DateTime? timeEnd;
   final DateTime? deadline;
   final TaskPriority? priority;
+  final bool deleted;
+  final bool archive;
   final List<TaskLink>? links;
   final List<TaskComment> comments;
   final DateTime? createdAt;
@@ -106,6 +110,8 @@ class Task {
           ? parseApiDateTime(json['deadline'] as String)
           : null,
       priority: TaskPriority.fromValue(json['priority'] as String?),
+      deleted: json['deleted'] == true || json['deleted'] == 1,
+      archive: json['archive'] == true || json['archive'] == 1,
       links: rawLinks
           ?.map((item) => TaskLink.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -148,6 +154,8 @@ class Task {
       if (timeEnd != null) 'time_end': timeEnd!.toIso8601String(),
       if (deadline != null) 'deadline': deadline!.toIso8601String(),
       if (priority != null) 'priority': priority!.value,
+      'deleted': deleted,
+      'archive': archive,
       if (links != null) 'links': links!.map((link) => link.toJson()).toList(),
       'comments': comments.map((comment) => comment.toJson()).toList(),
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
@@ -177,6 +185,8 @@ class Task {
     DateTime? timeEnd,
     DateTime? deadline,
     TaskPriority? priority,
+    bool? deleted,
+    bool? archive,
     List<TaskLink>? links,
     List<TaskComment>? comments,
   }) {
@@ -202,6 +212,8 @@ class Task {
       timeEnd: timeEnd ?? this.timeEnd,
       deadline: deadline ?? this.deadline,
       priority: priority ?? this.priority,
+      deleted: deleted ?? this.deleted,
+      archive: archive ?? this.archive,
       links: links ?? this.links,
       comments: comments ?? this.comments,
       createdAt: createdAt,

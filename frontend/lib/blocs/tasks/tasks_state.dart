@@ -12,6 +12,7 @@ final class TasksState extends Equatable {
     this.priorityFilter,
     this.typeFilter,
     this.sortOption = TasksSortOption.deadlineAsc,
+    this.showArchived = false,
   });
 
   final Map<TaskStatus, List<Task>> columns;
@@ -24,6 +25,7 @@ final class TasksState extends Equatable {
   final TaskPriority? priorityFilter;
   final int? typeFilter;
   final TasksSortOption sortOption;
+  final bool showArchived;
 
   List<Task> get allTasks => TaskStatus.values
       .expand((status) => columns[status] ?? const <Task>[])
@@ -89,6 +91,7 @@ final class TasksState extends Equatable {
     TaskPriority? Function()? priorityFilter,
     int? Function()? typeFilter,
     TasksSortOption? sortOption,
+    bool? showArchived,
   }) {
     return TasksState(
       columns: columns ?? this.columns,
@@ -103,6 +106,7 @@ final class TasksState extends Equatable {
           : this.priorityFilter,
       typeFilter: typeFilter != null ? typeFilter() : this.typeFilter,
       sortOption: sortOption ?? this.sortOption,
+      showArchived: showArchived ?? this.showArchived,
     );
   }
 
@@ -118,5 +122,6 @@ final class TasksState extends Equatable {
     priorityFilter,
     typeFilter,
     sortOption,
+    showArchived,
   ];
 }

@@ -39,7 +39,7 @@ class DdtSegmentedControl<T> extends StatelessWidget {
   static const double _segmentPaddingVerticalCompact = 2;
 
   final List<DdtSegmentedControlSegment<T>> segments;
-  final T selected;
+  final T? selected;
   final ValueChanged<T> onChanged;
   final bool compact;
 

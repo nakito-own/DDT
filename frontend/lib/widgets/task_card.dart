@@ -17,13 +17,13 @@ class TaskCard extends StatelessWidget {
     super.key,
     required this.task,
     this.isDragging = false,
-    this.onDelete,
+    this.onArchive,
     this.onTap,
   });
 
   final Task task;
   final bool isDragging;
-  final VoidCallback? onDelete;
+  final VoidCallback? onArchive;
   final VoidCallback? onTap;
 
   @override
@@ -31,56 +31,47 @@ class TaskCard extends StatelessWidget {
     final overdue = isTaskOverdue(task);
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
-    final iconMuted = DdtTheme.taskCardIconMuted(context);
+    final metaMuted = DdtTheme.taskCardIconMuted(context).withValues(alpha: 0.62);
 
     final card = DdtTheme.taskCardGlass(
       context: context,
       isDragging: isDragging,
+      padding: EdgeInsets.fromLTRB(10.w, 8.h, 10.w, 8.h),
       onTap: isDragging ? null : onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               DdtIcon(
                 DdtIcons.dragHandle,
-                size: 18.sp,
-                color: iconMuted,
+                size: 11.sp,
+                color: metaMuted,
               ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (task.key.isNotEmpty)
-                      Text(
-                        task.key,
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.labelSmallSize,
-                          fontWeight: FontWeight.w600,
-                          color: textSecondary,
-                        ),
-                      ),
-                    Text(
-                      task.title,
-                      style: DdtTheme.style(
-                        fontSize: DdtTypography.bodySize,
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
-                      ),
+              if (task.key.isNotEmpty) ...[
+                SizedBox(width: 6.w),
+                Expanded(
+                  child: Text(
+                    task.key,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.microSize,
+                      fontWeight: FontWeight.w500,
+                      color: metaMuted,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              if (onDelete != null)
+              ] else
+                const Spacer(),
+              if (onArchive != null)
                 IconButton(
-                  tooltip: 'Удалить',
-                  onPressed: onDelete,
+                  tooltip: 'В архив',
+                  onPressed: onArchive,
                   icon: DdtIcon(
                     DdtIcons.close,
-                    size: 18.sp,
+                    size: 14.sp,
                     color: textSecondary,
                   ),
                   visualDensity: VisualDensity.compact,
@@ -89,8 +80,26 @@ class TaskCard extends StatelessWidget {
                 ),
             ],
           ),
+          SizedBox(height: 2.h),
+          Text(
+            task.title,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              fontWeight: FontWeight.w600,
+              color: textPrimary,
+            ),
+          ),
+          if (task.archive)
+            Text(
+              'Архив',
+              style: DdtTheme.style(
+                fontSize: DdtTypography.captionSize,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
           if (task.description.isNotEmpty) ...[
-            SizedBox(height: 8.h),
+            SizedBox(height: 6.h),
             Text(
               DdtMarkdownBody.plainTextPreview(task.description),
               maxLines: 2,
@@ -102,21 +111,23 @@ class TaskCard extends StatelessWidget {
               ),
             ),
           ],
-          SizedBox(height: 10.h),
-          Wrap(
-            spacing: 6.w,
-            runSpacing: 6.h,
-            children: [
-              if (task.type != null) TaskTypeBadge(label: task.type!.name),
-              if (task.priority != null)
-                TaskPriorityBadge(priority: task.priority!),
-            ],
-          ),
+          if (task.type != null || task.priority != null) ...[
+            SizedBox(height: 8.h),
+            Wrap(
+              spacing: 6.w,
+              runSpacing: 6.h,
+              children: [
+                if (task.type != null) TaskTypeBadge(label: task.type!.name),
+                if (task.priority != null)
+                  TaskPriorityBadge(priority: task.priority!),
+              ],
+            ),
+          ],
           if (task.deadline != null ||
               task.executorId != null ||
               (task.links?.isNotEmpty ?? false) ||
               task.comments.isNotEmpty) ...[
-            SizedBox(height: 10.h),
+            SizedBox(height: 8.h),
             _TaskCardMeta(
               task: task,
               overdue: overdue,

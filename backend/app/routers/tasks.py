@@ -26,6 +26,16 @@ def list_tasks(context: SessionContext = Depends(get_current_session)):
     return task_service.list_tasks(context.user_id)
 
 
+@router.get("/deleted", response_model=list[TaskResponse])
+def list_deleted_tasks(context: SessionContext = Depends(get_current_session)):
+    return task_service.list_deleted_tasks(context.user_id)
+
+
+@router.get("/archived", response_model=list[TaskResponse])
+def list_archived_tasks(context: SessionContext = Depends(get_current_session)):
+    return task_service.list_archived_tasks(context.user_id)
+
+
 @router.post("", response_model=TaskResponse, status_code=201)
 def create_task(
     payload: CreateTaskRequest,
