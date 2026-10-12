@@ -24,7 +24,7 @@ enum TasksSortOption {
 }
 
 class TasksBloc extends Bloc<TasksEvent, TasksState> {
-  TasksBloc({TasksApi? api})
+  TasksBloc({TasksApi? api, this.archivedOnly = false})
     : _api = api ?? tasksApi,
       super(
         TasksState(
@@ -41,15 +41,18 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     on<TasksTypeFilterChanged>(_onTypeFilterChanged);
     on<TasksSortOptionChanged>(_onSortOptionChanged);
     on<TasksFiltersReset>(_onFiltersReset);
+    on<TasksShowArchivedChanged>(_onShowArchivedChanged);
     on<TaskCreateRequested>(_onTaskCreateRequested);
     on<TaskUpdateRequested>(_onTaskUpdateRequested);
     on<TaskServerSnapshotReceived>(_onTaskServerSnapshotReceived);
     on<TaskMoveRequested>(_onTaskMoveRequested);
-    on<TaskDeleteRequested>(_onTaskDeleteRequested);
+    on<TaskArchiveRequested>(_onTaskArchiveRequested);
   }
 
   final TasksApi _api;
+  final bool archivedOnly;
   int _nextDraftId = -1;
+  int _archivedRequest = 0;
   String? get spaceKey => _api.spaceKey;
 
   // ─── Board load / clear ───────────────────────────────────────────────────
@@ -62,12 +65,18 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
 
     try {
       final types = await _api.fetchTaskTypes();
-      final tasks = await _api.fetchTasks();
+      final includeArchived = archivedOnly || state.showArchived;
+      final tasks = archivedOnly
+          ? await _api.fetchArchivedTasks()
+          : await _api.fetchTasks();
+      final archived = !archivedOnly && includeArchived
+          ? await _api.fetchArchivedTasks()
+          : const <Task>[];
 
-      final columns = {for (final s in TaskStatus.values) s: <Task>[]};
-      for (final task in tasks) {
-        columns[task.status]?.add(task);
-      }
+      final columns = _groupTasks(
+        [...tasks, ...archived],
+        includeArchived: includeArchived,
+      );
       emit(
         state.copyWith(
           isLoading: false,
@@ -148,6 +157,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
   }
 
   void _onFiltersReset(TasksFiltersReset event, Emitter<TasksState> emit) {
+    _archivedRequest++;
     emit(
       state.copyWith(
         searchQuery: '',
@@ -155,8 +165,47 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         priorityFilter: () => null,
         typeFilter: () => null,
         sortOption: TasksSortOption.deadlineAsc,
+        showArchived: false,
+        columns: state.showArchived
+            ? _withoutArchived(state.columns)
+            : state.columns,
       ),
     );
+  }
+
+  Future<void> _onShowArchivedChanged(
+    TasksShowArchivedChanged event,
+    Emitter<TasksState> emit,
+  ) async {
+    if (archivedOnly) return;
+
+    if (!event.enabled) {
+      _archivedRequest++;
+      emit(
+        state.copyWith(
+          showArchived: false,
+          columns: _withoutArchived(state.columns),
+        ),
+      );
+      return;
+    }
+
+    final request = ++_archivedRequest;
+    emit(state.copyWith(showArchived: true, errorMessage: () => null));
+    try {
+      final archived = await _api.fetchArchivedTasks();
+      if (request != _archivedRequest || !state.showArchived) return;
+      emit(state.copyWith(columns: _mergeTasks(state.columns, archived)));
+    } catch (error) {
+      if (request != _archivedRequest) return;
+      emit(
+        state.copyWith(
+          showArchived: false,
+          columns: _withoutArchived(state.columns),
+          errorMessage: () => error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
   }
 
   // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -312,8 +361,8 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     }
   }
 
-  Future<void> _onTaskDeleteRequested(
-    TaskDeleteRequested event,
+  Future<void> _onTaskArchiveRequested(
+    TaskArchiveRequested event,
     Emitter<TasksState> emit,
   ) async {
     final column = state.columns[event.status];
@@ -322,18 +371,39 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     final index = column.indexWhere((item) => item.id == event.task.id);
     if (index < 0) return;
 
-    // Optimistic local delete
+    final keepVisible = archivedOnly || state.showArchived;
     final optimisticColumns = _copyColumns(state.columns);
-    optimisticColumns[event.status] = [...column]..removeAt(index);
+    final optimisticColumn = [...column];
+    if (keepVisible) {
+      optimisticColumn[index] = event.task.copyWith(archive: true);
+    } else {
+      optimisticColumn.removeAt(index);
+    }
+    optimisticColumns[event.status] = optimisticColumn;
     emit(state.copyWith(columns: optimisticColumns));
 
     try {
-      await _api.deleteTask(event.task.apiRef);
+      final saved = await _api.archiveTask(event.task.apiRef);
+      if (!keepVisible) return;
+      emit(
+        state.copyWith(
+          columns: _replaceTaskInColumns(
+            state.columns,
+            original: event.task,
+            saved: saved,
+          ),
+        ),
+      );
     } catch (error) {
-      // Revert on failure
       final reverted = _copyColumns(state.columns);
-      reverted[event.status] = [...(reverted[event.status] ?? [])]
-        ..insert(index, event.task);
+      final column = [...(reverted[event.status] ?? <Task>[])];
+      final currentIndex = column.indexWhere((item) => item.id == event.task.id);
+      if (keepVisible && currentIndex >= 0) {
+        column[currentIndex] = event.task;
+      } else if (currentIndex < 0) {
+        column.insert(index.clamp(0, column.length), event.task);
+      }
+      reverted[event.status] = column;
       emit(
         state.copyWith(
           columns: reverted,
@@ -344,6 +414,47 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  Map<TaskStatus, List<Task>> _groupTasks(
+    Iterable<Task> tasks, {
+    required bool includeArchived,
+  }) {
+    final columns = {for (final status in TaskStatus.values) status: <Task>[]};
+    final seen = <int>{};
+    for (final task in tasks) {
+      if (task.deleted || !seen.add(task.id)) continue;
+      if (task.archive && !includeArchived) continue;
+      columns[task.status]?.add(task);
+    }
+    return columns;
+  }
+
+  Map<TaskStatus, List<Task>> _withoutArchived(
+    Map<TaskStatus, List<Task>> source,
+  ) {
+    return {
+      for (final entry in source.entries)
+        entry.key: [
+          for (final task in entry.value)
+            if (!task.archive) task,
+        ],
+    };
+  }
+
+  Map<TaskStatus, List<Task>> _mergeTasks(
+    Map<TaskStatus, List<Task>> source,
+    List<Task> extra,
+  ) {
+    final columns = _copyColumns(source);
+    final seen = {
+      for (final task in columns.values.expand((column) => column)) task.id,
+    };
+    for (final task in extra) {
+      if (task.deleted || !seen.add(task.id)) continue;
+      columns[task.status]?.add(task);
+    }
+    return columns;
+  }
 
   Map<TaskStatus, List<Task>> _copyColumns(Map<TaskStatus, List<Task>> source) {
     return {for (final e in source.entries) e.key: List.of(e.value)};

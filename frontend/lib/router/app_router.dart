@@ -108,6 +108,18 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     ),
                   ),
                   GoRoute(
+                    path: 'archive',
+                    name: RoutePaths.nameTasksArchive,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: BlocProvider(
+                        create: (_) => TasksBloc(archivedOnly: true)
+                          ..add(const TasksBoardLoadRequested()),
+                        child: const TasksListPage(),
+                      ),
+                    ),
+                  ),
+                  GoRoute(
                     path: ':taskKey',
                     name: RoutePaths.nameTaskDetails,
                     pageBuilder: (context, state) {
@@ -236,6 +248,23 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   key: state.pageKey,
                   child: const TasksGanttPage(),
                 ),
+              ),
+              GoRoute(
+                path: RoutePaths.spaceArchive,
+                name: RoutePaths.nameSpaceArchive,
+                pageBuilder: (context, state) {
+                  final spaceKey = state.pathParameters['spaceKey'] ?? '';
+                  return NoTransitionPage(
+                    key: state.pageKey,
+                    child: BlocProvider(
+                      create: (_) => TasksBloc(
+                        api: TasksApi(spaceKey: spaceKey),
+                        archivedOnly: true,
+                      )..add(const TasksBoardLoadRequested()),
+                      child: const TasksListPage(),
+                    ),
+                  );
+                },
               ),
             ],
           ),

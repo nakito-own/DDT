@@ -65,6 +65,8 @@ class TaskResponse(BaseModel):
     time_end: datetime | None = None
     deadline: datetime | None = None
     priority: TaskPriority | None = None
+    deleted: bool = False
+    archive: bool = False
     links: list[TaskLinkResponse] = Field(default_factory=list)
     comments: list[TaskCommentResponse] = Field(default_factory=list)
     parent: TaskRefResponse | None = None
@@ -122,6 +124,7 @@ class UpdateTaskRequest(BaseModel):
     links: list[TaskLinkPayload] | None = None
     parent_key: str | None = Field(default=None, max_length=191)
     child_keys: list[str] | None = None
+    archive: bool | None = None
 
     @field_validator("parent_key")
     @classmethod

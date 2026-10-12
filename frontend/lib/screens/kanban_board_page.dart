@@ -9,6 +9,7 @@ import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
 import '../models/task_type.dart';
+import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../utils/ddt_toast.dart';
@@ -16,9 +17,16 @@ import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 
 const _kKanbanSlotDuration = Duration(milliseconds: 280);
 const _kKanbanSlotCurve = Curves.easeOutCubic;
+
+/// Top fade holds the column title in its middle, close to the column edge.
+const _kKanbanColumnTopFadeHeight = 52.0;
+const _kKanbanColumnBottomFadeHeight = kDdtScrollEdgeFadeHeightCompact;
+const _kKanbanColumnFadeGap = 4.0;
+const _kKanbanColumnListTopInset = 48.0;
 
 class KanbanBoardPage extends StatefulWidget {
   const KanbanBoardPage({super.key});
@@ -175,7 +183,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
         return;
       }
 
-      final unchanged = from == to && (fromIndex == null || fromIndex == toIndex);
+      final unchanged =
+          from == to && (fromIndex == null || fromIndex == toIndex);
       if (unchanged) {
         setState(() {
           _syncFromBlocState(context.read<TasksBloc>().state);
@@ -248,21 +257,26 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
-  Future<void> _deleteTask(Task task, TaskStatus status) async {
+  Future<void> _archiveTask(Task task, TaskStatus status) async {
     final column = _columnTasks(status);
     final index = column.indexWhere((item) => item.id == task.id);
     if (index < 0) return;
 
-    // Оптимистично убираем из локальных колонок для быстрой реакции.
-    setState(() {
-      _localColumns[status]?.removeAt(index);
-    });
+    final keepVisible = context.read<TasksBloc>().state.showArchived;
+    if (!keepVisible) {
+      setState(() {
+        _localColumns[status]?.removeAt(index);
+      });
+    }
 
     context.read<TasksBloc>().add(
-      TaskDeleteRequested(task: task, status: status),
+      TaskArchiveRequested(task: task, status: status),
     );
     // BlocListener синхронизирует при успехе или откатит при ошибке.
-    DdtToast.show(message: '«${task.title}» удалена', type: ToastType.success);
+    DdtToast.show(
+      message: '«${task.title}» перенесена в архив',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _openTaskDetails(Task task) async {
@@ -299,7 +313,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       onDragStarted: _onTaskDragStarted,
       onDragEnd: _finishTaskDrag,
       onAddTask: _addTask,
-      onDeleteTask: _deleteTask,
+      onArchiveTask: _archiveTask,
       onOpenTask: _openTaskDetails,
     );
   }
@@ -343,10 +357,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
               itemBuilder: (context, index) {
                 final status = TaskStatus.values[index];
 
-                return SizedBox(
-                  width: 320.w,
-                  child: _kanbanColumn(status),
-                );
+                return SizedBox(width: 320.w, child: _kanbanColumn(status));
               },
             ),
           );
@@ -373,7 +384,7 @@ class _KanbanColumn extends StatefulWidget {
     required this.onDragStarted,
     required this.onDragEnd,
     required this.onAddTask,
-    required this.onDeleteTask,
+    required this.onArchiveTask,
     required this.onOpenTask,
   });
 
@@ -392,7 +403,7 @@ class _KanbanColumn extends StatefulWidget {
   final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
   final void Function(TaskStatus status) onAddTask;
-  final Future<void> Function(Task task, TaskStatus status) onDeleteTask;
+  final Future<void> Function(Task task, TaskStatus status) onArchiveTask;
   final void Function(Task task) onOpenTask;
 
   @override
@@ -428,67 +439,118 @@ class _KanbanColumnState extends State<_KanbanColumn> {
           AppCard(
             type: CardType.outlined,
             borderRadius: DdtTheme.radius,
-            padding: EdgeInsets.all(DdtTheme.spacing.w),
+            padding: EdgeInsets.fromLTRB(
+              DdtTheme.spacing.w,
+              4.h,
+              4.w,
+              DdtTheme.spacing.w,
+            ),
             backgroundColor: _columnColor,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _KanbanColumnHeader(
-                  status: widget.status,
-                  taskCount: widget.tasks.length,
-                  onAddTask: widget.onAddTask,
-                ),
-                SizedBox(height: DdtTheme.spacing.h),
-                Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fadeColor = Color.alphaBlend(
+                  _columnColor,
+                  Theme.of(context).scaffoldBackgroundColor,
+                );
+                final listPadding = EdgeInsets.only(
+                  top: _kKanbanColumnListTopInset.h,
+                  bottom:
+                      _kKanbanColumnBottomFadeHeight.h +
+                      _kKanbanColumnFadeGap.h,
+                );
+
+                return ScrollConfiguration(
+                  behavior: const _KanbanColumnScrollBehavior(),
                   child: ClipRRect(
                     borderRadius: DdtTheme.radius,
-                    child: DragTarget<Task>(
-                    onWillAcceptWithDetails: (_) => true,
-                    onMove: (details) {
-                      _setDragOver(true);
-                      widget.onDropPreview(
-                        widget.status,
-                        widget.onResolveInsertIndex(
-                          widget.status,
-                          details.offset,
-                        ),
-                      );
-                    },
-                    onLeave: (_) {
-                      _setDragOver(false);
-                    },
-                    onAcceptWithDetails: (details) {
-                      _setDragOver(false);
-                      widget.onRegisterDrop(
-                        details.data,
-                        widget.status,
-                        widget.dropIndex ??
-                            widget.onResolveInsertIndex(
+                    child: Stack(
+                      children: [
+                        DragTarget<Task>(
+                          onWillAcceptWithDetails: (_) => true,
+                          onMove: (details) {
+                            _setDragOver(true);
+                            widget.onDropPreview(
                               widget.status,
-                              details.offset,
-                            ),
-                      );
-                    },
-                    builder: (context, candidateData, rejectedData) {
-                      return _KanbanTaskList(
-                        key: widget.taskListKey,
-                        status: widget.status,
-                        tasks: widget.tasks,
-                        draggingTaskId: widget.draggingTaskId,
-                        dropIndex: widget.dropIndex,
-                        placeholderHeight: widget.placeholderHeight,
-                        taskCardKey: widget.taskCardKey,
-                        onRegisterCardSize: widget.onRegisterCardSize,
-                        onDragStarted: widget.onDragStarted,
-                        onDragEnd: widget.onDragEnd,
-                        onDeleteTask: widget.onDeleteTask,
-                        onOpenTask: widget.onOpenTask,
-                      );
-                    },
+                              widget.onResolveInsertIndex(
+                                widget.status,
+                                details.offset,
+                              ),
+                            );
+                          },
+                          onLeave: (_) {
+                            _setDragOver(false);
+                          },
+                          onAcceptWithDetails: (details) {
+                            _setDragOver(false);
+                            widget.onRegisterDrop(
+                              details.data,
+                              widget.status,
+                              widget.dropIndex ??
+                                  widget.onResolveInsertIndex(
+                                    widget.status,
+                                    details.offset,
+                                  ),
+                            );
+                          },
+                          builder: (context, candidateData, rejectedData) {
+                            return SizedBox(
+                              height: constraints.maxHeight,
+                              child: _KanbanTaskList(
+                                key: widget.taskListKey,
+                                status: widget.status,
+                                tasks: widget.tasks,
+                                draggingTaskId: widget.draggingTaskId,
+                                dropIndex: widget.dropIndex,
+                                placeholderHeight: widget.placeholderHeight,
+                                taskCardKey: widget.taskCardKey,
+                                padding: listPadding,
+                                onRegisterCardSize: widget.onRegisterCardSize,
+                                onDragStarted: widget.onDragStarted,
+                                onDragEnd: widget.onDragEnd,
+                                onArchiveTask: widget.onArchiveTask,
+                                onOpenTask: widget.onOpenTask,
+                              ),
+                            );
+                          },
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: _kKanbanColumnTopFadeHeight.h,
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: _KanbanColumnFade(
+                                  color: fadeColor,
+                                  atTop: true,
+                                ),
+                              ),
+                              Center(
+                                child: _KanbanColumnHeader(
+                                  status: widget.status,
+                                  taskCount: widget.tasks.length,
+                                  onAddTask: widget.onAddTask,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: DdtScrollEdgeFadeGradient(
+                            backgroundColor: fadeColor,
+                            atTop: false,
+                            fadeHeight: _kKanbanColumnBottomFadeHeight,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
           Positioned.fill(
@@ -525,6 +587,65 @@ class _KanbanColumnState extends State<_KanbanColumn> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Keeps the column scrollbar close to the task cards.
+class _KanbanColumnScrollBehavior extends DdtScrollBehavior {
+  const _KanbanColumnScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    switch (getPlatform(context)) {
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+        final isVertical =
+            details.direction == AxisDirection.down ||
+            details.direction == AxisDirection.up;
+        final paddedChild = isVertical
+            ? Padding(
+                padding: EdgeInsets.only(right: 8.w),
+                child: child,
+              )
+            : child;
+        return Scrollbar(controller: details.controller, child: paddedChild);
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.iOS:
+        return child;
+    }
+  }
+}
+
+/// Top fade stays solid through the header, then dissolves like the analytics sidebar.
+class _KanbanColumnFade extends StatelessWidget {
+  const _KanbanColumnFade({required this.color, required this.atTop});
+
+  final Color color;
+  final bool atTop;
+
+  @override
+  Widget build(BuildContext context) {
+    final solid = color.withValues(alpha: 1);
+    final clear = color.withValues(alpha: 0);
+
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: atTop ? [solid, solid, clear] : [clear, solid],
+            stops: atTop ? const [0, 0.5, 1] : null,
+          ),
+        ),
       ),
     );
   }
@@ -591,10 +712,11 @@ class _KanbanTaskList extends StatefulWidget {
     required this.dropIndex,
     required this.placeholderHeight,
     required this.taskCardKey,
+    this.padding = EdgeInsets.zero,
     required this.onRegisterCardSize,
     required this.onDragStarted,
     required this.onDragEnd,
-    required this.onDeleteTask,
+    required this.onArchiveTask,
     required this.onOpenTask,
   });
 
@@ -604,10 +726,11 @@ class _KanbanTaskList extends StatefulWidget {
   final int? dropIndex;
   final double placeholderHeight;
   final GlobalKey Function(TaskStatus status, int taskId) taskCardKey;
+  final EdgeInsets padding;
   final void Function(int taskId, Size size) onRegisterCardSize;
   final void Function(TaskStatus status, int taskId) onDragStarted;
   final Future<void> Function(Task task, DraggableDetails details) onDragEnd;
-  final void Function(Task task, TaskStatus status) onDeleteTask;
+  final void Function(Task task, TaskStatus status) onArchiveTask;
   final void Function(Task task) onOpenTask;
 
   @override
@@ -622,17 +745,21 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       children: [
         ListView(
           clipBehavior: Clip.hardEdge,
+          padding: widget.padding,
           children: _buildChildren(),
         ),
         if (widget.tasks.isEmpty && widget.dropIndex == null)
-          Center(
-            child: Text(
-              'Перетащите задачу сюда',
-              style: DdtTheme.style(
-                fontSize: DdtTypography.labelSize,
-                color: Colors.grey[600],
+          Padding(
+            padding: widget.padding,
+            child: Center(
+              child: Text(
+                'Перетащите задачу сюда',
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.labelSize,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
           ),
       ],
@@ -696,9 +823,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
 
       final isLastRemaining = visibleIndex == remainingCount - 1;
       final gapBefore =
-          dropIndex != null &&
-              dropIndex == visibleIndex &&
-              !holeStaysOnDragSlot
+          dropIndex != null && dropIndex == visibleIndex && !holeStaysOnDragSlot
           ? gapSize
           : 0.0;
       final gapAfter = showEndGap && isLastRemaining ? gapSize : 0.0;
@@ -733,7 +858,7 @@ class _KanbanTaskListState extends State<_KanbanTaskList> {
       onSizeChanged: (size) => widget.onRegisterCardSize(task.id, size),
       onDragStarted: () => widget.onDragStarted(widget.status, task.id),
       onDragEnd: (details) => widget.onDragEnd(task, details),
-      onDelete: () => widget.onDeleteTask(task, widget.status),
+      onArchive: () => widget.onArchiveTask(task, widget.status),
       onTap: () => widget.onOpenTask(task),
     );
 
@@ -792,7 +917,7 @@ class _DraggableTaskCard extends StatefulWidget {
     required this.onSizeChanged,
     required this.onDragStarted,
     required this.onDragEnd,
-    required this.onDelete,
+    required this.onArchive,
     required this.onTap,
   });
 
@@ -803,7 +928,7 @@ class _DraggableTaskCard extends StatefulWidget {
   final ValueChanged<Size> onSizeChanged;
   final VoidCallback onDragStarted;
   final ValueChanged<DraggableDetails> onDragEnd;
-  final VoidCallback onDelete;
+  final VoidCallback onArchive;
   final VoidCallback onTap;
 
   @override
@@ -860,7 +985,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
                         child: TaskCard(
                           task: widget.task,
                           isDragging: true,
-                          onDelete: widget.onDelete,
+                          onArchive: widget.onArchive,
                         ),
                       ),
                     ),
@@ -868,7 +993,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
                 ),
           child: TaskCard(
             task: widget.task,
-            onDelete: widget.onDelete,
+            onArchive: widget.onArchive,
             onTap: widget.onTap,
           ),
         ),

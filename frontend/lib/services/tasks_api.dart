@@ -30,6 +30,18 @@ class TasksApi {
     return ApiClient.decodeList(response).map(Task.fromJson).toList();
   }
 
+  Future<List<Task>> fetchArchivedTasks() async {
+    final response = await _client.get('$_tasksPath/archived');
+    _ensureSuccess(response);
+    return ApiClient.decodeList(response).map(Task.fromJson).toList();
+  }
+
+  Future<List<Task>> fetchDeletedTasks() async {
+    final response = await _client.get('$_tasksPath/deleted');
+    _ensureSuccess(response);
+    return ApiClient.decodeList(response).map(Task.fromJson).toList();
+  }
+
   Future<Task> fetchTask(String taskRef) async {
     final response = await _client.get(_itemPath(taskRef));
     _ensureSuccess(response);
@@ -109,6 +121,10 @@ class TasksApi {
     );
     _ensureSuccess(response, expectedStatus: 201);
     return TaskComment.fromJson(ApiClient.decodeMap(response));
+  }
+
+  Future<Task> archiveTask(String taskRef) async {
+    return updateTask(taskRef, {'archive': true});
   }
 
   Future<void> deleteTask(String taskRef) async {

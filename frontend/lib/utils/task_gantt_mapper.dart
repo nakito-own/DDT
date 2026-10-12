@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gantt/flutter_gantt.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../models/task.dart';
+import '../models/task_status.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../theme/ddt_typography.dart';
@@ -87,44 +90,61 @@ Widget buildTaskGanttBar(BuildContext context, GanttActivity activity) {
   final statusColor = task == null
       ? AppColors.primary
       : statusColumnColor(task.status);
+  final unfinished = task == null || task.status != TaskStatus.done;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final radius = BorderRadius.circular(5.r);
+  final fill = statusColor.withValues(alpha: isDark ? 0.5 : 0.28);
 
-  return Tooltip(
-    message: activity.tooltip ?? activity.title ?? '',
-    child: SizedBox(
-      height: double.infinity,
-      child: DdtTheme.taskCardGlass(
-        context: context,
-        cornerRadius: 8.r,
-        padding: EdgeInsets.zero,
-        onTap: () => activity.onCellTap?.call(activity),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8.r),
-          child: Row(
-            children: [
-              Container(width: 4.w, color: statusColor),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10.w),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      activity.title ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: DdtTheme.style(
-                        fontSize: DdtTypography.labelSmallSize,
-                        fontWeight: FontWeight.w600,
-                        color: DdtTheme.taskCardTextPrimary(context),
-                      ),
-                    ),
-                  ),
-                ),
+  Widget bar = Material(
+    type: MaterialType.transparency,
+    child: InkWell(
+      onTap: () => activity.onCellTap?.call(activity),
+      borderRadius: radius,
+      splashFactory: NoSplash.splashFactory,
+      child: Ink(
+        decoration: BoxDecoration(color: fill, borderRadius: radius),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8.w),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              activity.title ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSmallSize,
+                fontWeight: FontWeight.w600,
+                color: DdtTheme.taskCardTextPrimary(context),
               ),
-            ],
+            ),
           ),
         ),
       ),
     ),
+  );
+
+  if (unfinished) {
+    bar = ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) {
+        final fade = math.min(56.0, bounds.width * 0.42);
+        final start = bounds.width <= 0
+            ? 0.0
+            : ((bounds.width - fade) / bounds.width).clamp(0.0, 1.0);
+        return LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: const [Colors.white, Colors.white, Colors.transparent],
+          stops: [0, start, 1],
+        ).createShader(bounds);
+      },
+      child: bar,
+    );
+  }
+
+  return Tooltip(
+    message: activity.tooltip ?? activity.title ?? '',
+    child: SizedBox(height: double.infinity, child: bar),
   );
 }
 

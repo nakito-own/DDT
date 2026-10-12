@@ -104,6 +104,7 @@ class TaskService:
             SELECT id, parent_id, task_key, title, status
             FROM tasks
             WHERE parent_id IN ({placeholders})
+              AND deleted = 0
             ORDER BY id
             """,
             task_ids,
@@ -165,6 +166,8 @@ class TaskService:
             clauses.append("t.space_id IS NULL")
             params.append(owner_id)
 
+        clauses.append("t.deleted = 0")
+
         cursor.execute(
             f"{TASK_SELECT} WHERE {' AND '.join(clauses)}",
             params,
@@ -216,24 +219,50 @@ class TaskService:
         ]
 
     def list_tasks(self, owner_id: int) -> list[dict]:
-        return self._list_tasks("owner_id", owner_id)
+        return self._list_tasks("owner_id", owner_id, archived=False)
+
+    def list_archived_tasks(self, owner_id: int) -> list[dict]:
+        return self._list_tasks("owner_id", owner_id, archived=True)
+
+    def list_deleted_tasks(self, owner_id: int) -> list[dict]:
+        return self._list_tasks("owner_id", owner_id, deleted=True)
 
     def list_space_tasks(self, space_id: int) -> list[dict]:
-        return self._list_tasks("space_id", space_id)
+        return self._list_tasks("space_id", space_id, archived=False)
 
-    def _list_tasks(self, scope_column: str, scope_id: int) -> list[dict]:
-        personal_filter = (
-            "AND t.space_id IS NULL" if scope_column == "owner_id" else ""
-        )
+    def list_archived_space_tasks(self, space_id: int) -> list[dict]:
+        return self._list_tasks("space_id", space_id, archived=True)
+
+    def list_deleted_space_tasks(self, space_id: int) -> list[dict]:
+        return self._list_tasks("space_id", space_id, deleted=True)
+
+    def _list_tasks(
+        self,
+        scope_column: str,
+        scope_id: int,
+        *,
+        deleted: bool = False,
+        archived: bool | None = None,
+    ) -> list[dict]:
+        clauses = [
+            f"t.{scope_column} = %s",
+            "t.deleted = %s",
+        ]
+        params: list = [scope_id, int(deleted)]
+        if scope_column == "owner_id":
+            clauses.append("t.space_id IS NULL")
+        if archived is not None:
+            clauses.append("t.archive = %s")
+            params.append(int(archived))
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
                     {TASK_SELECT}
-                    WHERE t.{scope_column} = %s {personal_filter}
+                    WHERE {' AND '.join(clauses)}
                     ORDER BY t.updated_at DESC, t.id DESC
                     """,
-                    (scope_id,),
+                    params,
                 )
                 rows = cursor.fetchall()
                 return self._serialize_rows(cursor, rows)
@@ -708,7 +737,10 @@ class TaskService:
                     task_ref is not None and not self._can_mutate(row, user_id)
                 ):
                     raise TaskNotFoundError
-                cursor.execute("DELETE FROM tasks WHERE id = %s", (row["id"],))
+                cursor.execute(
+                    "UPDATE tasks SET deleted = TRUE WHERE id = %s AND deleted = FALSE",
+                    (row["id"],),
+                )
                 if cursor.rowcount == 0:
                     raise TaskNotFoundError
 
