@@ -54,6 +54,24 @@ def list_space_tasks(
     return task_service.list_space_tasks(space["id"])
 
 
+@router.get("/{space_ref}/tasks/deleted", response_model=list[TaskResponse])
+def list_deleted_space_tasks(
+    space_ref: str,
+    _context: SessionContext = Depends(get_current_session),
+):
+    space = _require_space(space_ref)
+    return task_service.list_deleted_space_tasks(space["id"])
+
+
+@router.get("/{space_ref}/tasks/archived", response_model=list[TaskResponse])
+def list_archived_space_tasks(
+    space_ref: str,
+    _context: SessionContext = Depends(get_current_session),
+):
+    space = _require_space(space_ref)
+    return task_service.list_archived_space_tasks(space["id"])
+
+
 @router.post("/{space_ref}/tasks", response_model=TaskResponse, status_code=201)
 def create_space_task(
     space_ref: str,

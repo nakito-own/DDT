@@ -83,11 +83,14 @@ class TasksListPage extends StatelessWidget {
     DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
   }
 
-  Future<void> _deleteTask(BuildContext context, Task task) async {
+  Future<void> _archiveTask(BuildContext context, Task task) async {
     context.read<TasksBloc>().add(
-      TaskDeleteRequested(task: task, status: task.status),
+      TaskArchiveRequested(task: task, status: task.status),
     );
-    DdtToast.show(message: '«${task.title}» удалена', type: ToastType.success);
+    DdtToast.show(
+      message: '«${task.title}» перенесена в архив',
+      type: ToastType.success,
+    );
   }
 
   @override
@@ -99,29 +102,37 @@ class TasksListPage extends StatelessWidget {
           previous.statusFilters != current.statusFilters ||
           previous.priorityFilter != current.priorityFilter ||
           previous.typeFilter != current.typeFilter ||
-          previous.sortOption != current.sortOption,
+          previous.sortOption != current.sortOption ||
+          previous.isLoading != current.isLoading,
       builder: (context, state) {
         final tasks = state.filteredTasks;
+        final archivedOnly = context.read<TasksBloc>().archivedOnly;
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DdtSectionSidebarFrame(
               child: TasksFiltersPanel(
-                onCreatePressed: () => _createTask(context),
+                onCreatePressed: archivedOnly
+                    ? null
+                    : () => _createTask(context),
               ),
             ),
             DdtSectionSidebar.afterScrollbarGapBox(),
             const DdtSidePanelDivider(),
             DdtSectionSidebar.dividerGap(),
             Expanded(
-              child: tasks.isEmpty
+              child: state.isLoading && tasks.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : tasks.isEmpty
                   ? Align(
                       alignment: Alignment.topCenter,
                       child: Padding(
                         padding: DdtShellMetrics.fixedTopPadding(context),
                         child: Text(
-                          'Нет задач по выбранным фильтрам',
+                          archivedOnly
+                              ? 'В архиве нет задач'
+                              : 'Нет задач по выбранным фильтрам',
                           style: DdtTheme.style(
                             fontSize: DdtTypography.bodySize,
                           ),
@@ -145,7 +156,9 @@ class TasksListPage extends StatelessWidget {
                             key: ValueKey(task.id),
                             task: task,
                             onTap: () => _openTask(context, task),
-                            onDelete: () => _deleteTask(context, task),
+                            onArchive: archivedOnly
+                                ? null
+                                : () => _archiveTask(context, task),
                           );
                         },
                       ),

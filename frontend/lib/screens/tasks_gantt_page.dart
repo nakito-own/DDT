@@ -137,8 +137,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
       defaultCellColor: gridLineColor,
       todayBackgroundColor: AppColors.primary,
       todayTextColor: Colors.white,
-      cellHeight: 48.h,
-      rowPadding: 10.h,
+      cellHeight: 26.h,
+      rowPadding: 4.h,
+      rowsGroupPadding: 2.h,
       headerHeight: 56.h,
       dayMinWidth: _baseDayMinWidth.w * _zoom,
     );

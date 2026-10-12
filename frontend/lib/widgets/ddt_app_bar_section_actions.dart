@@ -11,6 +11,7 @@ import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
 import '../models/space.dart';
 import '../models/tasks_view_mode.dart';
+import '../router/route_paths.dart';
 import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
@@ -49,7 +50,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
 
   String? _spaceKeyFromLocation(String location) {
     final board = RegExp(
-      r'^/space/([^/]+)/(kanban|list|gantt)$',
+      r'^/space/([^/]+)/(kanban|list|gantt|archive)$',
     ).firstMatch(location);
     if (board != null) return board.group(1);
     final task = RegExp(r'^/space/(.+)-\d+$').firstMatch(location);
@@ -61,6 +62,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
     final location = GoRouterState.of(context).matchedLocation;
     final selectedSpaceKey = _spaceKeyFromLocation(location);
     final activeMode = TasksViewMode.fromRoute(location);
+    final archiveOpen = RoutePaths.isArchiveRoute(location);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -80,7 +82,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               label: 'Гант',
             ),
           ],
-          selected: activeMode,
+          selected: archiveOpen ? null : activeMode,
           onChanged: (mode) {
             if (selectedSpaceKey != null) {
               context.go(mode.routePathForSpace(selectedSpaceKey));
@@ -91,7 +93,10 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
         _AppBarIconAction(
           tooltip: 'Архив',
           icon: DdtIcons.archive,
-          onPressed: () {},
+          isActive: archiveOpen,
+          onPressed: selectedSpaceKey == null
+              ? null
+              : () => context.go(RoutePaths.spaceArchiveFor(selectedSpaceKey)),
         ),
         SizedBox(width: DdtTheme.shellSizeOf(context, 12)),
         FutureBuilder<List<Space>>(
@@ -123,8 +128,11 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
                   ? {selectedSpaceKey}
                   : const {},
               emptyLabel: 'Нет пространств',
-              onSelected: (key) =>
-                  context.go(activeMode.routePathForSpace(key)),
+              onSelected: (key) => context.go(
+                archiveOpen
+                    ? RoutePaths.spaceArchiveFor(key)
+                    : activeMode.routePathForSpace(key),
+              ),
             );
           },
         ),
@@ -143,6 +151,7 @@ class _TasksAppBarActions extends StatelessWidget {
     // (например, /tasks/list) и при навигации через кнопки браузера.
     final location = GoRouterState.of(context).matchedLocation;
     final activeMode = TasksViewMode.fromRoute(location);
+    final archiveOpen = RoutePaths.isArchiveRoute(location);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -162,14 +171,15 @@ class _TasksAppBarActions extends StatelessWidget {
               label: 'Гант',
             ),
           ],
-          selected: activeMode,
+          selected: archiveOpen ? null : activeMode,
           onChanged: (mode) => context.go(mode.routePath),
         ),
         SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
         _AppBarIconAction(
           tooltip: 'Архив',
           icon: DdtIcons.archive,
-          onPressed: () {},
+          isActive: archiveOpen,
+          onPressed: () => context.go(RoutePaths.tasksArchive),
         ),
       ],
     );

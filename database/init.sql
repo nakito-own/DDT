@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   time_end DATETIME NULL,
   deadline DATETIME NULL,
   priority ENUM('insignificant', 'low', 'medium', 'high', 'blocker') NULL,
+  deleted BOOLEAN NOT NULL DEFAULT FALSE,
+  archive BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (type_id) REFERENCES task_types(id) ON DELETE SET NULL,

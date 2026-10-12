@@ -5,15 +5,16 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Viewport: Flutter Web injects its own meta[name=viewport] (see full_page_embedding_strategy). -->
   <meta name="description" content="DDT — задачи, пространство и автоматизации">
+  <meta name="theme-color" content="#ffffff">
 
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="DDT">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2"/>
-  <link rel="icon" type="image/png" href="favicon.png?v=2"/>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3"/>
+  <link rel="icon" type="image/png" href="favicon.png?v=3"/>
 
   <title>DDT</title>
   <link rel="manifest" href="manifest.json">
@@ -38,37 +39,50 @@
         return 'light';
       }
 
-      document.documentElement.setAttribute('data-theme', resolveTheme());
+      var theme = resolveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
+      var themeColor = theme === 'dark' ? '#050508' : '#ffffff';
+      var metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        metaTheme.setAttribute('content', themeColor);
+      }
     })();
   </script>
 
   <style>
     :root {
       color-scheme: light;
-      --ddt-primary: #1976d2;
       --ddt-bg: #ffffff;
-      --ddt-title: #1976d2;
-      --ddt-subtitle: rgba(25, 118, 210, 0.65);
-      --ddt-border: rgba(25, 118, 210, 0.3);
-      --ddt-radius: 18px;
-      --ddt-spacing: 16px;
+      --ddt-loader-bar: #00a8ff;
     }
 
     html[data-theme='dark'] {
       color-scheme: dark;
       --ddt-bg: #050508;
-      --ddt-title: #ffffff;
-      --ddt-subtitle: rgba(255, 255, 255, 0.65);
-      --ddt-border: rgba(255, 255, 255, 0.2);
+      --ddt-loader-bar: #00a8ff;
     }
 
-    html,
+    html {
+      margin: 0;
+      min-height: 100%;
+      background-color: var(--ddt-bg);
+    }
+
     body {
       width: 100%;
-      height: 100%;
+      min-height: 100%;
+      min-height: 100dvh;
       margin: 0;
       overflow: hidden;
-      background: var(--ddt-bg);
+      background-color: var(--ddt-bg);
+    }
+
+    flutter-view,
+    flt-glass-pane,
+    flt-scene-host,
+    .flt-scene-host,
+    flt-scene-host canvas {
+      background-color: var(--ddt-bg) !important;
     }
 
     /* The render surface inside <flutter-view> is sized by the engine in CSS
@@ -87,8 +101,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--ddt-bg);
-      font-family: 'Golos Text', sans-serif;
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      background-color: var(--ddt-bg);
       transition: opacity 350ms ease;
     }
 
@@ -97,55 +113,54 @@
       pointer-events: none;
     }
 
-    .ddt-splash__content {
+    .ddt-splash__bars {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      text-align: center;
+      justify-content: center;
+      gap: 10px;
+      height: 36px;
     }
 
-    .ddt-splash__logo {
-      width: 72px;
-      height: 72px;
+    .ddt-splash__bar {
+      --ddt-bar-cycle: 0.9s;
+      --ddt-bar-stagger: 0.15s;
+      width: 10px;
+      height: 12px;
+      border-radius: 5px;
+      background: var(--ddt-loader-bar);
+      animation: ddt-bar-pulse var(--ddt-bar-cycle) ease-in-out infinite;
     }
 
-    .ddt-splash__logo img {
-      display: block;
-      width: 100%;
-      height: 100%;
+    .ddt-splash__bar:nth-child(1) {
+      animation-delay: 0s;
     }
 
-    .ddt-splash__text {
-      margin: var(--ddt-spacing) 0 calc(var(--ddt-spacing) * 2);
-      color: var(--ddt-subtitle);
-      font-size: 14px;
-      font-weight: 500;
+    .ddt-splash__bar:nth-child(2) {
+      animation-delay: var(--ddt-bar-stagger);
     }
 
-    .ddt-splash__spinner {
-      width: 28px;
-      height: 28px;
-      border: 2.5px solid rgba(25, 118, 210, 0.2);
-      border-top-color: var(--ddt-primary);
-      border-radius: 50%;
-      animation: ddt-spin 0.9s linear infinite;
+    .ddt-splash__bar:nth-child(3) {
+      animation-delay: calc(var(--ddt-bar-stagger) * 2);
     }
 
-    @keyframes ddt-spin {
-      to {
-        transform: rotate(360deg);
+    @keyframes ddt-bar-pulse {
+      0%,
+      100% {
+        height: 12px;
+      }
+
+      50% {
+        height: 36px;
       }
     }
   </style>
 </head>
 <body>
   <div id="ddt-splash" class="ddt-splash" aria-live="polite" aria-busy="true">
-    <div class="ddt-splash__content">
-      <div class="ddt-splash__logo">
-        <img src="favicon.svg?v=2" alt="DDT" width="72" height="72" />
-      </div>
-      <p class="ddt-splash__text">Загрузка...</p>
-      <div class="ddt-splash__spinner" role="progressbar" aria-label="Загрузка приложения"></div>
+    <div class="ddt-splash__bars" role="progressbar" aria-label="Загрузка приложения">
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
     </div>
   </div>
 

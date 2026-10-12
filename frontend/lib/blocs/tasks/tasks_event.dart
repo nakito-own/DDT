@@ -77,6 +77,16 @@ final class TasksSortOptionChanged extends TasksEvent {
   List<Object?> get props => [option];
 }
 
+/// Показывать архивные задачи рядом с обычными.
+final class TasksShowArchivedChanged extends TasksEvent {
+  const TasksShowArchivedChanged(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 /// Сбросить все фильтры и сортировку.
 final class TasksFiltersReset extends TasksEvent {
   const TasksFiltersReset();
@@ -131,9 +141,9 @@ final class TaskMoveRequested extends TasksEvent {
   List<Object?> get props => [task, from, to, toIndex];
 }
 
-/// Удалить задачу.
-final class TaskDeleteRequested extends TasksEvent {
-  const TaskDeleteRequested({required this.task, required this.status});
+/// Перенести задачу в архив.
+final class TaskArchiveRequested extends TasksEvent {
+  const TaskArchiveRequested({required this.task, required this.status});
 
   final Task task;
   final TaskStatus status;
