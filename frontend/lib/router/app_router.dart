@@ -217,22 +217,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                 return const NoTransitionPage(child: _NotFoundPage());
               }
               return NoTransitionPage(
-                key: ValueKey('space-$spaceKey'),
-                child: BlocProvider(
-                  create: (_) => TasksBloc(api: TasksApi(spaceKey: spaceKey)),
+                key: const ValueKey('space-tasks-shell'),
+                child: SpaceTasksHost(
+                  spaceKey: spaceKey,
                   child: TasksShellPage(child: child),
                 ),
               );
             },
             routes: [
-              GoRoute(
-                path: RoutePaths.spaceKanban,
-                name: RoutePaths.nameSpaceKanban,
-                pageBuilder: (context, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const KanbanBoardPage(),
-                ),
-              ),
               GoRoute(
                 path: RoutePaths.spaceList,
                 name: RoutePaths.nameSpaceList,
@@ -247,6 +239,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                 pageBuilder: (context, state) => NoTransitionPage(
                   key: state.pageKey,
                   child: const TasksGanttPage(),
+                ),
+              ),
+              GoRoute(
+                path: RoutePaths.spaceKanban,
+                name: RoutePaths.nameSpaceKanban,
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const KanbanBoardPage(),
                 ),
               ),
               GoRoute(

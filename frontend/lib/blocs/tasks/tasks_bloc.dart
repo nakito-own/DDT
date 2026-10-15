@@ -3,10 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../models/task.dart';
 import '../../models/task_priority.dart';
+import '../../models/task_ref.dart';
 import '../../models/task_status.dart';
 import '../../models/task_type.dart';
 import '../../models/tasks_view_mode.dart';
 import '../../services/tasks_api.dart';
+import '../../utils/task_status_dates.dart';
 
 part 'tasks_event.dart';
 part 'tasks_state.dart';
@@ -24,12 +26,13 @@ enum TasksSortOption {
 }
 
 class TasksBloc extends Bloc<TasksEvent, TasksState> {
-  TasksBloc({TasksApi? api, this.archivedOnly = false})
+  TasksBloc({TasksApi? api, this.archivedOnly = false, bool beginLoading = false})
     : _api = api ?? tasksApi,
       super(
         TasksState(
           columns: {for (final s in TaskStatus.values) s: <Task>[]},
           statusFilters: Set.of(TaskStatus.values),
+          isLoading: beginLoading,
         ),
       ) {
     on<TasksBoardLoadRequested>(_onBoardLoadRequested);
@@ -49,11 +52,19 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     on<TaskArchiveRequested>(_onTaskArchiveRequested);
   }
 
-  final TasksApi _api;
+  TasksApi _api;
   final bool archivedOnly;
   int _nextDraftId = -1;
   int _archivedRequest = 0;
+  int _boardRequest = 0;
   String? get spaceKey => _api.spaceKey;
+
+  /// Сменить пространство, не пересоздавая блок и экран.
+  void switchSpace(String spaceKey) {
+    if (_api.spaceKey == spaceKey) return;
+    _api = TasksApi(spaceKey: spaceKey);
+    add(const TasksBoardLoadRequested(reset: true));
+  }
 
   // ─── Board load / clear ───────────────────────────────────────────────────
 
@@ -61,17 +72,31 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     TasksBoardLoadRequested event,
     Emitter<TasksState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true, errorMessage: () => null));
+    final request = ++_boardRequest;
+    final requestedSpace = _api.spaceKey;
+    emit(
+      state.copyWith(
+        isLoading: true,
+        errorMessage: () => null,
+        columns: event.reset
+            ? {for (final status in TaskStatus.values) status: <Task>[]}
+            : null,
+        taskTypes: event.reset ? const [] : null,
+      ),
+    );
 
     try {
       final types = await _api.fetchTaskTypes();
+      if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
       final includeArchived = archivedOnly || state.showArchived;
       final tasks = archivedOnly
           ? await _api.fetchArchivedTasks()
           : await _api.fetchTasks();
+      if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
       final archived = !archivedOnly && includeArchived
           ? await _api.fetchArchivedTasks()
           : const <Task>[];
+      if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
 
       final columns = _groupTasks(
         [...tasks, ...archived],
@@ -86,6 +111,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         ),
       );
     } catch (error) {
+      if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
       emit(
         state.copyWith(
           isLoading: false,
@@ -242,10 +268,9 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         parentKey: draft.parent?.key,
         childKeys: draft.children.map((child) => child.key).toList(),
       );
-      final columns = _replaceTaskInColumns(
-        state.columns,
-        original: draft,
-        saved: created,
+      final columns = _syncTaskRelations(
+        _replaceTaskInColumns(state.columns, original: draft, saved: created),
+        created,
       );
       emit(state.copyWith(columns: columns));
     } catch (error) {
@@ -269,10 +294,13 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         event.original.apiRef,
         _buildUpdatePayload(event.original, event.updated),
       );
-      final columns = _replaceTaskInColumns(
-        state.columns,
-        original: event.original,
-        saved: saved,
+      final columns = _syncTaskRelations(
+        _replaceTaskInColumns(
+          state.columns,
+          original: event.original,
+          saved: saved,
+        ),
+        saved,
       );
       emit(state.copyWith(columns: columns));
     } catch (error) {
@@ -295,10 +323,13 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
 
     emit(
       state.copyWith(
-        columns: _replaceTaskInColumns(
-          state.columns,
-          original: existing,
-          saved: event.task,
+        columns: _syncTaskRelations(
+          _replaceTaskInColumns(
+            state.columns,
+            original: existing,
+            saved: event.task,
+          ),
+          event.task,
         ),
       ),
     );
@@ -327,14 +358,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     try {
       final saved = await _api.updateTask(event.task.apiRef, {
         'status': event.to.value,
-        if (event.to == TaskStatus.inProgress &&
-            event.task.timeStart == null &&
-            updatedLocal.timeStart != null)
-          'time_start': updatedLocal.timeStart!.toUtc().toIso8601String(),
-        if (event.to == TaskStatus.done &&
-            event.task.timeEnd == null &&
-            updatedLocal.timeEnd != null)
-          'time_end': updatedLocal.timeEnd!.toUtc().toIso8601String(),
+        ..._statusDatePayload(event.task, updatedLocal),
       });
       final columns = _replaceTaskInColumns(
         state.columns,
@@ -515,14 +539,70 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
   }
 
   Task _updatedTaskForColumn(Task task, TaskStatus to) {
-    var updated = task.copyWith(status: to);
-    if (to == TaskStatus.inProgress && updated.timeStart == null) {
-      updated = updated.copyWith(timeStart: DateTime.now());
+    return applyTaskStatusDates(task, to);
+  }
+
+  Map<String, dynamic> _statusDatePayload(Task original, Task updated) {
+    final payload = <String, dynamic>{};
+    final nextStart = updated.timeStart?.toUtc().toIso8601String();
+    final prevStart = original.timeStart?.toUtc().toIso8601String();
+    if (nextStart != prevStart) payload['time_start'] = nextStart;
+    final nextEnd = updated.timeEnd?.toUtc().toIso8601String();
+    final prevEnd = original.timeEnd?.toUtc().toIso8601String();
+    if (nextEnd != prevEnd) payload['time_end'] = nextEnd;
+    return payload;
+  }
+
+  Map<TaskStatus, List<Task>> _syncTaskRelations(
+    Map<TaskStatus, List<Task>> source,
+    Task focal,
+  ) {
+    return {
+      for (final entry in source.entries)
+        entry.key: [
+          for (final task in entry.value) _alignTaskRelation(task, focal),
+        ],
+    };
+  }
+
+  Task _alignTaskRelation(Task task, Task focal) {
+    if (task.id == focal.id) return focal;
+
+    final focalRef = TaskRef(
+      id: focal.id,
+      key: focal.key,
+      title: focal.title,
+      status: focal.status,
+    );
+    final childIds = focal.children.map((child) => child.id).toSet();
+    var next = task;
+
+    if (childIds.contains(task.id)) {
+      next = next.copyWith(parentId: focal.id, parent: focalRef);
+    } else if (task.parent?.id == focal.id) {
+      next = next.copyWith(clearParent: true);
     }
-    if (to == TaskStatus.done && updated.timeEnd == null) {
-      updated = updated.copyWith(timeEnd: DateTime.now());
+
+    final listsFocal = next.children.any((child) => child.id == focal.id);
+    final shouldListFocal = focal.parent?.id == task.id;
+    if (shouldListFocal && !listsFocal) {
+      next = next.copyWith(children: [...next.children, focalRef]);
+    } else if (!shouldListFocal && listsFocal) {
+      next = next.copyWith(
+        children: [
+          for (final child in next.children)
+            if (child.id != focal.id) child,
+        ],
+      );
     }
-    return updated;
+
+    if (childIds.isEmpty || next.id == focal.id) return next;
+    final cleaned = [
+      for (final child in next.children)
+        if (!childIds.contains(child.id)) child,
+    ];
+    if (cleaned.length == next.children.length) return next;
+    return next.copyWith(children: cleaned);
   }
 
   Map<String, dynamic> _buildUpdatePayload(Task original, Task updated) {

@@ -145,6 +145,59 @@ void main() {
     );
     expect(ownHidden.visibleEvents, isEmpty);
   });
+
+  test('colleague stays hidden when toggled off during loading', () async {
+    final api = _FakeEwsApi();
+    final bloc = CalendarBloc(api: api);
+    addTearDown(bloc.close);
+
+    api.nextEvents = [eventOn(DateTime(2026, 10, 6, 10))];
+    api.colleagueEvents['ivanov@mos.ru'] = [
+      CalendarEvent(
+        id: 'col-1',
+        subject: 'Планёрка',
+        start: DateTime(2026, 10, 6, 12),
+        end: DateTime(2026, 10, 6, 13),
+        location: null,
+        organizer: 'ivanov@mos.ru',
+      ),
+    ];
+    api.holdColleagueFetch = Completer<void>();
+
+    bloc.add(const CalendarEventsLoadRequested());
+    await bloc.stream.firstWhere((state) => !state.isLoading);
+
+    bloc.add(
+      const CalendarColleagueAdded(
+        email: 'ivanov@mos.ru',
+        displayName: 'Иванов',
+      ),
+    );
+    await bloc.stream.firstWhere(
+      (state) => state.colleagues.any((calendar) => calendar.isLoading),
+    );
+
+    bloc.add(
+      const CalendarColleagueToggled(email: 'ivanov@mos.ru', enabled: false),
+    );
+    final hidden = await bloc.stream.firstWhere(
+      (state) => state.colleagues.any((calendar) => !calendar.enabled),
+    );
+    expect(hidden.colleagues.single.isLoading, isFalse);
+    expect(
+      hidden.visibleEvents.any((event) => event.subject == 'Планёрка'),
+      isFalse,
+    );
+
+    api.holdColleagueFetch!.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(bloc.state.colleagues.single.enabled, isFalse);
+    expect(bloc.state.colleagues.single.isLoading, isFalse);
+    expect(
+      bloc.state.visibleEvents.any((event) => event.subject == 'Планёрка'),
+      isFalse,
+    );
+  });
 }
 
 class _FakeEwsApi extends EwsApi {
@@ -152,6 +205,7 @@ class _FakeEwsApi extends EwsApi {
 
   List<CalendarEvent> nextEvents = const [];
   Completer<void>? holdNextFetch;
+  Completer<void>? holdColleagueFetch;
   final Map<String, List<CalendarEvent>> colleagueEvents = {};
 
   @override
@@ -174,6 +228,8 @@ class _FakeEwsApi extends EwsApi {
     DateTime? start,
     DateTime? end,
   }) async {
+    final hold = holdColleagueFetch;
+    if (hold != null) await hold.future;
     final events = colleagueEvents[email.toLowerCase()] ?? const [];
     return ColleagueCalendar(
       email: email.toLowerCase(),

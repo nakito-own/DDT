@@ -33,10 +33,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   @override
   void initState() {
     super.initState();
-    final filteredTasks = context.read<TasksBloc>().state.filteredTasks;
-    _ganttController = GanttController(
-      startDate: ganttVisibleStart(filteredTasks),
-    );
+    _ganttController = GanttController(startDate: ganttVisibleStart());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _applyTheme();
@@ -59,13 +56,6 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   void _applyTheme() {
     _ganttController.theme = _ganttTheme(context);
     _ganttController.daysViews = null;
-  }
-
-  void _goToToday() {
-    _ganttController.startDate = DateTime.now().subtract(
-      const Duration(days: 3),
-    );
-    _ganttController.update();
   }
 
   Widget _buildTaskBar(GanttActivity activity) =>
@@ -113,7 +103,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
       updated = updated.copyWith(timeStart: start);
     }
     if (end != null) {
-      updated = updated.copyWith(timeEnd: end);
+      final shift = end.difference(activity.end);
+      final storedEnd = task.timeEnd ?? taskGanttEnd(task);
+      updated = updated.copyWith(timeEnd: storedEnd.add(shift));
     }
 
     context.read<TasksBloc>().add(
@@ -151,12 +143,13 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
 
     return Row(
       children: [
-        _GanttToolbarButton(
+        _GanttChevron(
           tooltip: 'Назад на неделю',
           icon: DdtIcons.chevronLeft,
           onPressed: () => _ganttController.prev(days: 7),
         ),
-        _GanttToolbarButton(
+        SizedBox(width: 2.w),
+        _GanttChevron(
           tooltip: 'Вперёд на неделю',
           icon: DdtIcons.chevronRight,
           onPressed: () => _ganttController.next(days: 7),
@@ -212,13 +205,6 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
             ),
           ),
         ),
-        SizedBox(width: 8.w),
-        Button(
-          text: 'Сегодня',
-          type: ButtonType.outlined,
-          onPressed: _goToToday,
-          borderRadius: DdtTheme.radius,
-        ),
       ],
     );
   }
@@ -271,6 +257,37 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   }
 }
 
+class _GanttChevron extends StatelessWidget {
+  const _GanttChevron({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final FaIconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        splashFactory: NoSplash.splashFactory,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 4.h),
+          child: DdtIcon(
+            icon,
+            size: 14.sp,
+            color: DdtTheme.taskCardTextPrimary(context),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GanttToolbarButton extends StatelessWidget {
   const _GanttToolbarButton({
     required this.tooltip,
@@ -317,12 +334,7 @@ class _GanttToolbarButton extends StatelessWidget {
                     ),
               ),
             ),
-            child: DdtIcon(
-              icon,
-              size: 16.sp,
-              color: color,
-              fitParent: true,
-            ),
+            child: DdtIcon(icon, size: 16.sp, color: color, fitParent: true),
           ),
         ),
       ),

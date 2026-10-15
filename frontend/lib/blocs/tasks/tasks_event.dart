@@ -9,7 +9,14 @@ sealed class TasksEvent extends Equatable {
 
 /// Загрузить доску при открытии раздела задач.
 final class TasksBoardLoadRequested extends TasksEvent {
-  const TasksBoardLoadRequested();
+  const TasksBoardLoadRequested({this.reset = false});
+
+  /// Сбросить текущие задачи до ответа сервера. Нужно при смене пространства,
+  /// чтобы на экране не оставались задачи предыдущего ключа.
+  final bool reset;
+
+  @override
+  List<Object?> get props => [reset];
 }
 
 /// Очистить доску при логауте / истечении сессии.

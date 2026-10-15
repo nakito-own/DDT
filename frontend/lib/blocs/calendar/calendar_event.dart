@@ -166,6 +166,37 @@ final class CalendarColleagueRemoved extends CalendarBlocEvent {
   List<Object?> get props => [email];
 }
 
+/// Фоновая подгрузка уже включённых календарей коллег.
+final class _ColleagueCalendarsRefreshRequested extends CalendarBlocEvent {
+  const _ColleagueCalendarsRefreshRequested({
+    required this.generation,
+    required this.requestGeneration,
+    required this.emails,
+    required this.start,
+    required this.end,
+  });
+
+  final int generation;
+  final int requestGeneration;
+  final List<String> emails;
+  final DateTime start;
+  final DateTime end;
+
+  @override
+  List<Object?> get props => [generation, requestGeneration, emails, start, end];
+}
+
+/// Фоновая загрузка одного календаря коллеги.
+final class _ColleagueCalendarLoadRequested extends CalendarBlocEvent {
+  const _ColleagueCalendarLoadRequested(this.email, this.generation);
+
+  final String email;
+  final int generation;
+
+  @override
+  List<Object?> get props => [email, generation];
+}
+
 /// Поиск коллег в адресной книге Exchange.
 final class CalendarPeopleSearchRequested extends CalendarBlocEvent {
   const CalendarPeopleSearchRequested(this.query);

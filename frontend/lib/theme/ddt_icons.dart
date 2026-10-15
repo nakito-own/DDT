@@ -60,6 +60,7 @@ abstract final class DdtIcons {
   static const FaIconData subject = FontAwesomeIcons.font;
   static const FaIconData paperclip = FontAwesomeIcons.paperclip;
   static const FaIconData link = FontAwesomeIcons.link;
+  static const FaIconData copy = FontAwesomeIcons.copy;
 
   // Navigation & layout
   static const FaIconData dragHandle = FontAwesomeIcons.bars;

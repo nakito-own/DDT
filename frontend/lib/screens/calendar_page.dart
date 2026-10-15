@@ -27,6 +27,7 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   late final EventsController _eventsController;
   double? _plannerVerticalScrollOffset;
+  final Map<String, Event> _plannerEvents = {};
 
   @override
   void initState() {
@@ -50,15 +51,56 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _syncPlannerEvents(List<CalendarEvent> events) {
-    final plannerEvents = events
-        .map(_toPlannerEvent)
-        .whereType<Event>()
-        .toList(growable: false);
+    final next = <String, Event>{};
+    final added = <Event>[];
+    for (final event in events) {
+      final plannerEvent = _toPlannerEvent(event);
+      if (plannerEvent == null) continue;
+      final key = _plannerEventKey(event);
+      final existing = _plannerEvents[key];
+      if (existing != null) {
+        next[key] = existing;
+      } else {
+        next[key] = plannerEvent;
+        added.add(plannerEvent);
+      }
+    }
 
+    final removed = [
+      for (final entry in _plannerEvents.entries)
+        if (!next.containsKey(entry.key)) entry.value,
+    ];
+    if (added.isEmpty && removed.isEmpty) return;
+
+    _plannerEvents
+      ..clear()
+      ..addAll(next);
     _eventsController.updateCalendarData((data) {
-      data.dayEvents.clear();
-      data.addEvents(plannerEvents);
+      for (final event in removed) {
+        data.removeEvent(event);
+      }
+      if (added.isNotEmpty) data.addEvents(added);
     });
+  }
+
+  String _plannerEventKey(CalendarEvent event) {
+    final start = event.start?.toUtc().millisecondsSinceEpoch ?? 0;
+    final end = event.end?.toUtc().millisecondsSinceEpoch ?? 0;
+    return [
+      event.mailbox ?? '',
+      event.id,
+      start,
+      end,
+      event.subject,
+      event.location ?? '',
+      event.colorIndex ?? '',
+      event.isColleague,
+      event.myResponseType ?? '',
+      event.needsResponse,
+      event.isPrivate,
+      event.isLimited,
+      event.busyStatus ?? '',
+    ].join('|');
   }
 
   Event? _toPlannerEvent(CalendarEvent event) {
@@ -137,13 +179,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         isRefreshing: state.isRefreshing,
                         child: BlocBuilder<CalendarBloc, CalendarState>(
                           buildWhen: (previous, current) =>
-                              previous.viewMode != current.viewMode ||
-                              previous.focusedDate != current.focusedDate ||
-                              previous.events.any(_spansMultipleDays) !=
-                                  current.events.any(_spansMultipleDays) ||
-                              previous.colleagues != current.colleagues ||
-                              previous.ownCalendarEnabled !=
-                                  current.ownCalendarEnabled,
+                              _calendarShellChanged(previous, current),
                           builder: (context, state) {
                             return _CalendarBody(
                               state: state,
@@ -382,6 +418,22 @@ class _CalendarBody extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _calendarShellChanged(CalendarState previous, CalendarState current) {
+  if (previous.viewMode != current.viewMode ||
+      previous.focusedDate != current.focusedDate) {
+    return true;
+  }
+  return _hasMultiDayEvent(previous.visibleEvents) !=
+      _hasMultiDayEvent(current.visibleEvents);
+}
+
+bool _hasMultiDayEvent(List<CalendarEvent> events) {
+  for (final event in events) {
+    if (_spansMultipleDays(event)) return true;
+  }
+  return false;
 }
 
 bool _spansMultipleDays(CalendarEvent event) {

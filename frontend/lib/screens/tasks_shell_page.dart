@@ -2,8 +2,10 @@ import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
+import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/kanban_board_skeleton.dart';
@@ -17,6 +19,56 @@ import '../widgets/kanban_board_skeleton.dart';
 ///
 /// Конкретный вид (KanbanBoardPage, TasksListPage, TasksGanttPage)
 /// определяется GoRouter и передаётся через [child].
+class SpaceTasksHost extends StatefulWidget {
+  const SpaceTasksHost({
+    super.key,
+    required this.spaceKey,
+    required this.child,
+  });
+
+  final String spaceKey;
+  final Widget child;
+
+  @override
+  State<SpaceTasksHost> createState() => _SpaceTasksHostState();
+}
+
+class _SpaceTasksHostState extends State<SpaceTasksHost> {
+  late final TasksBloc _bloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = TasksBloc(
+      api: TasksApi(spaceKey: widget.spaceKey),
+      beginLoading: true,
+    )..add(const TasksBoardLoadRequested());
+  }
+
+  @override
+  void didUpdateWidget(SpaceTasksHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.spaceKey != widget.spaceKey) {
+      _bloc.switchSpace(widget.spaceKey);
+    }
+  }
+
+  @override
+  void dispose() {
+    _bloc.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider.value(value: _bloc, child: widget.child);
+  }
+}
+
+/// Оболочка раздела задач: управляет загрузкой и ошибками.
+///
+/// Является shell-виджетом для внутреннего [ShellRoute] маршрутов задач.
+/// Сохраняется живым при переключении между kanban/list/gantt.
 class TasksShellPage extends StatefulWidget {
   const TasksShellPage({super.key, required this.child});
 
@@ -30,9 +82,10 @@ class _TasksShellPageState extends State<TasksShellPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TasksBloc>().add(const TasksBoardLoadRequested());
-    });
+    final bloc = context.read<TasksBloc>();
+    if (!bloc.state.isLoading) {
+      bloc.add(const TasksBoardLoadRequested());
+    }
   }
 
   @override
@@ -48,12 +101,15 @@ class _TasksShellPageState extends State<TasksShellPage> {
         final isInitialLoading = state.isLoading && state.allTasks.isEmpty;
         final error = state.errorMessage;
         final isInitialError = error != null && state.allTasks.isEmpty;
+        final showKanbanPlaceholder =
+            isInitialLoading &&
+            GoRouterState.of(context).uri.path.endsWith('/kanban');
 
         return Stack(
           fit: StackFit.expand,
           children: [
             widget.child,
-            if (isInitialLoading)
+            if (showKanbanPlaceholder)
               ColoredBox(
                 color: Theme.of(context).scaffoldBackgroundColor,
                 child: const KanbanBoardSkeleton(),
@@ -75,7 +131,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
                           ),
                         ),
                         SizedBox(height: 8.h),
-                        Text(error!, textAlign: TextAlign.center),
+                        Text(error, textAlign: TextAlign.center),
                         SizedBox(height: 16.h),
                         Button(
                           text: 'Повторить',
