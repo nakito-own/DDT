@@ -17,6 +17,7 @@ import 'ddt_checkbox.dart';
 import 'ddt_icon.dart';
 import 'ddt_panel_primary_button.dart';
 import 'ddt_scroll_edge_fade.dart';
+import 'ddt_section_refresh.dart';
 import 'ddt_section_sidebar.dart';
 import 'ddt_tappable.dart';
 
@@ -986,14 +987,12 @@ class _CalendarSourcesState extends State<_CalendarSources> {
                 color: calendar.color,
                 isLoading: calendar.isLoading,
                 error: calendar.error,
-                onChanged: calendar.isLoading
-                    ? null
-                    : (enabled) => context.read<CalendarBloc>().add(
-                        CalendarColleagueToggled(
-                          email: calendar.email,
-                          enabled: enabled,
-                        ),
-                      ),
+                onChanged: (enabled) => context.read<CalendarBloc>().add(
+                  CalendarColleagueToggled(
+                    email: calendar.email,
+                    enabled: enabled,
+                  ),
+                ),
                 onRemove: () => context.read<CalendarBloc>().add(
                   CalendarColleagueRemoved(calendar.email),
                 ),
@@ -1117,83 +1116,96 @@ class _CalendarSourceRowState extends State<_CalendarSourceRow> {
           ? (isDark ? 0.28 : 0.16)
           : (isDark ? 0.14 : 0.08),
     );
+    final radius = BorderRadius.circular(8.r);
     return Padding(
       padding: EdgeInsets.only(bottom: 3.h),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: DdtTappable(
-          onTap: enabled ? () => widget.onChanged!(!widget.checked) : null,
-          enableHoverFill: enabled,
-          backgroundColor: fill,
-          borderRadius: BorderRadius.circular(8.r),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 5.h),
-            child: Row(
-              children: [
-                IgnorePointer(
-                  child: DdtCheckbox(
-                    value: widget.checked,
-                    enabled: enabled,
-                    padding: EdgeInsets.zero,
-                    onChanged: widget.onChanged,
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.labelSize,
-                          fontWeight: widget.checked
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: DdtTheme.taskCardTextPrimary(context),
-                        ),
-                      ),
-                      if (widget.error != null && widget.error!.isNotEmpty)
-                        Text(
-                          widget.error!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: DdtTheme.style(
-                            fontSize: DdtTypography.microSize,
-                            color: DdtTheme.textMuted(context),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (widget.isLoading)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (widget.onRemove != null && _hovered)
-                  Tooltip(
-                    message: 'Убрать',
-                    child: GestureDetector(
-                      onTap: widget.onRemove,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 6.w),
-                        child: DdtIcon(
-                          DdtIcons.close,
-                          size: 11.sp,
-                          color: DdtTheme.textMuted(context),
-                        ),
+        child: Stack(
+          children: [
+            DdtTappable(
+              onTap: enabled ? () => widget.onChanged!(!widget.checked) : null,
+              enableHoverFill: enabled,
+              backgroundColor: fill,
+              borderRadius: radius,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 5.h),
+                child: Row(
+                  children: [
+                    IgnorePointer(
+                      child: DdtCheckbox(
+                        value: widget.checked,
+                        enabled: enabled,
+                        padding: EdgeInsets.zero,
+                        onChanged: widget.onChanged,
                       ),
                     ),
-                  ),
-              ],
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DdtTheme.style(
+                              fontSize: DdtTypography.labelSize,
+                              fontWeight: widget.checked
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: DdtTheme.taskCardTextPrimary(context),
+                            ),
+                          ),
+                          if (widget.error != null && widget.error!.isNotEmpty)
+                            Text(
+                              widget.error!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.microSize,
+                                color: DdtTheme.textMuted(context),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (widget.onRemove != null && _hovered)
+                      Tooltip(
+                        message: 'Убрать',
+                        child: GestureDetector(
+                          onTap: widget.onRemove,
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 6.w),
+                            child: DdtIcon(
+                              DdtIcons.close,
+                              size: 11.sp,
+                              color: DdtTheme.textMuted(context),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
+            if (widget.isLoading)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: radius,
+                    child: const DdtShimmerSweep(
+                      visible: true,
+                      intensity: 2.6,
+                      bandScale: 2.8,
+                      duration: Duration(milliseconds: 720),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

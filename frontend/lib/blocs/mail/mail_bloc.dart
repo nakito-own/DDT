@@ -148,13 +148,15 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       return;
     }
 
+    final folderChanged = nextFolderId != state.selectedFolderId;
     emit(
       state.copyWith(
         filter: nextFilter,
         sort: nextSort,
         selectedFolderId: () => nextFolderId,
         inboxQueryErrorMessage: () => null,
-        // Clear selection when switching query
+        // Смена папки закрывает открытое письмо. Фильтр и сортировка — нет.
+        selectedMessage: folderChanged ? () => null : null,
         selectedMessageIds: const {},
         isSelectionModeActive: false,
       ),
@@ -487,7 +489,9 @@ class MailBloc extends Bloc<MailEvent, MailState> {
       );
       if (sessionGeneration != _sessionGeneration) return;
       final merged = _mergeDetail(updatedMessages, detail);
-      final updatedSelected = merged.firstWhere((m) => m.id == detail.id);
+      final updatedSelected =
+          _findMessageById(merged, detail.id) ??
+          _mergeMessageDetails(detail, state.selectedMessage);
       emit(
         state.copyWith(
           isLoadingDetail: false,
@@ -702,12 +706,28 @@ class MailBloc extends Bloc<MailEvent, MailState> {
   MailMessage? _findMessageById(List<MailMessage> messages, String id) {
     for (final message in messages) {
       if (message.id == id) return message;
+      for (final child in message.thread) {
+        if (child.id == id) return child;
+      }
     }
     return null;
   }
 
+  bool _isThreadChild(List<MailMessage> messages, String id) {
+    for (final message in messages) {
+      if (message.thread.any((child) => child.id == id)) return true;
+    }
+    return false;
+  }
+
   MailMessage _mergeMessageDetails(MailMessage primary, MailMessage? fallback) {
-    if (fallback == null || fallback.id != primary.id) return primary;
+    if (fallback == null) return primary;
+    final sameItem = fallback.id == primary.id;
+    final sameConversation =
+        fallback.conversationId != null &&
+        fallback.conversationId!.isNotEmpty &&
+        fallback.conversationId == primary.conversationId;
+    if (!sameItem && !sameConversation) return primary;
 
     final primaryBody = primary.body;
     final fallbackBody = fallback.body;
@@ -728,20 +748,42 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     );
   }
 
+  /// Оставляет открытое письмо после фонового обновления списка.
+  ///
+  /// Exchange меняет id элемента после обновления (например, «прочитано»),
+  /// а первая загрузка входящих приходит без id папки. Сравнение папок до
+  /// поиска по id из-за этого закрывало письмо, которое пользователь читает.
   MailMessage? _resolveSelectedMessage(
     MailMessage? previousSelected,
     List<MailMessage> messages,
     String? selectedFolderId,
   ) {
     if (previousSelected == null) return null;
-    if (selectedFolderId != null &&
-        previousSelected.folderId != selectedFolderId) {
-      return null;
+
+    final located = _findMessageById(messages, previousSelected.id);
+    if (located != null) {
+      return _mergeMessageDetails(located, previousSelected);
     }
 
-    final index = messages.indexWhere((item) => item.id == previousSelected.id);
-    if (index >= 0) {
-      return _mergeMessageDetails(messages[index], previousSelected);
+    // Тот же верхний ряд беседы, но с новым id после обновления на сервере.
+    final conversationId = previousSelected.conversationId;
+    final openedAsChild = _isThreadChild(state.messages, previousSelected.id);
+    if (!openedAsChild &&
+        conversationId != null &&
+        conversationId.isNotEmpty) {
+      for (final message in messages) {
+        if (message.conversationId == conversationId) {
+          return _mergeMessageDetails(message, previousSelected);
+        }
+      }
+    }
+
+    final folderKnown =
+        previousSelected.folderId.isNotEmpty &&
+        selectedFolderId != null &&
+        selectedFolderId.isNotEmpty;
+    if (folderKnown && previousSelected.folderId != selectedFolderId) {
+      return null;
     }
 
     return previousSelected;

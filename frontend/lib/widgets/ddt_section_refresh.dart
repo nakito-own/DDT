@@ -49,9 +49,24 @@ class DdtSectionRefreshOverlay extends StatelessWidget {
 
 /// One-color sweeping gradient used for refresh and skeleton loading.
 class DdtShimmerSweep extends StatefulWidget {
-  const DdtShimmerSweep({super.key, required this.visible});
+  const DdtShimmerSweep({
+    super.key,
+    required this.visible,
+    this.intensity = 1,
+    this.bandScale = 1,
+    this.duration,
+  });
 
   final bool visible;
+
+  /// Множитель яркости блика. 1 — обновление раздела, выше — компактные плашки.
+  final double intensity;
+
+  /// Множитель ширины градиента относительно базовой полосы.
+  final double bandScale;
+
+  /// Длительность одного прохода. По умолчанию — скорость обновления раздела.
+  final Duration? duration;
 
   @override
   State<DdtShimmerSweep> createState() => _DdtShimmerSweepState();
@@ -64,18 +79,20 @@ class _DdtShimmerSweepState extends State<DdtShimmerSweep>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: DdtTheme.refreshShimmerDuration,
-    );
+    _controller = AnimationController(vsync: this, duration: _duration);
     if (widget.visible) {
       _controller.repeat();
     }
   }
 
+  Duration get _duration => widget.duration ?? DdtTheme.refreshShimmerDuration;
+
   @override
   void didUpdateWidget(covariant DdtShimmerSweep oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.duration != widget.duration) {
+      _controller.duration = _duration;
+    }
     if (widget.visible) {
       if (!_controller.isAnimating) {
         _controller.repeat();
@@ -110,6 +127,8 @@ class _DdtShimmerSweepState extends State<DdtShimmerSweep>
               progress: _controller.value,
               color: AppColors.primary,
               isDark: isDark,
+              intensity: widget.intensity,
+              bandScale: widget.bandScale,
             ),
             child: const SizedBox.expand(),
           );
@@ -124,17 +143,22 @@ class _IridescentShimmerPainter extends CustomPainter {
     required this.progress,
     required this.color,
     required this.isDark,
+    required this.intensity,
+    required this.bandScale,
   });
 
   final double progress;
   final Color color;
   final bool isDark;
+  final double intensity;
+  final double bandScale;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
 
-    final bandWidth = size.width * 0.78;
+    final strength = intensity.clamp(1.0, 3.0).toDouble();
+    final bandWidth = size.width * (0.78 / strength) * bandScale;
     final travel = size.width + bandWidth * 2;
     final x = -bandWidth + travel * progress;
     final skew = size.height * 0.32;
@@ -146,7 +170,7 @@ class _IridescentShimmerPainter extends CustomPainter {
       size.height * 1.5,
     );
 
-    final peakAlpha = isDark ? 0.1 : 0.08;
+    final peakAlpha = (isDark ? 0.1 : 0.08) * intensity;
     final shader = LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
@@ -169,7 +193,7 @@ class _IridescentShimmerPainter extends CustomPainter {
       band,
       Paint()
         ..shader = shader
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 28 / strength),
     );
     canvas.restore();
   }
@@ -178,6 +202,8 @@ class _IridescentShimmerPainter extends CustomPainter {
   bool shouldRepaint(covariant _IridescentShimmerPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.color != color ||
-        oldDelegate.isDark != isDark;
+        oldDelegate.isDark != isDark ||
+        oldDelegate.intensity != intensity ||
+        oldDelegate.bandScale != bandScale;
   }
 }
