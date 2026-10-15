@@ -1,5 +1,7 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +14,11 @@ import '../models/task_link.dart';
 import '../router/route_paths.dart';
 import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/ddt_toast.dart';
+import '../models/user_profile.dart';
+import '../services/directory_users.dart';
 import '../utils/task_formatters.dart';
+import '../widgets/ddt_user_chip.dart';
 import '../widgets/task_comments_section.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
@@ -177,27 +183,12 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         final wide = constraints.maxWidth >= 760;
 
         return wide
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: DdtShellMetrics.fixedTopPadding(context),
-                      child: _TaskMainContent(
-                        task: task,
-                        onEdit: _editTask,
-                        onTaskChanged: (updated) {
-                          setState(() => _task = updated);
-                        },
-                      ),
-                    ),
-                  ),
-                  const DdtSidePanelDivider(),
-                  Padding(
-                    padding: DdtShellMetrics.fixedTopPadding(context),
-                    child: _TaskParametersPanel(task: task, pinned: true),
-                  ),
-                ],
+            ? _WideTaskLayout(
+                task: task,
+                onEdit: _editTask,
+                onTaskChanged: (updated) {
+                  setState(() => _task = updated);
+                },
               )
             : SingleChildScrollView(
                 padding: DdtShellMetrics.scrollPadding(
@@ -237,8 +228,10 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   }
 }
 
-class _TaskMainContent extends StatelessWidget {
-  const _TaskMainContent({
+/// Fullscreen task view: the page scrolls as one piece, while the parameters
+/// panel stays put once its top meets the content top.
+class _WideTaskLayout extends StatefulWidget {
+  const _WideTaskLayout({
     required this.task,
     required this.onEdit,
     required this.onTaskChanged,
@@ -249,36 +242,120 @@ class _TaskMainContent extends StatelessWidget {
   final ValueChanged<Task> onTaskChanged;
 
   @override
+  State<_WideTaskLayout> createState() => _WideTaskLayoutState();
+}
+
+class _WideTaskLayoutState extends State<_WideTaskLayout> {
+  final _pageScroll = ScrollController();
+  final _panelScroll = ScrollController();
+  double _chromeHeight = 240;
+
+  @override
+  void didUpdateWidget(covariant _WideTaskLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.task.id != widget.task.id && _pageScroll.hasClients) {
+      _pageScroll.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageScroll.dispose();
+    _panelScroll.dispose();
+    super.dispose();
+  }
+
+  void _onPanelPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final dy = event.scrollDelta.dy;
+    if (dy == 0 || _panelCanConsume(dy)) return;
+    _scrollPageBy(dy);
+  }
+
+  void _scrollPageBy(double dy) {
+    if (dy == 0 || !_pageScroll.hasClients) return;
+    final page = _pageScroll.position;
+    if (!page.hasContentDimensions) return;
+    if (page.maxScrollExtent <= page.minScrollExtent) return;
+    final next = (page.pixels + dy).clamp(
+      page.minScrollExtent,
+      page.maxScrollExtent,
+    );
+    if (next != page.pixels) {
+      page.jumpTo(next.toDouble());
+    }
+  }
+
+  bool _panelCanConsume(double dy) {
+    if (!_panelScroll.hasClients) return false;
+    final panel = _panelScroll.position;
+    if (!panel.hasContentDimensions || panel.maxScrollExtent <= 0) {
+      return false;
+    }
+    final atStart = panel.pixels <= panel.minScrollExtent;
+    final atEnd = panel.pixels >= panel.maxScrollExtent;
+    return (dy > 0 && !atEnd) || (dy < 0 && !atStart);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
+    final topInset = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        Expanded(
+          child: Stack(
             children: [
-              _TaskHeader(task: task, onEdit: onEdit),
-              SizedBox(height: 16.h),
-              _TaskDescription(task: task),
+              SingleChildScrollView(
+                controller: _pageScroll,
+                primary: false,
+                padding: EdgeInsets.only(top: _chromeHeight),
+                child: _TaskMainContent(
+                  task: widget.task,
+                  onTaskChanged: widget.onTaskChanged,
+                ),
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: _ChromeHeightReporter(
+                  onHeight: (height) {
+                    if (!mounted || (height - _chromeHeight).abs() < 0.5) {
+                      return;
+                    }
+                    setState(() => _chromeHeight = height);
+                  },
+                  child: Listener(
+                    onPointerSignal: (event) {
+                      if (event is! PointerScrollEvent) return;
+                      _scrollPageBy(event.scrollDelta.dy);
+                    },
+                    child: _PinnedTaskChrome(
+                      topInset: topInset,
+                      task: widget.task,
+                      onEdit: widget.onEdit,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20.w),
-          child: Divider(
-            height: 32.h,
-            thickness: 1,
-            color: DdtTheme.sidePanelDivider(context),
-          ),
-        ),
-        Expanded(
-          child: TaskCommentsSection(
-            key: ValueKey('task-comments-${task.id}'),
-            task: task,
-            inputAtTop: true,
-            expand: true,
-            onTaskChanged: onTaskChanged,
+        const DdtSidePanelDivider(),
+        SizedBox(
+          width: 300.w,
+          child: Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: Listener(
+              onPointerSignal: _onPanelPointerSignal,
+              child: _TaskParametersPanel(
+                task: widget.task,
+                pinned: true,
+                scrollController: _panelScroll,
+              ),
+            ),
           ),
         ),
       ],
@@ -286,35 +363,199 @@ class _TaskMainContent extends StatelessWidget {
   }
 }
 
-class _TaskHeader extends StatelessWidget {
-  const _TaskHeader({required this.task, required this.onEdit});
+class _TaskMainContent extends StatelessWidget {
+  const _TaskMainContent({
+    required this.task,
+    required this.onTaskChanged,
+  });
 
   final Task task;
-  final VoidCallback onEdit;
+  final ValueChanged<Task> onTaskChanged;
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20.w, 8.h, 0, 24.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(right: 20.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TaskDescription(task: task, showHeading: false),
+                Divider(
+                  height: 32.h,
+                  thickness: 1,
+                  color: DdtTheme.sidePanelDivider(context),
+                ),
+                TaskCommentsSection(
+                  key: ValueKey('task-comments-${task.id}'),
+                  task: task,
+                  inputAtTop: true,
+                  onTaskChanged: onTaskChanged,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Key row and title float on the fade, the same way a kanban column header does.
+/// The fade is opaque from the top of the page through the title, so scrolled
+/// text cannot show under the app bar or in the gap above the header.
+class _PinnedTaskChrome extends StatelessWidget {
+  const _PinnedTaskChrome({
+    required this.topInset,
+    required this.task,
+    required this.onEdit,
+  });
+
+  final double topInset;
+  final Task task;
+  final VoidCallback onEdit;
+
+  static const double _fadeTail = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).scaffoldBackgroundColor;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _TaskHeaderFade(color: background, fadeTail: _fadeTail.h),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(20.w, topInset + 16.h, 20.w, _fadeTail.h),
+          child: _TaskHeader(task: task, onEdit: onEdit, fullscreen: true),
+        ),
+      ],
+    );
+  }
+}
+
+class _TaskHeaderFade extends StatelessWidget {
+  const _TaskHeaderFade({required this.color, required this.fadeTail});
+
+  final Color color;
+  final double fadeTail;
+
+  @override
+  Widget build(BuildContext context) {
+    final solid = color.withValues(alpha: 1);
+    final clear = color.withValues(alpha: 0);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight;
+        final solidStop = height <= 0
+            ? 0.7
+            : ((height - fadeTail) / height).clamp(0.0, 1.0);
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [solid, solid, clear],
+              stops: [0, solidStop, 1],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ChromeHeightReporter extends StatefulWidget {
+  const _ChromeHeightReporter({required this.onHeight, required this.child});
+
+  final ValueChanged<double> onHeight;
+  final Widget child;
+
+  @override
+  State<_ChromeHeightReporter> createState() => _ChromeHeightReporterState();
+}
+
+class _ChromeHeightReporterState extends State<_ChromeHeightReporter> {
+  final _key = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _report();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChromeHeightReporter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _report();
+  }
+
+  void _report() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _key.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      widget.onHeight(box.size.height);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(key: _key, child: widget.child);
+  }
+}
+
+class _TaskHeader extends StatelessWidget {
+  const _TaskHeader({
+    required this.task,
+    required this.onEdit,
+    this.fullscreen = false,
+  });
+
+  final Task task;
+  final VoidCallback onEdit;
+  final bool fullscreen;
+
+  @override
+  Widget build(BuildContext context) {
+    final editButton = Button(
+      text: 'Редактировать',
+      onPressed: onEdit,
+      borderRadius: DdtTheme.radius,
+    );
+    final title = Text(
+      task.title,
+      style: DdtTheme.style(
+        fontSize: fullscreen ? _taskTitleSize : DdtTypography.entityTitleSize,
+        fontWeight: FontWeight.w700,
+        color: DdtTheme.sidePanelTextPrimary(context),
+      ),
+    );
+
+    if (fullscreen) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _FullscreenTaskToolbar(task: task, onEdit: onEdit),
+          SizedBox(height: 12.h),
+          title,
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avoid IconButton.tooltip (OverlayPortal): navigating/resizing while
-        // the tooltip is open trips Flutter's `size == theater.size` assert.
-        Semantics(
-          button: true,
-          label: 'Назад к задачам',
-          child: IconButton(
-            onPressed: () {
-              Tooltip.dismissAllToolTips();
-              context.go(
-                task.spaceKey != null && task.spaceKey!.isNotEmpty
-                    ? RoutePaths.spaceListFor(task.spaceKey!)
-                    : RoutePaths.tasksList,
-              );
-            },
-            icon: DdtIcon(DdtIcons.back),
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
+        _TaskBackButton(task: task),
         SizedBox(width: 4.w),
         Expanded(
           child: Column(
@@ -328,32 +569,212 @@ class _TaskHeader extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 4.h),
-              Text(
-                task.title,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.entityTitleSize,
-                  fontWeight: FontWeight.w700,
-                  color: DdtTheme.sidePanelTextPrimary(context),
-                ),
-              ),
+              title,
             ],
           ),
         ),
         SizedBox(width: 8.w),
-        Button(
-          text: 'Редактировать',
-          onPressed: onEdit,
-          borderRadius: DdtTheme.radius,
-        ),
+        editButton,
       ],
     );
   }
 }
 
-class _TaskDescription extends StatelessWidget {
-  const _TaskDescription({required this.task});
+class _TaskBackButton extends StatelessWidget {
+  const _TaskBackButton({required this.task});
 
   final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    // Avoid IconButton.tooltip (OverlayPortal): navigating/resizing while
+    // the tooltip is open trips Flutter's `size == theater.size` assert.
+    return Semantics(
+      button: true,
+      label: 'Назад к задачам',
+      child: IconButton(
+        onPressed: () {
+          Tooltip.dismissAllToolTips();
+          _leaveTask(context, task);
+        },
+        icon: DdtIcon(DdtIcons.back),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+
+/// Fullscreen task name. Larger than [DdtTypography.entityTitle].
+const double _taskTitleSize = 30;
+
+/// Painted height shared by the fullscreen chevron, task key, and edit icon.
+const double _taskMarkSize = 18;
+
+/// Copy actions sit beside the key and stay smaller than the main marks.
+const double _taskCopyMarkSize = 13;
+
+class _FullscreenTaskToolbar extends StatefulWidget {
+  const _FullscreenTaskToolbar({required this.task, required this.onEdit});
+
+  final Task task;
+  final VoidCallback onEdit;
+
+  @override
+  State<_FullscreenTaskToolbar> createState() => _FullscreenTaskToolbarState();
+}
+
+class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
+  bool _keyHovered = false;
+
+  String get _keyLabel => widget.task.displayKey.toUpperCase();
+
+  Future<void> _copy(String value, String message) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    DdtToast.show(message: message, type: ToastType.success);
+  }
+
+  String _taskLink() {
+    final task = widget.task;
+    final key = task.key.isNotEmpty ? task.key : task.displayKey;
+    // Flutter web keeps the route in the hash: /#/tasks/<key>.
+    return '${Uri.base.origin}/#${RoutePaths.task(key)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyStyle = DdtTheme.style(
+      fontSize: _taskMarkSize,
+      height: 1,
+      fontWeight: FontWeight.w500,
+      color: DdtTheme.sidePanelTextMuted(context).withValues(alpha: 0.55),
+    );
+    final editButton = _TaskMarkButton(
+      icon: DdtIcons.edit,
+      label: 'Редактировать',
+      onPressed: widget.onEdit,
+    );
+
+    return Row(
+      children: [
+        _TaskMarkButton(
+          icon: DdtIcons.chevronLeft,
+          label: 'Назад к задачам',
+          onPressed: () => _leaveTask(context, widget.task),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _keyHovered = true),
+            onExit: (_) => setState(() => _keyHovered = false),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    _keyLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: keyStyle,
+                  ),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 140),
+                  curve: Curves.easeOut,
+                  alignment: Alignment.centerLeft,
+                  child: _keyHovered
+                      ? Padding(
+                          padding: EdgeInsets.only(left: 16.w),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _TaskMarkButton(
+                                icon: DdtIcons.copy,
+                                label: 'Копировать ключ',
+                                size: _taskCopyMarkSize,
+                                onPressed: () => _copy(
+                                  _keyLabel,
+                                  'Ключ скопирован',
+                                ),
+                              ),
+                              SizedBox(width: 14.w),
+                              _TaskMarkButton(
+                                icon: DdtIcons.link,
+                                label: 'Копировать ссылку',
+                                size: _taskCopyMarkSize,
+                                onPressed: () => _copy(
+                                  _taskLink(),
+                                  'Ссылка скопирована',
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: 12.w),
+        editButton,
+      ],
+    );
+  }
+}
+
+class _TaskMarkButton extends StatelessWidget {
+  const _TaskMarkButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.size = _taskMarkSize,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              Tooltip.dismissAllToolTips();
+              onPressed();
+            },
+            child: DdtIcon(
+              icon,
+              size: size / DdtIcon.visualScale,
+              color: DdtTheme.sidePanelTextSecondary(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void _leaveTask(BuildContext context, Task task) {
+  context.go(
+    task.spaceKey != null && task.spaceKey!.isNotEmpty
+        ? RoutePaths.spaceListFor(task.spaceKey!)
+        : RoutePaths.tasksList,
+  );
+}
+
+class _TaskDescription extends StatelessWidget {
+  const _TaskDescription({required this.task, this.showHeading = true});
+
+  final Task task;
+  final bool showHeading;
 
   @override
   Widget build(BuildContext context) {
@@ -362,15 +783,17 @@ class _TaskDescription extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Описание',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.labelSize,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.sidePanelTextMuted(context),
+        if (showHeading) ...[
+          Text(
+            'Описание',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSize,
+              fontWeight: FontWeight.w600,
+              color: DdtTheme.sidePanelTextMuted(context),
+            ),
           ),
-        ),
-        SizedBox(height: 8.h),
+          SizedBox(height: 8.h),
+        ],
         if (isEmpty)
           Text(
             'Описание не добавлено',
@@ -388,10 +811,15 @@ class _TaskDescription extends StatelessWidget {
 }
 
 class _TaskParametersPanel extends StatelessWidget {
-  const _TaskParametersPanel({required this.task, required this.pinned});
+  const _TaskParametersPanel({
+    required this.task,
+    required this.pinned,
+    this.scrollController,
+  });
 
   final Task task;
   final bool pinned;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -436,24 +864,15 @@ class _TaskParametersPanel extends StatelessWidget {
             ),
             _ParameterTableRow(
               label: 'Автор',
-              value: Text(
-                formatUserRef(task.authorId, fallback: 'Не указан'),
-                style: _tableValueStyle(context),
-              ),
+              value: _TaskPersonValue(userId: task.authorId),
             ),
             _ParameterTableRow(
               label: 'Исполнитель',
-              value: Text(
-                formatUserRef(task.executorId, fallback: 'Не указан'),
-                style: _tableValueStyle(context),
-              ),
+              value: _TaskPersonValue(userId: task.executorId),
             ),
             _ParameterTableRow(
               label: 'Ответственный',
-              value: Text(
-                formatUserRef(task.responsibleId, fallback: 'Не указан'),
-                style: _tableValueStyle(context),
-              ),
+              value: _TaskPersonValue(userId: task.responsibleId),
             ),
             _ParameterTableRow(
               label: 'Создана',
@@ -525,6 +944,8 @@ class _TaskParametersPanel extends StatelessWidget {
     return SizedBox(
       width: 300.w,
       child: SingleChildScrollView(
+        controller: scrollController,
+        primary: false,
         padding: EdgeInsets.all(20.w),
         child: content,
       ),
@@ -585,6 +1006,36 @@ class _ParametersTable extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+class _TaskPersonValue extends StatelessWidget {
+  const _TaskPersonValue({required this.userId});
+
+  final int? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId == null) {
+      return const _MutedValue(text: 'Не указан');
+    }
+
+    return FutureBuilder<List<UserProfile>>(
+      future: loadDirectoryUsers(),
+      builder: (context, snapshot) {
+        final users = snapshot.data ?? const <UserProfile>[];
+        final person = directoryUserById(users, userId);
+        final waiting =
+            snapshot.connectionState == ConnectionState.waiting &&
+            person == null;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: DdtUserChip(
+            name: person?.label ?? (waiting ? 'Загрузка…' : 'Пользователь'),
+          ),
+        );
+      },
     );
   }
 }

@@ -517,9 +517,9 @@ class TaskService:
                         payload.status.value,
                         payload.type_id,
                         payload.description,
-                        payload.executor_id,
+                        payload.executor_id if space_id is not None else author_id,
                         author_id,
-                        payload.responsible_id,
+                        payload.responsible_id if space_id is not None else author_id,
                         owner_id,
                         space_id,
                         time_set,
@@ -670,7 +670,17 @@ class TaskService:
                     raise TaskNotFoundError
 
                 resolved_id = row["id"]
-                if not updates and links is None and not parent_specified and not children_specified:
+                if row["space_id"] is None:
+                    updates["author_id"] = user_id
+                    updates["executor_id"] = user_id
+                    updates["responsible_id"] = user_id
+
+                if (
+                    not updates
+                    and links is None
+                    and not parent_specified
+                    and not children_specified
+                ):
                     return self._serialize_rows(cursor, [row])[0]
 
                 if "status" in updates and updates["status"] is not None:

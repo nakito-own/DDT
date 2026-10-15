@@ -51,12 +51,26 @@ class DdtFilterOption {
     required this.label,
     this.count,
     this.enabled = true,
+    this.searchText,
+    this.content,
   });
 
   final String key;
   final String label;
   final int? count;
   final bool enabled;
+
+  /// Дополнительная строка для поиска. Подпись и так участвует в поиске.
+  final String? searchText;
+
+  /// Содержимое строки вместо обычной подписи. Поиск идёт по [label] и [searchText].
+  final WidgetBuilder? content;
+
+  bool matches(String needle) {
+    if (needle.isEmpty) return true;
+    final haystack = '${searchText ?? ''} $label'.toLowerCase();
+    return haystack.contains(needle);
+  }
 }
 
 /// Summary text for multi-select filter dropdowns (same rules as analytics).
@@ -355,9 +369,7 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
     if (needle.isEmpty) return widget.options;
     return [
       for (final option in widget.options)
-        if (option.label.toLowerCase().contains(needle) ||
-            option.key.toLowerCase().contains(needle))
-          option,
+        if (option.matches(needle)) option,
     ];
   }
 
@@ -555,18 +567,20 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
                   ),
                 SizedBox(width: 8.w),
                 Expanded(
-                  child: Text(
-                    widget.option.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.labelSize,
-                      fontWeight: widget.checked
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: textColor,
-                    ),
-                  ),
+                  child: widget.option.content != null
+                      ? widget.option.content!(context)
+                      : Text(
+                          widget.option.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.labelSize,
+                            fontWeight: widget.checked
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: textColor,
+                          ),
+                        ),
                 ),
                 if (widget.option.count != null)
                   AnimatedDefaultTextStyle(

@@ -30,6 +30,8 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     on<CalendarColleagueToggled>(_onColleagueToggled);
     on<CalendarColleagueAdded>(_onColleagueAdded);
     on<CalendarColleagueRemoved>(_onColleagueRemoved);
+    on<_ColleagueCalendarsRefreshRequested>(_onColleagueCalendarsRefresh);
+    on<_ColleagueCalendarLoadRequested>(_onColleagueCalendarLoad);
     on<CalendarPeopleSearchRequested>(_onPeopleSearchRequested);
   }
 
@@ -42,6 +44,8 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   int _sessionGeneration = 0;
   bool _backgroundRefreshInFlight = false;
   bool _backgroundRefreshQueued = false;
+  int _colleagueBatchGeneration = 0;
+  final Map<String, int> _colleagueLoadGeneration = {};
 
   // ─── Load / Refresh ───────────────────────────────────────────────────────
 
@@ -52,6 +56,8 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     _requestGeneration++;
     _sessionGeneration++;
     _backgroundRefreshQueued = false;
+    _colleagueBatchGeneration++;
+    _colleagueLoadGeneration.clear();
     _loadedStart = null;
     _loadedEnd = null;
     emit(CalendarState(focusedDate: DateTime.now()));
@@ -120,15 +126,6 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     final generation = ++_requestGeneration;
     try {
       final range = _fetchRangeFor(state.effectiveFocusedDate, state.viewMode);
-      final pendingColleagues = [
-        for (final calendar in state.colleagues)
-          calendar.enabled
-              ? calendar.copyWith(isLoading: true, error: () => null)
-              : calendar,
-      ];
-      if (pendingColleagues.any((calendar) => calendar.isLoading)) {
-        emit(state.copyWith(colleagues: pendingColleagues));
-      }
       final result = await _api.fetchCalendarEvents(
         start: range.start,
         end: range.end,
@@ -150,13 +147,8 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
           errorMessage: () => null,
         ),
       );
-      final colleagues = await _fetchColleagueCalendars(
-        calendars: pendingColleagues,
-        start: range.start,
-        end: range.end,
-      );
       if (generation != _requestGeneration) return;
-      emit(state.copyWith(colleagues: colleagues));
+      _scheduleColleagueRefresh(emit, range);
     } catch (error) {
       if (generation != _requestGeneration) return;
       emit(
@@ -169,47 +161,205 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     }
   }
 
-  Future<List<ColleagueCalendar>> _fetchColleagueCalendars({
-    required List<ColleagueCalendar> calendars,
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    final enabled = [
-      for (final calendar in calendars)
-        if (calendar.enabled) calendar,
+  void _scheduleColleagueRefresh(
+    Emitter<CalendarState> emit,
+    ({DateTime start, DateTime end}) range,
+  ) {
+    final generation = ++_colleagueBatchGeneration;
+    final emails = [
+      for (final calendar in state.colleagues)
+        if (calendar.enabled) calendar.email,
     ];
-    if (enabled.isEmpty) {
-      return [
-        for (final calendar in calendars) calendar.copyWith(isLoading: false),
-      ];
+    final pending = [
+      for (final calendar in state.colleagues)
+        if (calendar.enabled)
+          calendar.copyWith(isLoading: true, error: () => null)
+        else
+          calendar.copyWith(isLoading: false),
+    ];
+    final loadingChanged = !_sameColleagueLoading(state.colleagues, pending);
+    if (loadingChanged) {
+      emit(state.copyWith(colleagues: pending));
     }
+    if (emails.isEmpty) return;
+    add(
+      _ColleagueCalendarsRefreshRequested(
+        generation: generation,
+        requestGeneration: _requestGeneration,
+        emails: emails,
+        start: range.start,
+        end: range.end,
+      ),
+    );
+  }
+
+  bool _sameColleagueLoading(
+    List<ColleagueCalendar> previous,
+    List<ColleagueCalendar> next,
+  ) {
+    if (previous.length != next.length) return false;
+    for (var i = 0; i < previous.length; i++) {
+      if (previous[i].email != next[i].email ||
+          previous[i].isLoading != next[i].isLoading ||
+          previous[i].enabled != next[i].enabled) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _onColleagueCalendarsRefresh(
+    _ColleagueCalendarsRefreshRequested event,
+    Emitter<CalendarState> emit,
+  ) async {
+    if (event.generation != _colleagueBatchGeneration) return;
+    if (event.requestGeneration != _requestGeneration) return;
+    final sessionGeneration = _sessionGeneration;
+    final targets = [
+      for (final calendar in state.colleagues)
+        if (event.emails.contains(calendar.email) && calendar.enabled)
+          calendar,
+    ];
+    if (targets.isEmpty) return;
+
     try {
       final fetched = await _api.fetchColleagueCalendars(
-        calendars: enabled,
-        start: start,
-        end: end,
+        calendars: targets,
+        start: event.start,
+        end: event.end,
       );
-      final byEmail = {
-        for (final calendar in fetched) calendar.email.toLowerCase(): calendar,
-      };
-      return [
-        for (final calendar in calendars)
-          if (calendar.enabled)
-            (byEmail[calendar.email.toLowerCase()] ?? calendar).copyWith(
-              isLoading: false,
-            )
-          else
-            calendar.copyWith(isLoading: false),
-      ];
+      if (sessionGeneration != _sessionGeneration) return;
+      if (event.generation != _colleagueBatchGeneration) return;
+      if (event.requestGeneration != _requestGeneration) return;
+      emit(
+        state.copyWith(
+          colleagues: _mergeColleagueCalendars(state.colleagues, fetched),
+        ),
+      );
     } catch (error) {
+      if (sessionGeneration != _sessionGeneration) return;
+      if (event.generation != _colleagueBatchGeneration) return;
+      if (event.requestGeneration != _requestGeneration) return;
       final message = error.toString().replaceFirst('Exception: ', '');
-      return [
-        for (final calendar in calendars)
-          calendar.enabled
-              ? calendar.copyWith(isLoading: false, error: () => message)
-              : calendar,
-      ];
+      final failed = event.emails.toSet();
+      emit(
+        state.copyWith(
+          colleagues: [
+            for (final calendar in state.colleagues)
+              if (failed.contains(calendar.email) && calendar.enabled)
+                calendar.copyWith(isLoading: false, error: () => message)
+              else
+                calendar,
+          ],
+        ),
+      );
     }
+  }
+
+  Future<void> _onColleagueCalendarLoad(
+    _ColleagueCalendarLoadRequested event,
+    Emitter<CalendarState> emit,
+  ) async {
+    if (_colleagueLoadGeneration[event.email] != event.generation) return;
+    final sessionGeneration = _sessionGeneration;
+    final requestGeneration = _requestGeneration;
+    final current = _colleagueByEmail(state.colleagues, event.email);
+    if (current == null || !current.enabled) return;
+
+    final range = _fetchRangeFor(state.effectiveFocusedDate, state.viewMode);
+    try {
+      final fetched = await _api.fetchColleagueCalendar(
+        email: current.email,
+        colorIndex: current.colorIndex,
+        enabled: true,
+        start: range.start,
+        end: range.end,
+      );
+      if (sessionGeneration != _sessionGeneration) return;
+      if (requestGeneration != _requestGeneration) return;
+      if (_colleagueLoadGeneration[event.email] != event.generation) return;
+      final latest = _colleagueByEmail(state.colleagues, event.email);
+      if (latest == null || !latest.enabled) return;
+      emit(
+        state.copyWith(
+          colleagues: [
+            for (final calendar in state.colleagues)
+              if (calendar.email == event.email)
+                fetched.copyWith(
+                  displayName: latest.displayName,
+                  colorIndex: latest.colorIndex,
+                  enabled: true,
+                  isLoading: false,
+                )
+              else
+                calendar,
+          ],
+        ),
+      );
+    } catch (error) {
+      if (sessionGeneration != _sessionGeneration) return;
+      if (requestGeneration != _requestGeneration) return;
+      if (_colleagueLoadGeneration[event.email] != event.generation) return;
+      final latest = _colleagueByEmail(state.colleagues, event.email);
+      if (latest == null || !latest.enabled) return;
+      emit(
+        state.copyWith(
+          colleagues: [
+            for (final calendar in state.colleagues)
+              if (calendar.email == event.email)
+                calendar.copyWith(
+                  isLoading: false,
+                  error: () =>
+                      error.toString().replaceFirst('Exception: ', ''),
+                )
+              else
+                calendar,
+          ],
+        ),
+      );
+    }
+  }
+
+  ColleagueCalendar? _colleagueByEmail(
+    List<ColleagueCalendar> calendars,
+    String email,
+  ) {
+    for (final calendar in calendars) {
+      if (calendar.email == email) return calendar;
+    }
+    return null;
+  }
+
+  List<ColleagueCalendar> _mergeColleagueCalendars(
+    List<ColleagueCalendar> current,
+    List<ColleagueCalendar> fetched,
+  ) {
+    final byEmail = {
+      for (final calendar in fetched) calendar.email.toLowerCase(): calendar,
+    };
+    return [
+      for (final calendar in current)
+        if (calendar.enabled && byEmail.containsKey(calendar.email))
+          byEmail[calendar.email]!.copyWith(
+            displayName: calendar.displayName,
+            colorIndex: calendar.colorIndex,
+            enabled: true,
+            isLoading: false,
+          )
+        else
+          calendar,
+    ];
+  }
+
+  void _requestColleagueLoad(String email) {
+    final generation = (_colleagueLoadGeneration[email] ?? 0) + 1;
+    _colleagueLoadGeneration[email] = generation;
+    add(_ColleagueCalendarLoadRequested(email, generation));
+  }
+
+  void _invalidateColleagueLoad(String email) {
+    _colleagueLoadGeneration[email] =
+        (_colleagueLoadGeneration[email] ?? 0) + 1;
   }
 
   // ─── Navigation ───────────────────────────────────────────────────────────
@@ -396,10 +546,10 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     _persistSources();
   }
 
-  Future<void> _onColleagueToggled(
+  void _onColleagueToggled(
     CalendarColleagueToggled event,
     Emitter<CalendarState> emit,
-  ) async {
+  ) {
     final email = event.email.trim().toLowerCase();
     final index = state.colleagues.indexWhere(
       (calendar) => calendar.email == email,
@@ -410,7 +560,12 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
 
     final updated = [...state.colleagues];
     if (!event.enabled) {
-      updated[index] = current.copyWith(enabled: false, isLoading: false);
+      _invalidateColleagueLoad(email);
+      updated[index] = current.copyWith(
+        enabled: false,
+        isLoading: false,
+        events: const [],
+      );
       emit(state.copyWith(colleagues: updated));
       _persistSources();
       return;
@@ -423,47 +578,13 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     );
     emit(state.copyWith(colleagues: updated));
     _persistSources();
-
-    final range = _fetchRangeFor(state.effectiveFocusedDate, state.viewMode);
-    final sessionGeneration = _sessionGeneration;
-    try {
-      final fetched = await _api.fetchColleagueCalendar(
-        email: current.email,
-        colorIndex: current.colorIndex,
-        enabled: true,
-        start: range.start,
-        end: range.end,
-      );
-      if (sessionGeneration != _sessionGeneration) return;
-      final latest = [...state.colleagues];
-      final latestIndex = latest.indexWhere(
-        (calendar) => calendar.email == email,
-      );
-      if (latestIndex < 0 || !latest[latestIndex].enabled) return;
-      latest[latestIndex] = fetched.copyWith(
-        displayName: current.displayName,
-        isLoading: false,
-      );
-      emit(state.copyWith(colleagues: latest));
-    } catch (error) {
-      if (sessionGeneration != _sessionGeneration) return;
-      final latest = [...state.colleagues];
-      final latestIndex = latest.indexWhere(
-        (calendar) => calendar.email == email,
-      );
-      if (latestIndex < 0) return;
-      latest[latestIndex] = latest[latestIndex].copyWith(
-        isLoading: false,
-        error: () => error.toString().replaceFirst('Exception: ', ''),
-      );
-      emit(state.copyWith(colleagues: latest));
-    }
+    _requestColleagueLoad(email);
   }
 
-  Future<void> _onColleagueAdded(
+  void _onColleagueAdded(
     CalendarColleagueAdded event,
     Emitter<CalendarState> emit,
-  ) async {
+  ) {
     final email = event.email.trim().toLowerCase();
     if (email.isEmpty) return;
     if (state.ownerEmail != null && email == state.ownerEmail) return;
@@ -472,9 +593,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
       (calendar) => calendar.email == email,
     );
     if (existingIndex >= 0) {
-      emit(
-        state.copyWith(peopleQuery: '', peopleResults: const []),
-      );
+      emit(state.copyWith(peopleQuery: '', peopleResults: const []));
       add(CalendarColleagueToggled(email: email, enabled: true));
       return;
     }
@@ -496,50 +615,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
       ),
     );
     _persistSources();
-
-    final range = _fetchRangeFor(state.effectiveFocusedDate, state.viewMode);
-    final sessionGeneration = _sessionGeneration;
-    try {
-      final fetched = await _api.fetchColleagueCalendar(
-        email: added.email,
-        colorIndex: added.colorIndex,
-        enabled: true,
-        start: range.start,
-        end: range.end,
-      );
-      if (sessionGeneration != _sessionGeneration) return;
-      emit(
-        state.copyWith(
-          colleagues: [
-            for (final calendar in state.colleagues)
-              if (calendar.email == email)
-                fetched.copyWith(
-                  displayName: added.displayName,
-                  isLoading: false,
-                )
-              else
-                calendar,
-          ],
-        ),
-      );
-    } catch (error) {
-      if (sessionGeneration != _sessionGeneration) return;
-      emit(
-        state.copyWith(
-          colleagues: [
-            for (final calendar in state.colleagues)
-              if (calendar.email == email)
-                calendar.copyWith(
-                  isLoading: false,
-                  error: () =>
-                      error.toString().replaceFirst('Exception: ', ''),
-                )
-              else
-                calendar,
-          ],
-        ),
-      );
-    }
+    _requestColleagueLoad(email);
   }
 
   void _onColleagueRemoved(

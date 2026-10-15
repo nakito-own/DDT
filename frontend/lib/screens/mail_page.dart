@@ -19,6 +19,7 @@ import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_user_chip.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_filter_dropdown.dart';
@@ -1251,64 +1252,6 @@ class _MailDetail extends StatelessWidget {
   }
 }
 
-class _MailSenderChip extends StatelessWidget {
-  const _MailSenderChip({
-    required this.sender,
-    this.fontWeight = FontWeight.w400,
-  });
-
-  final String? sender;
-  final FontWeight fontWeight;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(2.w, 3.h, 6.w, 3.h),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(16.r),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 18.w,
-            height: 18.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
-            ),
-            child: DdtIcon(
-              DdtIcons.user,
-              size: 10.sp,
-              color: AppColors.primary,
-              fitParent: true,
-            ),
-          ),
-          SizedBox(width: 4.w),
-          Flexible(
-            fit: FlexFit.loose,
-            child: Text(
-              sender ?? '—',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.captionSize,
-                fontWeight: fontWeight,
-                color: DdtTheme.taskCardTextSecondary(context),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MailDetailHeader extends StatelessWidget {
   const _MailDetailHeader({required this.message});
 
@@ -1330,7 +1273,7 @@ class _MailDetailHeader extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8.h),
-        _MailSenderChip(sender: message.sender),
+        DdtUserChip(name: message.sender),
         if (message.datetimeReceived != null) ...[
           SizedBox(height: 6.h),
           Text(
@@ -1865,7 +1808,10 @@ class _MailListRowConnectorState extends State<_MailListRowConnector>
   }
 
   void _onExpandStatus(AnimationStatus status) {
-    if (status == AnimationStatus.dismissed) setState(() {});
+    if (status == AnimationStatus.dismissed ||
+        status == AnimationStatus.completed) {
+      setState(() {});
+    }
   }
 
   void _onScrollActivity() {
@@ -1942,17 +1888,22 @@ class _MailListRowConnectorState extends State<_MailListRowConnector>
                 message.isExpanding ||
                 _expand.status != AnimationStatus.dismissed);
         if (!showThread) return row;
+        // SizeTransition всегда клипует ребёнка. После раскрытия показываем
+        // список напрямую, чтобы окантовка выбранной карточки не обрезалась.
+        final threadSettled = _expand.status == AnimationStatus.completed;
+        final thread = _MailThreadChildren(message: message);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             row,
-            ClipRect(
-              child: SizeTransition(
+            if (threadSettled)
+              thread
+            else
+              SizeTransition(
                 sizeFactor: _expandCurve,
                 axisAlignment: -1,
-                child: _MailThreadChildren(message: message),
+                child: thread,
               ),
-            ),
           ],
         );
       },
@@ -2412,8 +2363,8 @@ class MailListItem extends StatelessWidget {
               SizedBox(height: 4.h),
               Align(
                 alignment: Alignment.centerLeft,
-                child: _MailSenderChip(
-                  sender: message.sender,
+                child: DdtUserChip(
+                  name: message.sender,
                   fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),

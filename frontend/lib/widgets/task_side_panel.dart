@@ -1,14 +1,16 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'ddt_markdown_live_controller.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/ddt_icons.dart';
 
+import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
+import '../models/user_profile.dart';
+import '../services/directory_users.dart';
 import '../models/task_comment.dart';
 import '../models/task_link.dart';
 import '../models/task_priority.dart';
@@ -20,6 +22,7 @@ import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/ddt_date_time_picker.dart';
 import '../utils/task_formatters.dart';
+import '../utils/task_status_dates.dart';
 import 'ddt_app_input.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_markdown_description_input.dart';
@@ -83,6 +86,37 @@ List<DdtFilterOption> _childPickOptions({
   ];
 }
 
+int? _sessionUserId(BuildContext context) {
+  final auth = context.read<AuthBloc>().state;
+  return auth is AuthAuthenticated ? auth.user.id : null;
+}
+
+int? _assignedUserId(
+  BuildContext context, {
+  required bool personal,
+  required int? selected,
+}) {
+  if (personal) return _sessionUserId(context);
+  return selected;
+}
+
+void _applyStatusChange({
+  required TaskStatus next,
+  required TaskStatus current,
+  required void Function(TaskStatus status, DateTime? start, DateTime? end)
+  assign,
+  required DateTime? timeStart,
+  required DateTime? timeEnd,
+}) {
+  final dates = statusTransitionDates(
+    from: current,
+    to: next,
+    timeStart: timeStart,
+    timeEnd: timeEnd,
+  );
+  assign(next, dates.timeStart, dates.timeEnd);
+}
+
 String _relationPickSummary(TaskRef? ref, {required String emptyLabel}) {
   if (ref == null) return emptyLabel;
   return '${ref.key} · ${ref.title}';
@@ -105,6 +139,7 @@ Future<Task?> showTaskSidePanel(
       initialStatus: initialStatus,
       taskTypes: taskTypes,
       defaultAuthorId: defaultAuthorId,
+      personal: context.read<TasksBloc>().spaceKey == null,
       relatedTasks: relatedTasks ?? context.read<TasksBloc>().state.allTasks,
     ),
   );
@@ -118,6 +153,7 @@ class TaskSidePanel extends StatelessWidget {
     this.initialStatus = TaskStatus.todo,
     required this.taskTypes,
     this.defaultAuthorId,
+    this.personal = false,
     this.relatedTasks = const [],
   });
 
@@ -126,6 +162,7 @@ class TaskSidePanel extends StatelessWidget {
   final TaskStatus initialStatus;
   final List<TaskType> taskTypes;
   final int? defaultAuthorId;
+  final bool personal;
   final List<Task> relatedTasks;
 
   @override
@@ -135,6 +172,7 @@ class TaskSidePanel extends StatelessWidget {
         initialStatus: initialStatus,
         taskTypes: taskTypes,
         defaultAuthorId: defaultAuthorId,
+        personal: personal,
         relatedTasks: relatedTasks,
       );
     }
@@ -142,6 +180,7 @@ class TaskSidePanel extends StatelessWidget {
     return TaskSidePanelDetails(
       task: task!,
       taskTypes: taskTypes,
+      personal: personal,
       relatedTasks: relatedTasks,
     );
   }
@@ -152,11 +191,13 @@ class TaskSidePanelDetails extends StatefulWidget {
     super.key,
     required this.task,
     required this.taskTypes,
+    this.personal = false,
     this.relatedTasks = const [],
   });
 
   final Task task;
   final List<TaskType> taskTypes;
+  final bool personal;
   final List<Task> relatedTasks;
 
   @override
@@ -166,14 +207,14 @@ class TaskSidePanelDetails extends StatefulWidget {
 class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
   late final TextEditingController _titleController;
   late final DdtMarkdownLiveController _descriptionController;
-  late final TextEditingController _authorController;
-  late final TextEditingController _executorController;
-  late final TextEditingController _responsibleController;
   late Task _currentTask;
 
   late TaskStatus _status;
   late int? _typeId;
   late TaskPriority? _priority;
+  late int? _authorId;
+  late int? _executorId;
+  late int? _responsibleId;
   late DateTime _timeSet;
   late DateTime? _timeStart;
   late DateTime? _timeEnd;
@@ -190,15 +231,9 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
 
     _titleController = TextEditingController(text: task.title);
     _descriptionController = DdtMarkdownLiveController(text: task.description);
-    _authorController = TextEditingController(
-      text: task.authorId?.toString() ?? '',
-    );
-    _executorController = TextEditingController(
-      text: task.executorId?.toString() ?? '',
-    );
-    _responsibleController = TextEditingController(
-      text: task.responsibleId?.toString() ?? '',
-    );
+    _authorId = task.authorId;
+    _executorId = task.executorId;
+    _responsibleId = task.responsibleId;
 
     _status = task.status;
     _typeId = task.typeId;
@@ -225,16 +260,7 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
     }
     _titleController.dispose();
     _descriptionController.dispose();
-    _authorController.dispose();
-    _executorController.dispose();
-    _responsibleController.dispose();
     super.dispose();
-  }
-
-  int? _parseUserId(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return null;
-    return int.tryParse(trimmed);
   }
 
   TaskType? _typeById(int? typeId) {
@@ -324,9 +350,21 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
       typeId: type?.id,
       type: type,
       description: _descriptionController.text.trim(),
-      authorId: _parseUserId(_authorController.text),
-      executorId: _parseUserId(_executorController.text),
-      responsibleId: _parseUserId(_responsibleController.text),
+      authorId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _authorId,
+      ),
+      executorId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _executorId,
+      ),
+      responsibleId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _responsibleId,
+      ),
       ownerId: widget.task.ownerId,
       spaceId: widget.task.spaceId,
       spaceKey: widget.task.spaceKey,
@@ -420,7 +458,20 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                           ),
                       ],
                       onChanged: (value) {
-                        if (value != null) setState(() => _status = value);
+                        if (value == null) return;
+                        setState(() {
+                          _applyStatusChange(
+                            next: value,
+                            current: _status,
+                            timeStart: _timeStart,
+                            timeEnd: _timeEnd,
+                            assign: (status, start, end) {
+                              _status = status;
+                              _timeStart = start;
+                              _timeEnd = end;
+                            },
+                          );
+                        });
                       },
                     ),
                   ),
@@ -464,30 +515,29 @@ class _TaskSidePanelDetailsState extends State<TaskSidePanelDetails> {
                   ),
                 ],
                 [
-                  _TaskFormTableRow(
-                    label: 'Автор',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _authorController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  if (!widget.personal) ...[
+                    _TaskFormTableRow(
+                      label: 'Автор',
+                      child: _TaskPersonField(
+                        userId: _authorId,
+                        onChanged: (id) => setState(() => _authorId = id),
+                      ),
                     ),
-                  ),
-                  _TaskFormTableRow(
-                    label: 'Исполнитель',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _executorController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    _TaskFormTableRow(
+                      label: 'Исполнитель',
+                      child: _TaskPersonField(
+                        userId: _executorId,
+                        onChanged: (id) => setState(() => _executorId = id),
+                      ),
                     ),
-                  ),
-                  _TaskFormTableRow(
-                    label: 'Ответственный',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _responsibleController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    _TaskFormTableRow(
+                      label: 'Ответственный',
+                      child: _TaskPersonField(
+                        userId: _responsibleId,
+                        onChanged: (id) => setState(() => _responsibleId = id),
+                      ),
                     ),
-                  ),
+                  ],
                   _TaskFormTableRow(
                     label: 'Родитель',
                     child: _FormTableSearchableDropdown(
@@ -631,12 +681,14 @@ class TaskSidePanelCreateForm extends StatefulWidget {
     required this.initialStatus,
     required this.taskTypes,
     this.defaultAuthorId,
+    this.personal = false,
     this.relatedTasks = const [],
   });
 
   final TaskStatus initialStatus;
   final List<TaskType> taskTypes;
   final int? defaultAuthorId;
+  final bool personal;
   final List<Task> relatedTasks;
 
   @override
@@ -647,24 +699,16 @@ class TaskSidePanelCreateForm extends StatefulWidget {
 class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
   final _titleController = TextEditingController();
   final _descriptionController = DdtMarkdownLiveController();
-  late final TextEditingController _authorController;
-  final _executorController = TextEditingController();
-  final _responsibleController = TextEditingController();
   final _commentController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _authorController = TextEditingController(
-      text: widget.defaultAuthorId?.toString() ?? '',
-    );
-  }
 
   late TaskStatus _status = widget.initialStatus;
   late int? _typeId = widget.taskTypes.isNotEmpty
       ? widget.taskTypes.first.id
       : null;
   TaskPriority? _priority;
+  late int? _authorId = widget.defaultAuthorId;
+  int? _executorId;
+  int? _responsibleId;
   DateTime _timeSet = DateTime.now();
   DateTime? _timeStart;
   DateTime? _timeEnd;
@@ -680,17 +724,8 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
     }
     _titleController.dispose();
     _descriptionController.dispose();
-    _authorController.dispose();
-    _executorController.dispose();
-    _responsibleController.dispose();
     _commentController.dispose();
     super.dispose();
-  }
-
-  int? _parseUserId(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return null;
-    return int.tryParse(trimmed);
   }
 
   TaskType? _typeById(int? typeId) {
@@ -763,7 +798,11 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
             TaskComment(
               id: 0,
               text: commentText,
-              authorId: _parseUserId(_authorController.text),
+              authorId: _assignedUserId(
+                context,
+                personal: widget.personal,
+                selected: _authorId,
+              ),
               createdAt: DateTime.now(),
             ),
           ];
@@ -791,9 +830,21 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
       typeId: type?.id,
       type: type,
       description: _descriptionController.text.trim(),
-      authorId: _parseUserId(_authorController.text),
-      executorId: _parseUserId(_executorController.text),
-      responsibleId: _parseUserId(_responsibleController.text),
+      authorId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _authorId,
+      ),
+      executorId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _executorId,
+      ),
+      responsibleId: _assignedUserId(
+        context,
+        personal: widget.personal,
+        selected: _responsibleId,
+      ),
       timeSet: _timeSet,
       timeStart: _timeStart,
       timeEnd: _timeEnd,
@@ -867,7 +918,20 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                           ),
                       ],
                       onChanged: (value) {
-                        if (value != null) setState(() => _status = value);
+                        if (value == null) return;
+                        setState(() {
+                          _applyStatusChange(
+                            next: value,
+                            current: _status,
+                            timeStart: _timeStart,
+                            timeEnd: _timeEnd,
+                            assign: (status, start, end) {
+                              _status = status;
+                              _timeStart = start;
+                              _timeEnd = end;
+                            },
+                          );
+                        });
                       },
                     ),
                   ),
@@ -911,30 +975,29 @@ class _TaskSidePanelCreateFormState extends State<TaskSidePanelCreateForm> {
                   ),
                 ],
                 [
-                  _TaskFormTableRow(
-                    label: 'Автор',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _authorController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  if (!widget.personal) ...[
+                    _TaskFormTableRow(
+                      label: 'Автор',
+                      child: _TaskPersonField(
+                        userId: _authorId,
+                        onChanged: (id) => setState(() => _authorId = id),
+                      ),
                     ),
-                  ),
-                  _TaskFormTableRow(
-                    label: 'Исполнитель',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _executorController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    _TaskFormTableRow(
+                      label: 'Исполнитель',
+                      child: _TaskPersonField(
+                        userId: _executorId,
+                        onChanged: (id) => setState(() => _executorId = id),
+                      ),
                     ),
-                  ),
-                  _TaskFormTableRow(
-                    label: 'Ответственный',
-                    child: _FormTableTextInput(
-                      hint: 'ID, необязательно',
-                      controller: _responsibleController,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    _TaskFormTableRow(
+                      label: 'Ответственный',
+                      child: _TaskPersonField(
+                        userId: _responsibleId,
+                        onChanged: (id) => setState(() => _responsibleId = id),
+                      ),
                     ),
-                  ),
+                  ],
                   _TaskFormTableRow(
                     label: 'Родитель',
                     child: _FormTableSearchableDropdown(
@@ -1178,7 +1241,9 @@ class _FormTableControl {
     required BuildContext context,
     required Widget child,
     VoidCallback? onTap,
+    EdgeInsetsGeometry? contentPadding,
   }) {
+    final base = decoration(context);
     return SizedBox(
       height: controlHeight.h,
       child: Material(
@@ -1187,7 +1252,9 @@ class _FormTableControl {
           onTap: onTap,
           borderRadius: DdtTheme.inputControlBorderRadius,
           child: InputDecorator(
-            decoration: decoration(context),
+            decoration: contentPadding == null
+                ? base
+                : base.copyWith(contentPadding: contentPadding),
             isEmpty: false,
             expands: true,
             child: Align(
@@ -1329,33 +1396,6 @@ class _CompactIconTextButton extends StatelessWidget {
   }
 }
 
-class _FormTableTextInput extends StatelessWidget {
-  const _FormTableTextInput({
-    required this.hint,
-    required this.controller,
-    this.inputFormatters,
-  });
-
-  final String hint;
-  final TextEditingController controller;
-  final List<TextInputFormatter>? inputFormatters;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: _FormTableControl.controlHeight.h,
-      child: DdtAppInput(
-        hint: hint,
-        controller: controller,
-        variant: DdtInputVariant.compact,
-        type: InputType.number,
-        inputFormatters: inputFormatters,
-        textColor: DdtTheme.sidePanelTextSecondary(context),
-      ),
-    );
-  }
-}
-
 class _FormTableDateTimeControl extends StatelessWidget {
   const _FormTableDateTimeControl({
     required this.value,
@@ -1464,6 +1504,80 @@ class _DropdownControl<T> extends StatelessWidget {
   }
 }
 
+class _TaskPersonTile extends StatelessWidget {
+  const _TaskPersonTile({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 22.w,
+          height: 22.w,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.primary.withValues(alpha: 0.12),
+          ),
+          child: DdtIcon(DdtIcons.user, size: 11.sp, color: AppColors.primary),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _FormTableControl.textStyle(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TaskPersonField extends StatelessWidget {
+  const _TaskPersonField({required this.userId, required this.onChanged});
+
+  final int? userId;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<UserProfile>>(
+      future: loadDirectoryUsers(),
+      builder: (context, snapshot) {
+        final users = snapshot.data ?? const <UserProfile>[];
+        final selected = directoryUserById(users, userId);
+        final loading =
+            snapshot.connectionState == ConnectionState.waiting &&
+            users.isEmpty;
+        final name = selected?.label ?? (loading ? 'Загрузка…' : 'Пользователь');
+        return _FormTableSearchableDropdown(
+          label: userId == null ? 'Не указан' : name,
+          placeholder: userId == null,
+          value: userId == null ? null : _TaskPersonTile(name: name),
+          emptyLabel: loading ? 'Загрузка…' : 'Нет пользователей',
+          selected: {userId?.toString() ?? ''},
+          onSelected: (key) =>
+              onChanged(key.isEmpty ? null : int.tryParse(key)),
+          options: [
+            const DdtFilterOption(key: '', label: 'Не указан'),
+            for (final user in users)
+              DdtFilterOption(
+                key: '${user.id}',
+                label: user.label,
+                searchText: '${user.label} ${user.email}',
+                content: (context) => _TaskPersonTile(name: user.label),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _FormTableSearchableDropdown extends StatelessWidget {
   const _FormTableSearchableDropdown({
     required this.label,
@@ -1471,6 +1585,7 @@ class _FormTableSearchableDropdown extends StatelessWidget {
     required this.options,
     required this.selected,
     required this.onSelected,
+    this.value,
     this.emptyLabel = 'Нет значений',
   });
 
@@ -1479,6 +1594,7 @@ class _FormTableSearchableDropdown extends StatelessWidget {
   final List<DdtFilterOption> options;
   final Set<String> selected;
   final ValueChanged<String> onSelected;
+  final Widget? value;
   final String emptyLabel;
 
   @override
@@ -1487,6 +1603,9 @@ class _FormTableSearchableDropdown extends StatelessWidget {
       builder: (anchorContext) {
         return _FormTableControl.shell(
           context: context,
+          contentPadding: value == null
+              ? null
+              : const EdgeInsets.fromLTRB(2, 4, 8, 4),
           onTap: () => showDdtSearchableFilterMenu(
             context: context,
             anchorContext: anchorContext,
@@ -1499,14 +1618,15 @@ class _FormTableSearchableDropdown extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: placeholder
-                      ? _FormTableControl.placeholderStyle(context)
-                      : _FormTableControl.textStyle(context),
-                ),
+                child: value ??
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: placeholder
+                          ? _FormTableControl.placeholderStyle(context)
+                          : _FormTableControl.textStyle(context),
+                    ),
               ),
               DdtIcon(
                 DdtIcons.chevronDown,
