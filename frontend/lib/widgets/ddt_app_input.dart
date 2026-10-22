@@ -185,19 +185,17 @@ class _DdtAppInputState extends State<DdtAppInput> {
   }
 
   Color _borderColor(BuildContext context, {required bool hasError}) {
-    if (hasError) return AppColors.error;
+    if (hasError) return DdtTheme.dangerColor;
     if (!widget.enabled) {
-      return DdtTheme.inputBorderColor(context).withValues(alpha: 0.35);
+      return DdtTheme.borderSubtle(context).withValues(alpha: 0.55);
     }
     if (_isFocused) {
-      return widget.focusedBorderColor ?? AppColors.primary;
+      return widget.focusedBorderColor ?? DdtTheme.primaryColor;
     }
     if (_hovering) {
-      return (widget.borderColor ?? DdtTheme.inputBorderColor(context))
-          .withValues(alpha: 0.58);
+      return widget.borderColor ?? DdtTheme.borderStrong(context);
     }
-    return (widget.borderColor ?? DdtTheme.inputBorderColor(context))
-        .withValues(alpha: 0.34);
+    return widget.borderColor ?? DdtTheme.borderSubtle(context);
   }
 
   List<BoxShadow>? _boxShadow(BuildContext context, {required bool hasError}) {

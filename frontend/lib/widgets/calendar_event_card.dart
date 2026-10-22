@@ -171,7 +171,7 @@ class _EventAccent extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: color,
-      child: const SizedBox(width: 6),
+      child: const SizedBox(width: 4),
     );
   }
 }

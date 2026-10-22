@@ -108,25 +108,46 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
   }) {
     final format = DateFormat('dd.MM.yyyy HH:mm');
 
-    return DdtTappable(
-      onTap: onTap,
-      padding: EdgeInsets.symmetric(vertical: 8.h),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: DdtTheme.style(fontSize: DdtTypography.labelSize),
-                ),
-                Text(format.format(value)),
-              ],
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: DdtTappable(
+        onTap: onTap,
+        enableHoverFill: true,
+        borderRadius: DdtTheme.inputControlBorderRadius,
+        backgroundColor: DdtTheme.inputFillColor(context),
+        border: Border.all(color: DdtTheme.borderSubtle(context)),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.labelSmallSize,
+                      color: DdtTheme.textSecondary(context),
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  Text(
+                    format.format(value),
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.bodySize,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          DdtIcon(DdtIcons.calendarDay),
-        ],
+            DdtIcon(
+              DdtIcons.calendarDay,
+              size: 16.sp,
+              color: DdtTheme.textSecondary(context),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,31 +1,34 @@
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
 class BrowserNotificationService {
-  bool get isSupported => kIsWeb;
+  /// iOS Safari only exposes `Notification` in a Home Screen web app.
+  /// A normal tab has no such global, and reading `.permission` throws.
+  static const unsupportedPermission = 'unsupported';
+
+  bool get isSupported {
+    if (!kIsWeb) return false;
+    if (!globalContext.has('Notification')) return false;
+    return globalContext['Notification'] != null;
+  }
 
   String get permission {
-    if (!kIsWeb) {
-      return 'denied';
-    }
+    if (!kIsWeb) return 'denied';
+    if (!isSupported) return unsupportedPermission;
     return web.Notification.permission;
   }
 
   Future<String> requestPermission() async {
-    if (!kIsWeb) {
-      return 'denied';
-    }
+    if (!isSupported) return unsupportedPermission;
     final result = await web.Notification.requestPermission().toDart;
     return result.toDart;
   }
 
   void show({required String title, required String body}) {
-    if (!kIsWeb || web.Notification.permission != 'granted') {
-      return;
-    }
-
+    if (!isSupported || web.Notification.permission != 'granted') return;
     web.Notification(title, web.NotificationOptions(body: body));
   }
 }

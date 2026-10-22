@@ -8,6 +8,7 @@ import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
 import '../theme/ddt_theme.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../theme/ddt_typography.dart';
@@ -102,7 +103,7 @@ class _ContactsPageState extends State<ContactsPage> {
                         : ListView.separated(
                             padding: EdgeInsets.only(bottom: bottomPad),
                             itemCount: state.contacts.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 SizedBox(height: 8.h),
                             itemBuilder: (context, index) {
                               return ContactListItem(
@@ -128,42 +129,75 @@ class ContactListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      type: CardType.outlined,
-      borderRadius: DdtTheme.radius,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DdtTheme.taskCardGlass(
+      context: context,
       padding: EdgeInsets.all(14.w),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            contact.displayName,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.bodyLargeSize,
-              fontWeight: FontWeight.w700,
-              color: DdtTheme.taskCardTextPrimary(context),
-            ),
-          ),
-          if (contact.emails.isNotEmpty) ...[
-            SizedBox(height: 6.h),
-            ...contact.emails.map(
-              (email) => Text(
-                email,
-                style: DdtTheme.style(fontSize: DdtTypography.labelSize),
+          Container(
+            width: 38.w,
+            height: 38.w,
+            decoration: BoxDecoration(
+              color: DdtTheme.primaryColor.withValues(
+                alpha: isDark ? 0.18 : 0.10,
               ),
-            ),
-          ],
-          if (contact.phones.isNotEmpty) ...[
-            SizedBox(height: 6.h),
-            ...contact.phones.map(
-              (phone) => Text(
-                phone,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.labelSize,
-                  color: DdtTheme.taskCardTextSecondary(context),
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(
+                color: DdtTheme.primaryColor.withValues(
+                  alpha: isDark ? 0.32 : 0.20,
                 ),
               ),
             ),
-          ],
+            child: Center(
+              child: DdtIcon(
+                DdtIcons.user,
+                size: 16.sp,
+                color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+              ),
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  contact.displayName,
+                  style: DdtTheme.style(
+                    fontSize: DdtTypography.bodyLargeSize,
+                    fontWeight: FontWeight.w600,
+                    color: DdtTheme.taskCardTextPrimary(context),
+                  ),
+                ),
+                if (contact.emails.isNotEmpty) ...[
+                  SizedBox(height: 4.h),
+                  ...contact.emails.map(
+                    (email) => Text(
+                      email,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: DdtTheme.textSecondary(context),
+                      ),
+                    ),
+                  ),
+                ],
+                if (contact.phones.isNotEmpty) ...[
+                  SizedBox(height: 4.h),
+                  ...contact.phones.map(
+                    (phone) => Text(
+                      phone,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: DdtTheme.textMuted(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

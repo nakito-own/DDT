@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -26,71 +25,68 @@ class DdtPanelPrimaryButton extends StatefulWidget {
 
 class _DdtPanelPrimaryButtonState extends State<DdtPanelPrimaryButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = AppColors.primary;
-    final fill = _hovered
-        ? Color.alphaBlend(
-            Colors.white.withValues(alpha: isDark ? 0.14 : 0.2),
-            base,
-          )
-        : base;
+    final fill = _pressed
+        ? const Color(0xFF3730A3)
+        : _hovered
+        ? (isDark ? const Color(0xFF5B52F0) : DdtTheme.primaryHoverColor)
+        : DdtTheme.primaryColor;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
       child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
         onTap: widget.onPressed,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedScale(
-          scale: _hovered ? 1.015 : 1,
+        child: AnimatedContainer(
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
+          width: double.infinity,
+          height: 32,
           alignment: Alignment.center,
-          child: AnimatedContainer(
-            duration: DdtTheme.selectionAnimationDuration,
-            curve: DdtTheme.selectionAnimationCurve,
-            width: double.infinity,
-            height: 28,
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(horizontal: 12.w),
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: DdtTheme.radius,
-              boxShadow: _hovered
-                  ? DdtTheme.inputFocusShadow(context)
-                  : [
-                      BoxShadow(
-                        color: base.withValues(alpha: 0.22),
-                        blurRadius: 4,
-                        offset: Offset(0, 1.5.h),
-                      ),
-                    ],
+          padding: EdgeInsets.symmetric(horizontal: 12.w),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: DdtTheme.inputControlBorderRadius,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isDark ? 0.14 : 0.18),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedScale(
-                  scale: _hovered ? 1.08 : 1,
-                  duration: DdtTheme.selectionAnimationDuration,
-                  curve: DdtTheme.selectionAnimationCurve,
-                  child: DdtIcon(widget.icon, size: 14.sp, color: Colors.white),
+            boxShadow: [
+              BoxShadow(
+                color: DdtTheme.primaryColor.withValues(
+                  alpha: _hovered ? 0.30 : 0.18,
                 ),
-                SizedBox(width: 8.w),
-                Text(
-                  widget.label,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSmallSize,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+                blurRadius: _hovered ? 8 : 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DdtIcon(widget.icon, size: 13.sp, color: Colors.white),
+              SizedBox(width: 7.w),
+              Text(
+                widget.label,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.labelSmallSize,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

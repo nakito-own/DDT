@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -12,7 +11,7 @@ class DdtUserChip extends StatelessWidget {
   const DdtUserChip({
     super.key,
     required this.name,
-    this.fontWeight = FontWeight.w400,
+    this.fontWeight = FontWeight.w500,
   });
 
   final String? name;
@@ -23,31 +22,38 @@ class DdtUserChip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(2.w, 3.h, 6.w, 3.h),
+      padding: EdgeInsets.fromLTRB(3.w, 2.5.h, 7.w, 2.5.h),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(16.r),
+            : Colors.white.withValues(alpha: 0.72),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.11)
+              : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 18.w,
-            height: 18.w,
+            width: 16.w,
+            height: 16.w,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
+              color: DdtTheme.primaryColor.withValues(
+                alpha: isDark ? 0.24 : 0.12,
+              ),
             ),
             child: DdtIcon(
               DdtIcons.user,
-              size: 10.sp,
-              color: AppColors.primary,
+              size: 9.sp,
+              color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
               fitParent: true,
             ),
           ),
-          SizedBox(width: 4.w),
+          SizedBox(width: 5.w),
           Flexible(
             fit: FlexFit.loose,
             child: Text(

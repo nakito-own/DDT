@@ -171,12 +171,12 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                               ),
                             ),
 
-                            SizedBox(height: 12.h),
+                            SizedBox(height: 16.h),
                             Button(
                               text: isBusy ? 'Подключение...' : 'Войти',
                               isLoading: isBusy,
                               onPressed: isBusy ? null : _submit,
-                              borderRadius: BorderRadius.circular(64),
+                              borderRadius: DdtTheme.inputControlBorderRadius,
                             ),
                           ],
                         ),

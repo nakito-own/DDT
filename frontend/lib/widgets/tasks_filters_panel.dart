@@ -87,7 +87,6 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final textSecondary = DdtTheme.taskCardTextSecondary(context);
     final dividerColor = DdtTheme.sidePanelDivider(context);
 
     return BlocConsumer<TasksBloc, TasksState>(
@@ -165,7 +164,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                   type: InputType.search,
                   variant: DdtInputVariant.compact,
                   prefixIcon: DdtIcons.search,
-                  borderRadius: DdtTheme.radius,
+                  borderRadius: DdtTheme.inputControlBorderRadius,
                 ),
               ),
               DdtSectionSidebarField(
@@ -257,31 +256,53 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                 child: Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: 12.w,
-                    vertical: 10.h,
+                    vertical: 9.h,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(
-                      alpha: Theme.of(context).brightness == Brightness.dark
-                          ? 0.12
-                          : 0.07,
-                    ),
-                    borderRadius: DdtTheme.radius,
+                    color: DdtTheme.inputFillColor(context),
+                    borderRadius: DdtTheme.inputControlBorderRadius,
                     border: Border.all(
-                      color: AppColors.primary.withValues(
-                        alpha: Theme.of(context).brightness == Brightness.dark
-                            ? 0.28
-                            : 0.18,
-                      ),
+                      color: DdtTheme.borderSubtle(context),
                     ),
                   ),
-                  child: Text(
-                    'Найдено: ${state.filteredTasks.length}',
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.labelSize,
-                      fontWeight: FontWeight.w600,
-                      color: textSecondary,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Найдено задач',
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.labelSmallSize,
+                          fontWeight: FontWeight.w500,
+                          color: DdtTheme.textMuted(context),
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 7.w,
+                          vertical: 2.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DdtTheme.primaryColor.withValues(
+                            alpha:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? 0.20
+                                : 0.10,
+                          ),
+                          borderRadius: DdtTheme.badgeBorderRadius,
+                        ),
+                        child: Text(
+                          '${state.filteredTasks.length}',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.captionSize,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? DdtTheme.accentColor
+                                : DdtTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -294,7 +315,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                     onPressed: () => context.read<TasksBloc>().add(
                       const TasksFiltersReset(),
                     ),
-                    borderRadius: DdtTheme.radius,
+                    borderRadius: DdtTheme.inputControlBorderRadius,
                   ),
                 ),
             ],
@@ -312,13 +333,12 @@ class _ShowArchivedSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12),
-        borderRadius: DdtTheme.radius,
+        color: DdtTheme.inputFillColor(context),
+        borderRadius: DdtTheme.inputControlBorderRadius,
+        border: Border.all(color: DdtTheme.borderSubtle(context)),
       ),
       child: Row(
         children: [
@@ -327,7 +347,7 @@ class _ShowArchivedSwitch extends StatelessWidget {
               'Показывать архивные',
               style: DdtTheme.style(
                 fontSize: DdtTypography.labelSize,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: DdtTheme.taskCardTextPrimary(context),
               ),
             ),

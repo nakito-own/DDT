@@ -16,10 +16,10 @@ abstract final class DdtToast {
     Duration duration = const Duration(seconds: 3),
   }) {
     final accentColor = switch (type) {
-      ToastType.success => const Color(0xFF16A467),
-      ToastType.error => const Color(0xFFE04F5F),
-      ToastType.info => const Color(0xFF3B82F6),
-      ToastType.warning => const Color(0xFFE1A11A),
+      ToastType.success => DdtTheme.successColor,
+      ToastType.error => DdtTheme.dangerColor,
+      ToastType.info => DdtTheme.primaryColor,
+      ToastType.warning => DdtTheme.warningColor,
     };
     final icon = switch (type) {
       ToastType.success => DdtIcons.success,
@@ -61,16 +61,19 @@ abstract final class DdtToast {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 36.r,
-                      height: 36.r,
+                      width: 34.r,
+                      height: 34.r,
                       decoration: BoxDecoration(
                         color: accentColor.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(10.r),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: accentColor.withValues(alpha: 0.28),
+                        ),
                       ),
                       child: DdtIcon(
                         icon,
                         color: accentColor,
-                        size: 21.r,
+                        size: 18.r,
                         fitParent: true,
                       ),
                     ),

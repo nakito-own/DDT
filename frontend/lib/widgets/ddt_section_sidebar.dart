@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -91,12 +90,24 @@ class DdtSectionSidebarTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        DdtIcon(
-          DdtIcons.sliders,
-          size: 18.sp,
-          color: AppColors.primary.withValues(alpha: 0.85),
+        Container(
+          width: 24.w,
+          height: 24.w,
+          decoration: BoxDecoration(
+            color: DdtTheme.primaryColor.withValues(
+              alpha: isDark ? 0.20 : 0.10,
+            ),
+            borderRadius: BorderRadius.circular(6.r),
+          ),
+          alignment: Alignment.center,
+          child: DdtIcon(
+            DdtIcons.sliders,
+            size: 12.sp,
+            color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+          ),
         ),
         SizedBox(width: 8.w),
         Expanded(
@@ -104,7 +115,7 @@ class DdtSectionSidebarTitle extends StatelessWidget {
             title,
             style: DdtTheme.style(
               fontSize: DdtTypography.sectionTitleSize,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
           ),

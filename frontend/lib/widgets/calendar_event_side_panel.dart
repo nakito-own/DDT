@@ -252,15 +252,16 @@ class _DetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
       decoration: BoxDecoration(
-        color:
-            background ??
-            AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08),
-        borderRadius: DdtTheme.radius,
+        color: background ?? DdtTheme.inputFillColor(context),
+        borderRadius: DdtTheme.inputControlBorderRadius,
+        border: Border.all(
+          color: DdtTheme.borderSubtle(context),
+          width: 1,
+        ),
       ),
       child: child ??
           Column(
@@ -383,26 +384,27 @@ class _AttendeeRow extends StatelessWidget {
     final muted = DdtTheme.sidePanelTextSecondary(context);
     final status = attendee.responseLabel;
     return Container(
-      padding: EdgeInsets.fromLTRB(8.w, 8.h, 12.w, 8.h),
+      padding: EdgeInsets.fromLTRB(10.w, 8.h, 12.w, 8.h),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(16.r),
+        color: DdtTheme.inputFillColor(context),
+        borderRadius: DdtTheme.inputControlBorderRadius,
+        border: Border.all(color: DdtTheme.borderSubtle(context)),
       ),
       child: Row(
         children: [
           Container(
-            width: 28.w,
-            height: 28.w,
+            width: 26.w,
+            height: 26.w,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12),
+              color: DdtTheme.primaryColor.withValues(
+                alpha: isDark ? 0.22 : 0.10,
+              ),
             ),
             child: DdtIcon(
               DdtIcons.user,
-              size: 13.sp,
-              color: AppColors.primary,
+              size: 12.sp,
+              color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
               fitParent: true,
             ),
           ),

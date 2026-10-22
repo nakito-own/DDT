@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import '../theme/ddt_typography.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -98,7 +97,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               ? null
               : () => context.go(RoutePaths.spaceArchiveFor(selectedSpaceKey)),
         ),
-        SizedBox(width: DdtTheme.shellSizeOf(context, 12)),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
         FutureBuilder<List<Space>>(
           future: _spaces,
           builder: (context, snapshot) {
@@ -146,10 +145,9 @@ class _TasksAppBarActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Активный вид определяется из URL — GoRouter является источником истины.
-    // Это гарантирует корректное отображение при прямом открытии URL
-    // (например, /tasks/list) и при навигации через кнопки браузера.
-    final location = GoRouterState.of(context).matchedLocation;
+    // Shell routes expose their own prefix in matchedLocation (`/tasks`),
+    // while uri.path is the page that is actually open.
+    final location = GoRouterState.of(context).uri.path;
     final activeMode = TasksViewMode.fromRoute(location);
     final archiveOpen = RoutePaths.isArchiveRoute(location);
 
@@ -187,7 +185,9 @@ class _TasksAppBarActions extends StatelessWidget {
 }
 
 class _MailAppBarFolderStats extends StatelessWidget {
-  const _MailAppBarFolderStats();
+  const _MailAppBarFolderStats({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -202,17 +202,63 @@ class _MailAppBarFolderStats extends StatelessWidget {
         final folders = state.folders;
         final hasError = state.inboxQueryErrorMessage != null;
         final borderColor = hasError
-            ? AppColors.error.withValues(alpha: 0.55)
-            : AppColors.primary.withValues(alpha: isDark ? 0.35 : 0.22);
+            ? DdtTheme.dangerColor.withValues(alpha: 0.55)
+            : DdtTheme.borderSubtle(context);
+        final inboxValue = folders == null ? '…' : '${folders.inbox}';
+        final sentValue = folders == null ? '…' : '${folders.sent}';
+
+        if (dense) {
+          Widget glassStat({
+            required FaIconData icon,
+            required String label,
+            required String value,
+          }) {
+            return Tooltip(
+              message: hasError ? state.inboxQueryErrorMessage! : label,
+              child: DdtTheme.shellAppBarGlass(
+                context: context,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10 * shell,
+                  vertical: 8 * shell,
+                ),
+                child: _MailAppBarStatItem(
+                  icon: icon,
+                  label: label,
+                  value: value,
+                  dense: true,
+                ),
+              ),
+            );
+          }
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              glassStat(
+                icon: DdtIcons.inbox,
+                label: 'Входящие',
+                value: inboxValue,
+              ),
+              SizedBox(width: 8 * shell),
+              glassStat(
+                icon: DdtIcons.mail,
+                label: 'Отправленные',
+                value: sentValue,
+              ),
+            ],
+          );
+        }
 
         final stats = Container(
           padding: EdgeInsets.symmetric(
             horizontal: 10 * shell,
-            vertical: 4 * shell,
+            vertical: 5 * shell,
           ),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
-            borderRadius: BorderRadius.circular(999),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white.withValues(alpha: 0.65),
+            borderRadius: DdtTheme.inputControlBorderRadius,
             border: Border.all(color: borderColor, width: 1),
           ),
           child: Row(
@@ -221,22 +267,22 @@ class _MailAppBarFolderStats extends StatelessWidget {
               _MailAppBarStatItem(
                 icon: DdtIcons.inbox,
                 label: 'Входящие',
-                value: folders == null ? '…' : '${folders.inbox}',
+                value: inboxValue,
+                dense: dense,
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10 * shell),
                 child: Container(
                   width: 1,
                   height: 12 * shell,
-                  color: AppColors.primary.withValues(
-                    alpha: isDark ? 0.35 : 0.25,
-                  ),
+                  color: DdtTheme.borderStrong(context),
                 ),
               ),
               _MailAppBarStatItem(
                 icon: DdtIcons.mail,
                 label: 'Отправленные',
-                value: folders == null ? '…' : '${folders.sent}',
+                value: sentValue,
+                dense: dense,
               ),
             ],
           ),
@@ -256,11 +302,13 @@ class _MailAppBarStatItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.dense = false,
   });
 
   final FaIconData icon;
   final String label;
   final String value;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -273,24 +321,26 @@ class _MailAppBarStatItem extends StatelessWidget {
         DdtIcon(
           icon,
           size: 11 * shell,
-          color: AppColors.primary.withValues(alpha: 0.9),
+          color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
         ),
-        SizedBox(width: 4 * shell),
-        Text(
-          '$label:',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.microSize,
-            fontWeight: FontWeight.w500,
-            color: DdtTheme.taskCardTextSecondary(context),
+        SizedBox(width: 5 * shell),
+        if (!dense) ...[
+          Text(
+            '$label:',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.microSize,
+              fontWeight: FontWeight.w500,
+              color: DdtTheme.textMuted(context),
+            ),
           ),
-        ),
-        SizedBox(width: 3 * shell),
+          SizedBox(width: 4 * shell),
+        ],
         Text(
           value,
           style: DdtTheme.style(
             fontSize: DdtTypography.captionSize,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.w600,
+            color: DdtTheme.textPrimary(context),
           ),
         ),
       ],
@@ -299,7 +349,9 @@ class _MailAppBarStatItem extends StatelessWidget {
 }
 
 class _MailAppBarActions extends StatelessWidget {
-  const _MailAppBarActions();
+  const _MailAppBarActions({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +388,7 @@ class _MailAppBarActions extends StatelessWidget {
               },
             ),
             SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
-            const _MailAppBarFolderStats(),
+            _MailAppBarFolderStats(dense: dense),
           ],
         );
       },
@@ -391,8 +443,7 @@ class CalendarAppBarDateNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final foregroundColor = isDark ? Colors.white : AppColors.primary;
+    final foregroundColor = DdtTheme.textPrimary(context);
 
     return BlocBuilder<CalendarBloc, CalendarState>(
       buildWhen: (previous, current) =>
@@ -409,18 +460,18 @@ class CalendarAppBarDateNav extends StatelessWidget {
                 const CalendarGoPreviousRequested(),
               ),
             ),
-            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
             Text(
               state.titleLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(
-                fontSize: DdtTypography.panelTitleSize,
+                fontSize: DdtTypography.bodyLargeSize,
                 fontWeight: FontWeight.w600,
                 color: foregroundColor,
               ),
             ),
-            SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+            SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
             _AppBarIconAction(
               tooltip: 'Вперёд',
               icon: DdtIcons.chevronRight,
@@ -570,20 +621,16 @@ class _AppBarIconAction extends StatefulWidget {
   const _AppBarIconAction({
     required this.tooltip,
     required this.icon,
-    this.label,
     this.onPressed,
     this.contextMenuItems,
-    this.placement = DdtContextMenuPlacement.belowCenter,
     this.isBusy = false,
     this.isActive = false,
   });
 
   final String tooltip;
   final FaIconData icon;
-  final String? label;
   final VoidCallback? onPressed;
   final List<DdtContextMenuItem>? contextMenuItems;
-  final DdtContextMenuPlacement placement;
   final bool isBusy;
   final bool isActive;
 
@@ -593,6 +640,7 @@ class _AppBarIconAction extends StatefulWidget {
 
 class _AppBarIconActionState extends State<_AppBarIconAction> {
   final _anchorKey = GlobalKey();
+  bool _hovered = false;
 
   void _handlePressed() {
     if (widget.contextMenuItems != null) {
@@ -600,7 +648,7 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
         context: context,
         anchorKey: _anchorKey,
         items: widget.contextMenuItems!,
-        placement: widget.placement,
+        placement: DdtContextMenuPlacement.belowCenter,
       );
       return;
     }
@@ -610,11 +658,12 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final foregroundColor = widget.isActive
-        ? AppColors.primary
-        : (isDark ? Colors.white : AppColors.primary);
+        ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
+        : (_hovered
+              ? DdtTheme.textPrimary(context)
+              : DdtTheme.textSecondary(context));
     final iconSize = DdtGlassAppBar.actionIconSizeOf(context);
 
     final onPressed = widget.isBusy ? null : _handlePressed;
@@ -629,49 +678,71 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
           )
         : DdtIcon(widget.icon, color: foregroundColor, size: iconSize);
 
+    final bgColor = widget.isActive
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.22 : 0.10)
+        : (_hovered
+              ? (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : const Color(0xFFF1F5F9))
+              : Colors.transparent);
+
     return KeyedSubtree(
       key: _anchorKey,
-      child: widget.label == null
-          ? IconButton(
-              tooltip: widget.tooltip,
-              visualDensity: VisualDensity.compact,
-              padding: DdtGlassAppBar.actionIconButtonPadding(context),
-              constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
-              style: widget.isActive
-                  ? IconButton.styleFrom(
-                      backgroundColor: AppColors.primary.withValues(
-                        alpha: isDark ? 0.22 : 0.12,
-                      ),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: DdtTheme.inputControlBorderRadius,
+            border: Border.all(
+              color: widget.isActive
+                  ? DdtTheme.primaryColor.withValues(
+                      alpha: isDark ? 0.35 : 0.22,
                     )
-                  : null,
-              onPressed: onPressed,
-              icon: icon,
-            )
-          : Tooltip(
-              message: widget.tooltip,
-              child: TextButton.icon(
-                onPressed: onPressed,
-                style: TextButton.styleFrom(
-                  foregroundColor: foregroundColor,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: DdtTheme.shellSizeOf(context, 8),
-                    vertical: DdtTheme.shellSizeOf(context, 4),
-                  ),
-                  shape: RoundedRectangleBorder(borderRadius: DdtTheme.radius),
-                ),
-                iconAlignment: IconAlignment.end,
-                icon: icon,
-                label: Text(
-                  widget.label!,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSmallSize,
-                    fontWeight: FontWeight.w600,
-                    color: foregroundColor,
-                  ),
-                ),
-              ),
+                  : Colors.transparent,
             ),
+          ),
+          child: IconButton(
+            tooltip: widget.tooltip,
+            visualDensity: VisualDensity.compact,
+            padding: DdtGlassAppBar.actionIconButtonPadding(context),
+            constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
+            onPressed: onPressed,
+            icon: icon,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// View switcher and archive button floating over the task list.
+class TasksMobileViewBar extends StatelessWidget {
+  const TasksMobileViewBar({super.key});
+
+  static const double reserve = 64;
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: _TasksAppBarActions(),
+    );
+  }
+}
+
+/// Refresh, selection and folder counts floating over the message list.
+class MailMobileDock extends StatelessWidget {
+  const MailMobileDock({super.key});
+
+  static const double reserve = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: _MailAppBarActions(dense: true),
     );
   }
 }

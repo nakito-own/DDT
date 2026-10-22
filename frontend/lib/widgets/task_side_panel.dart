@@ -1657,16 +1657,18 @@ class _TaskChildRelationChip extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: DdtTheme.badgeBorderRadius,
         color: isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : AppColors.primary.withValues(alpha: 0.08),
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.72),
         border: Border.all(
-          color: DdtTheme.glassBorderColor(brightness).withValues(alpha: 0.28),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.11)
+              : DdtTheme.borderSubtle(context),
         ),
       ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(10.w, 5.h, 4.w, 5.h),
+        padding: EdgeInsets.fromLTRB(8.w, 4.h, 4.w, 4.h),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1674,8 +1676,8 @@ class _TaskChildRelationChip extends StatelessWidget {
               child.key,
               style: DdtTheme.style(
                 fontSize: DdtTypography.captionSize,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+                color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
               ),
             ),
             SizedBox(width: 6.w),
@@ -1687,7 +1689,7 @@ class _TaskChildRelationChip extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: DdtTheme.style(
                   fontSize: DdtTypography.captionSize,
-                  color: DdtTheme.sidePanelTextMuted(context),
+                  color: DdtTheme.sidePanelTextSecondary(context),
                 ),
               ),
             ),
@@ -1696,7 +1698,7 @@ class _TaskChildRelationChip extends StatelessWidget {
               type: MaterialType.transparency,
               child: InkWell(
                 onTap: onRemove,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: DdtTheme.badgeBorderRadius,
                 child: Padding(
                   padding: EdgeInsets.all(4.w),
                   child: DdtIcon(

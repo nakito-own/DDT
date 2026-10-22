@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -41,19 +40,21 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
   }
 
   Widget _buildContent(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final label = widget.label;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        DdtIcon(widget.icon, size: 20.sp, color: AppColors.primary),
+        DdtIcon(widget.icon, size: 18.sp, color: accent),
         if (label != null) ...[
           SizedBox(width: 8.w),
           Text(
             label,
             style: DdtTheme.style(
-              fontSize: DdtTypography.bodySize,
+              fontSize: DdtTypography.labelSize,
               fontWeight: FontWeight.w600,
               color: textPrimary,
             ),

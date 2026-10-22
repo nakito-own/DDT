@@ -38,6 +38,11 @@ void main() {
   }
 
   testWidgets('Kanban board renders columns', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(buildTestApp());
     await tester.pumpAndSettle();
 

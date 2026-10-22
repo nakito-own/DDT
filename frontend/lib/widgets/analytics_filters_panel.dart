@@ -80,7 +80,7 @@ class AnalyticsFiltersPanel extends StatelessWidget {
       }
     }
 
-    final panelBackground = Theme.of(context).scaffoldBackgroundColor;
+    final panelBackground = DdtTheme.scaffoldBackground(context);
 
     return ColoredBox(
       color: panelBackground,

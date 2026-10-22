@@ -7,14 +7,15 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
+import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_side_panel.dart';
+import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_shell_metrics.dart';
-import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
-import '../widgets/ddt_section_sidebar.dart';
 import '../widgets/tasks_filters_panel.dart';
 import '../theme/ddt_typography.dart';
 
@@ -108,63 +109,54 @@ class TasksListPage extends StatelessWidget {
         final tasks = state.filteredTasks;
         final archivedOnly = context.read<TasksBloc>().archivedOnly;
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DdtSectionSidebarFrame(
-              child: TasksFiltersPanel(
-                onCreatePressed: archivedOnly
-                    ? null
-                    : () => _createTask(context),
-              ),
-            ),
-            DdtSectionSidebar.afterScrollbarGapBox(),
-            const DdtSidePanelDivider(),
-            DdtSectionSidebar.dividerGap(),
-            Expanded(
-              child: state.isLoading && tasks.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : tasks.isEmpty
-                  ? Align(
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: DdtShellMetrics.fixedTopPadding(context),
-                        child: Text(
-                          archivedOnly
-                              ? 'В архиве нет задач'
-                              : 'Нет задач по выбранным фильтрам',
-                          style: DdtTheme.style(
-                            fontSize: DdtTypography.bodySize,
-                          ),
-                        ),
-                      ),
-                    )
-                  : DdtScrollEdgeFade(
-                      child: ListView.separated(
-                        padding: DdtShellMetrics.scrollPadding(context)
-                            .copyWith(
-                              bottom: DdtScrollEdgeFade.listBottomPadding(
-                                context,
-                              ),
-                            ),
-                        clipBehavior: Clip.none,
-                        itemCount: tasks.length,
-                        separatorBuilder: (_, _) => SizedBox(height: 10.h),
-                        itemBuilder: (context, index) {
-                          final task = tasks[index];
-                          return TaskCard(
-                            key: ValueKey(task.id),
-                            task: task,
-                            onTap: () => _openTask(context, task),
-                            onArchive: archivedOnly
-                                ? null
-                                : () => _archiveTask(context, task),
-                          );
-                        },
-                      ),
+        return DdtAdaptiveSectionColumns(
+          sheetTitle: 'Фильтры',
+          sidebar: TasksFiltersPanel(
+            onCreatePressed: archivedOnly ? null : () => _createTask(context),
+          ),
+          body: state.isLoading && tasks.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : tasks.isEmpty
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: DdtShellMetrics.fixedTopPadding(context),
+                    child: Text(
+                      archivedOnly
+                          ? 'В архиве нет задач'
+                          : 'Нет задач по выбранным фильтрам',
+                      style: DdtTheme.style(fontSize: DdtTypography.bodySize),
                     ),
-            ),
-          ],
+                  ),
+                )
+              : DdtScrollEdgeFade(
+                  child: ScrollConfiguration(
+                    behavior: const DdtBalancedScrollBehavior(),
+                    child: ListView.separated(
+                      padding: DdtShellMetrics.scrollPadding(context).copyWith(
+                        bottom:
+                            DdtScrollEdgeFade.listBottomPadding(context) +
+                            (DdtAdaptive.isCompact(context)
+                                ? TasksMobileViewBar.reserve
+                                : 0),
+                      ),
+                      clipBehavior: Clip.none,
+                      itemCount: tasks.length,
+                      separatorBuilder: (_, _) => SizedBox(height: 10.h),
+                      itemBuilder: (context, index) {
+                        final task = tasks[index];
+                        return TaskCard(
+                          key: ValueKey(task.id),
+                          task: task,
+                          onTap: () => _openTask(context, task),
+                          onArchive: archivedOnly
+                              ? null
+                              : () => _archiveTask(context, task),
+                        );
+                      },
+                    ),
+                  ),
+                ),
         );
       },
     );
