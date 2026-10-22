@@ -181,7 +181,7 @@ class DdtContextMenu extends StatelessWidget {
   final List<DdtContextMenuItem> items;
   final VoidCallback? onItemSelected;
 
-  static const double itemBorderRadius = 10;
+  static const double itemBorderRadius = 6;
   static const double menuMinWidth = 180;
 
   @override
@@ -444,22 +444,26 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
   bool _hovered = false;
 
   Color _backgroundColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (!widget.item.enabled) {
-      return Colors.transparent;
+      return DdtTheme.primaryColor.withValues(alpha: 0.0);
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (widget.item.isSelected) {
-      return AppColors.primary.withValues(
-        alpha: isDark ? (_hovered ? 0.22 : 0.18) : (_hovered ? 0.12 : 0.10),
+      return DdtTheme.primaryColor.withValues(
+        alpha: isDark ? (_hovered ? 0.22 : 0.16) : (_hovered ? 0.13 : 0.09),
       );
     }
 
-    if (!_hovered) {
-      return Colors.transparent;
+    if (widget.item.isDestructive) {
+      return DdtTheme.dangerColor.withValues(
+        alpha: _hovered ? (isDark ? 0.16 : 0.09) : 0.0,
+      );
     }
 
-    return AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08);
+    return isDark
+        ? Colors.white.withValues(alpha: _hovered ? 0.06 : 0.0)
+        : DdtTheme.primaryColor.withValues(alpha: _hovered ? 0.08 : 0.0);
   }
 
   Color? _borderColor(BuildContext context) {
@@ -468,30 +472,34 @@ class _DdtContextMenuItemTileState extends State<_DdtContextMenuItemTile> {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return AppColors.primary.withValues(alpha: isDark ? 0.45 : 0.32);
+    return DdtTheme.primaryColor.withValues(alpha: isDark ? 0.36 : 0.22);
   }
 
   Color _foregroundColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (!widget.item.enabled) {
       return DdtTheme.taskCardTextSecondary(context).withValues(alpha: 0.45);
     }
     if (widget.item.isDestructive) {
-      return AppColors.error;
+      return DdtTheme.dangerColor;
     }
     if (widget.item.isSelected) {
-      return AppColors.primary.withValues(alpha: 0.95);
+      return isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     }
     return DdtTheme.taskCardTextPrimary(context);
   }
 
   Color _iconColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (widget.item.isDestructive) {
-      return AppColors.error;
+      return DdtTheme.dangerColor;
     }
     if (widget.item.isSelected) {
-      return AppColors.primary.withValues(alpha: 0.95);
+      return isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     }
-    return DdtTheme.taskCardIconMuted(context);
+    return _hovered
+        ? DdtTheme.textSecondary(context)
+        : DdtTheme.taskCardIconMuted(context);
   }
 
   @override

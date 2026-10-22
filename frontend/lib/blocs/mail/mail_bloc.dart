@@ -19,6 +19,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     on<MailConversationToggled>(_onConversationToggled);
     on<MailMessageActionRequested>(_onMessageActionRequested);
     on<MailMessageSelected>(_onMessageSelected);
+    on<MailDetailClosed>(_onDetailClosed);
     on<MailMessageSendRequested>(_onMessageSendRequested);
     on<MailSelectionModeEntered>(_onSelectionModeEntered);
     on<MailSelectionToggled>(_onSelectionToggled);
@@ -437,6 +438,16 @@ class MailBloc extends Bloc<MailEvent, MailState> {
   }
 
   // ─── Message detail ───────────────────────────────────────────────────────
+
+  void _onDetailClosed(MailDetailClosed event, Emitter<MailState> emit) {
+    if (state.selectedMessage == null && !state.isLoadingDetail) return;
+    emit(
+      state.copyWith(
+        selectedMessage: () => null,
+        isLoadingDetail: false,
+      ),
+    );
+  }
 
   Future<void> _onMessageSelected(
     MailMessageSelected event,

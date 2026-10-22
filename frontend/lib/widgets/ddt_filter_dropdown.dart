@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -12,7 +11,7 @@ import 'ddt_checkbox.dart';
 import 'ddt_context_menu.dart';
 import 'ddt_icon.dart';
 
-/// Vertical inset for hover scale and focus shadow; width comes from the sidebar.
+/// Vertical inset for focus shadow; width comes from the sidebar.
 class DdtFilterDropdownHoverSlot extends StatelessWidget {
   const DdtFilterDropdownHoverSlot({required this.child, super.key});
 
@@ -38,7 +37,7 @@ class DdtFilterLabel extends StatelessWidget {
       text,
       style: DdtTheme.style(
         fontSize: DdtTypography.labelSmallSize,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: DdtTheme.textMuted(context),
       ),
     );
@@ -133,7 +132,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
   }
 }
 
-/// Glass search panel shared by filter sidebars and compact form pickers.
+/// Searchable popover panel shared by filter sidebars and compact form pickers.
 Future<void> showDdtSearchableFilterMenu({
   required BuildContext context,
   required BuildContext anchorContext,
@@ -158,6 +157,7 @@ Future<void> showDdtSearchableFilterMenu({
     context: context,
     anchorContext: anchorContext,
     placement: DdtContextMenuPlacement.belowStart,
+    offset: Offset(0, 4.h),
     childBuilder: (dismiss) => _DdtSearchableFilterMenu(
       options: options,
       selected: selected,
@@ -203,17 +203,16 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final highlighted = widget.active || _hovered;
     final fill = widget.active
-        ? AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.10)
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.16 : 0.08)
         : _hovered
         ? DdtTheme.inputFillColorHover(context)
         : DdtTheme.inputFillColor(context);
     final border = widget.active
-        ? AppColors.primary.withValues(alpha: _hovered ? 0.62 : 0.42)
-        : DdtTheme.inputBorderColor(
-            context,
-          ).withValues(alpha: _hovered ? 0.55 : 0.32);
+        ? DdtTheme.primaryColor.withValues(alpha: _hovered ? 0.55 : 0.38)
+        : (_hovered
+              ? DdtTheme.borderStrong(context)
+              : DdtTheme.borderSubtle(context));
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -222,105 +221,88 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
       child: GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedScale(
-          scale: _hovered ? 1.015 : 1,
+        child: AnimatedContainer(
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
+          width: double.infinity,
+          height: widget.compact
+              ? kDdtCompactFilterDropdownHeight
+              : DdtTheme.compactInputControlHeight,
           alignment: Alignment.center,
-          child: AnimatedContainer(
-            duration: DdtTheme.selectionAnimationDuration,
-            curve: DdtTheme.selectionAnimationCurve,
-            width: double.infinity,
-            height: widget.compact
-                ? kDdtCompactFilterDropdownHeight
-                : DdtTheme.compactInputControlHeight,
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.compact ? 10.w : 12.w,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: DdtTheme.radius,
-              border: Border.all(color: border),
-              color: fill,
-              boxShadow: highlighted
-                  ? DdtTheme.inputFocusShadow(context)
-                  : const [],
-            ),
-            child: Row(
-              children: [
-                if (widget.icon != null) ...[
-                  AnimatedScale(
-                    scale: _hovered ? 1.08 : 1,
-                    duration: DdtTheme.selectionAnimationDuration,
-                    curve: DdtTheme.selectionAnimationCurve,
-                    child: DdtIcon(
-                      widget.icon!,
-                      size: (widget.compact ? 14 : 16).sp,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  SizedBox(width: (widget.compact ? 6 : 8).w),
-                ],
-                Expanded(
-                  child: AnimatedDefaultTextStyle(
-                    duration: DdtTheme.selectionAnimationDuration,
-                    curve: DdtTheme.selectionAnimationCurve,
-                    style: DdtTheme.style(
-                      fontSize: widget.compact
-                          ? DdtTypography.labelSmallSize
-                          : DdtTypography.labelSize,
-                      fontWeight: widget.active
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                      color: DdtTheme.textPrimary(context),
-                    ),
-                    child: Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.compact ? 10.w : 12.w,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: DdtTheme.inputControlBorderRadius,
+            border: Border.all(color: border),
+            color: fill,
+          ),
+          child: Row(
+            children: [
+              if (widget.icon != null) ...[
+                DdtIcon(
+                  widget.icon!,
+                  size: (widget.compact ? 13 : 14).sp,
+                  color: widget.active
+                      ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
+                      : DdtTheme.textMuted(context),
                 ),
-                AnimatedSwitcher(
-                  duration: DdtTheme.selectionAnimationDuration,
-                  switchInCurve: DdtTheme.selectionAnimationCurve,
-                  child: widget.active && widget.badge > 0
-                      ? Container(
-                          key: ValueKey(widget.badge),
-                          margin: EdgeInsets.only(right: 8.w),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 7.w,
-                            vertical: 2.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            '${widget.badge}',
-                            style: DdtTheme.style(
-                              fontSize: DdtTypography.microSize,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('no-badge')),
-                ),
-                AnimatedRotation(
-                  turns: _hovered ? 0.5 : 0,
+                SizedBox(width: (widget.compact ? 6 : 8).w),
+              ],
+              Expanded(
+                child: AnimatedDefaultTextStyle(
                   duration: DdtTheme.selectionAnimationDuration,
                   curve: DdtTheme.selectionAnimationCurve,
-                  child: DdtIcon(
-                    DdtIcons.chevronDown,
-                    size: 14.sp,
-                    color: highlighted
-                        ? AppColors.primary
-                        : DdtTheme.textMuted(context),
+                  style: DdtTheme.style(
+                    fontSize: widget.compact
+                        ? DdtTypography.labelSmallSize
+                        : DdtTypography.labelSize,
+                    fontWeight: widget.active
+                        ? FontWeight.w600
+                        : FontWeight.w500,
+                    color: DdtTheme.textPrimary(context),
+                  ),
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ],
-            ),
+              ),
+              AnimatedSwitcher(
+                duration: DdtTheme.selectionAnimationDuration,
+                switchInCurve: DdtTheme.selectionAnimationCurve,
+                child: widget.active && widget.badge > 0
+                    ? Container(
+                        key: ValueKey(widget.badge),
+                        margin: EdgeInsets.only(right: 6.w),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.w,
+                          vertical: 1.5.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DdtTheme.primaryColor,
+                          borderRadius: DdtTheme.badgeBorderRadius,
+                        ),
+                        child: Text(
+                          '${widget.badge}',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.microSize,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('no-badge')),
+              ),
+              DdtIcon(
+                DdtIcons.chevronDown,
+                size: 12.sp,
+                color: widget.active || _hovered
+                    ? DdtTheme.textSecondary(context)
+                    : DdtTheme.textMuted(context),
+              ),
+            ],
           ),
         ),
       ),
@@ -505,20 +487,22 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
   Color _background(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (widget.checked) {
-      return AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10);
+      return DdtTheme.primaryColor.withValues(alpha: isDark ? 0.18 : 0.10);
     }
-    if (_hovered) {
-      return AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.07);
+    if (isDark) {
+      return Colors.white.withValues(alpha: _hovered ? 0.06 : 0.0);
     }
-    return Colors.transparent;
+    return DdtTheme.primaryColor.withValues(alpha: _hovered ? 0.08 : 0.0);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final enabled = widget.option.enabled && widget.onTap != null;
     final textColor = enabled
         ? DdtTheme.textPrimary(context)
         : DdtTheme.textMuted(context).withValues(alpha: 0.55);
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 1.h),
@@ -535,12 +519,7 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
             padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
             decoration: BoxDecoration(
               color: _background(context),
-              borderRadius: BorderRadius.circular(10.r),
-              border: Border.all(
-                color: widget.checked
-                    ? AppColors.primary.withValues(alpha: 0.28)
-                    : Colors.transparent,
-              ),
+              borderRadius: BorderRadius.circular(6.r),
             ),
             child: Row(
               children: [
@@ -553,17 +532,14 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
                     ),
                   )
                 else
-                  AnimatedScale(
-                    scale: widget.checked || _hovered ? 1.08 : 1,
-                    duration: DdtTheme.selectionAnimationDuration,
-                    curve: DdtTheme.selectionAnimationCurve,
-                    child: DdtIcon(
-                      widget.checked ? DdtIcons.radioOn : DdtIcons.radioOff,
-                      size: 16.sp,
-                      color: widget.checked || _hovered
-                          ? AppColors.primary
-                          : DdtTheme.textMuted(context),
-                    ),
+                  DdtIcon(
+                    widget.checked ? DdtIcons.radioOn : DdtIcons.radioOff,
+                    size: 15.sp,
+                    color: widget.checked
+                        ? accent
+                        : (_hovered
+                              ? DdtTheme.textSecondary(context)
+                              : DdtTheme.textMuted(context)),
                   ),
                 SizedBox(width: 8.w),
                 Expanded(
@@ -576,25 +552,24 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
                           style: DdtTheme.style(
                             fontSize: DdtTypography.labelSize,
                             fontWeight: widget.checked
-                                ? FontWeight.w700
+                                ? FontWeight.w600
                                 : FontWeight.w500,
                             color: textColor,
                           ),
                         ),
                 ),
                 if (widget.option.count != null)
-                  AnimatedDefaultTextStyle(
-                    duration: DdtTheme.selectionAnimationDuration,
+                  Text(
+                    '${widget.option.count}',
                     style: DdtTheme.style(
                       fontSize: DdtTypography.captionSize,
                       fontWeight: widget.checked
-                          ? FontWeight.w700
+                          ? FontWeight.w600
                           : FontWeight.w500,
                       color: widget.checked
-                          ? AppColors.primary
+                          ? accent
                           : DdtTheme.textMuted(context),
                     ),
-                    child: Text('${widget.option.count}'),
                   ),
               ],
             ),

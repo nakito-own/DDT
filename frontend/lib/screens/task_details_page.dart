@@ -423,7 +423,7 @@ class _PinnedTaskChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = Theme.of(context).scaffoldBackgroundColor;
+    final background = DdtTheme.scaffoldBackground(context);
 
     return Stack(
       children: [
@@ -1060,6 +1060,8 @@ class _TaskKeyLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     return InkWell(
       onTap: taskKey.isEmpty ? null : () => context.go(RoutePaths.task(taskKey)),
       child: Padding(
@@ -1069,7 +1071,7 @@ class _TaskKeyLink extends StatelessWidget {
           style: DdtTheme.style(
             fontSize: DdtTypography.labelSize,
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.primary,
+            color: accent,
           ),
         ),
       ),
@@ -1084,6 +1086,8 @@ class _LinkRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     return InkWell(
       onTap: () =>
           launchUrl(Uri.parse(link.url), mode: LaunchMode.externalApplication),
@@ -1093,7 +1097,7 @@ class _LinkRow extends StatelessWidget {
           DdtIcon(
             DdtIcons.link,
             size: 14.sp,
-            color: Theme.of(context).colorScheme.primary,
+            color: accent,
           ),
           SizedBox(width: 8.w),
           Expanded(
@@ -1102,7 +1106,7 @@ class _LinkRow extends StatelessWidget {
               style: DdtTheme.style(
                 fontSize: DdtTypography.labelSize,
                 fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.primary,
+                color: accent,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1138,20 +1142,41 @@ class _ParameterBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark
+        ? Color.lerp(color, Colors.white, 0.36)!
+        : Color.lerp(color, Colors.black, 0.14)!;
+    final dotColor = isDark
+        ? Color.lerp(color, Colors.white, 0.22)!
+        : color;
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        label,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.labelSmallSize,
-          fontWeight: FontWeight.w600,
-          color: color,
+        color: color.withValues(alpha: isDark ? 0.18 : 0.10),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(
+          color: color.withValues(alpha: isDark ? 0.38 : 0.24),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6.w,
+            height: 6.w,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          SizedBox(width: 6.w),
+          Text(
+            label,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSmallSize,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+        ],
       ),
     );
   }

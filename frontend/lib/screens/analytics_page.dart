@@ -14,6 +14,7 @@ import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
 import '../widgets/analytics_charts.dart';
 import '../widgets/analytics_filters_panel.dart';
+import '../widgets/ddt_adaptive.dart';
 import '../widgets/analytics_tables.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_segmented_control.dart';
@@ -262,6 +263,15 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
           onCleared: widget.onFiltersCleared,
         );
 
+        if (DdtAdaptive.isCompact(context)) {
+          return DdtAdaptiveSectionColumns(
+            sheetTitle: 'Фильтры',
+            sheetIcon: DdtIcons.sliders,
+            sidebar: filtersPanel,
+            body: dashboardWithFades,
+          );
+        }
+
         if (!showSideFilters) {
           return Column(
             children: [
@@ -354,42 +364,56 @@ class _DashboardHeader extends StatelessWidget {
       ],
     );
 
-    return Row(
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'КРР МР — Аналитика СТП',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.panelTitleSize,
-                  fontWeight: FontWeight.w800,
-                  color: DdtTheme.textPrimary(context),
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                'Лист «${dashboard.sheetName}» · $count · обновлено $fetched',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.captionSize,
-                  color: DdtTheme.textMuted(context),
-                ),
-              ),
-              if (error != null)
-                Padding(
-                  padding: EdgeInsets.only(top: 6.h),
-                  child: Text(
-                    error,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.captionSize,
-                      color: const Color(0xFFC62828),
-                    ),
-                  ),
-                ),
-            ],
+        Text(
+          'КРР МР — Аналитика СТП',
+          style: DdtTheme.style(
+            fontSize: DdtTypography.panelTitleSize,
+            fontWeight: FontWeight.w800,
+            color: DdtTheme.textPrimary(context),
           ),
         ),
+        SizedBox(height: 4.h),
+        Text(
+          'Лист «${dashboard.sheetName}» · $count · обновлено $fetched',
+          style: DdtTheme.style(
+            fontSize: DdtTypography.captionSize,
+            color: DdtTheme.textMuted(context),
+          ),
+        ),
+        if (error != null)
+          Padding(
+            padding: EdgeInsets.only(top: 6.h),
+            child: Text(
+              error,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.captionSize,
+                color: const Color(0xFFC62828),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    if (DdtAdaptive.isCompact(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titleBlock,
+          SizedBox(height: 10.h),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: controls,
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: titleBlock),
         SizedBox(width: 12.w),
         controls,
       ],
@@ -426,31 +450,31 @@ class _StpKpiGrid extends StatelessWidget {
       (
         'Время решения',
         formatAnalyticsDuration(kpi.medianResolutionHours),
-        const Color(0xFF1976D2),
+        const Color(0xFF7D6BC4),
         'медиана закрытых',
       ),
       (
         'Подтверждено',
         '${kpi.confirmed}',
-        const Color(0xFFF9A825),
+        const Color(0xFFD4943A),
         _shareOfTotal(kpi.confirmed),
       ),
       (
         'Просрочено',
         '${kpi.overdueOpen}',
-        const Color(0xFFC62828),
+        const Color(0xFFD65C5C),
         'просрочено открытых',
       ),
       (
         'Скорость реакции',
         formatAnalyticsReaction(kpi.medianReactionHours),
-        const Color(0xFF00838F),
+        const Color(0xFF4A90C2),
         'из ${kpi.reactionCount} с 2 комментариями',
       ),
       (
         'Ошибки',
         '${kpi.errors}',
-        const Color(0xFF546E7A),
+        const Color(0xFF6B7C93),
         _shareOfTotal(kpi.errors),
       ),
       (
@@ -458,7 +482,7 @@ class _StpKpiGrid extends StatelessWidget {
         topWaiting != null && kpi.topWaitingOivHours != null
             ? formatAnalyticsDuration(kpi.topWaitingOivHours)
             : '—',
-        const Color(0xFFF9A825),
+        const Color(0xFFD4943A),
         topWaiting != null && kpi.topWaitingOivHours != null
             ? '$topWaiting · ${kpi.topWaitingOivOpen} заявок · ${kpi.waitingOpen} всего'
             : (kpi.waitingOpen > 0

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -204,19 +206,23 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final canSend = !_isSending && _controller.text.trim().isNotEmpty;
     final disabledButtonColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.06);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFFF1F5F9);
     final sendButton = Tooltip(
       message: 'Отправить комментарий',
       child: SizedBox.square(
-        dimension: 34,
+        dimension: 30,
         child: IconButton(
           onPressed: canSend ? _send : null,
           style: IconButton.styleFrom(
-            backgroundColor: canSend ? AppColors.primary : disabledButtonColor,
+            backgroundColor: canSend
+                ? DdtTheme.primaryColor
+                : disabledButtonColor,
             foregroundColor: Colors.white,
             disabledForegroundColor: DdtTheme.sidePanelTextMuted(context),
-            shape: const CircleBorder(),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6.r),
+            ),
             padding: EdgeInsets.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
@@ -225,7 +231,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
                   dimension: 14,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : DdtIcon(DdtIcons.arrowUp, size: 17),
+              : DdtIcon(DdtIcons.arrowUp, size: 15),
         ),
       ),
     );
@@ -237,13 +243,13 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
       variant: DdtInputVariant.standard,
       minLines: 1,
       maxLines: 4,
-      contentPadding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-      borderRadius: BorderRadius.circular(14.r),
+      contentPadding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      borderRadius: DdtTheme.inputControlBorderRadius,
       textInputAction: TextInputAction.newline,
       textColor: DdtTheme.sidePanelTextPrimary(context),
       readOnly: _isSending,
       suffix: Padding(
-        padding: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.only(right: 6),
         child: sendButton,
       ),
     );
@@ -293,84 +299,96 @@ class _CommentBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+    final primary = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
 
-    return Align(
-      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: widgetMaxWidth(context)),
-        margin: EdgeInsets.only(bottom: 10.h),
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: isOwn
-              ? primary.withValues(alpha: 0.14)
-              : Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(12.r),
-            topRight: Radius.circular(12.r),
-            bottomLeft: Radius.circular(isOwn ? 12.r : 3.r),
-            bottomRight: Radius.circular(isOwn ? 3.r : 12.r),
-          ),
-          border: Border.all(
-            color: isOwn
-                ? primary.withValues(alpha: 0.28)
-                : DdtTheme.sidePanelDivider(context),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DdtIcon(
-                  DdtIcons.userCircle,
-                  size: 15.sp,
-                  color: isOwn ? primary : DdtTheme.sidePanelTextMuted(context),
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  isOwn
-                      ? 'Вы'
-                      : formatUserRef(
-                          comment.authorId,
-                          fallback: 'Пользователь',
-                        ),
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSmallSize,
-                    fontWeight: FontWeight.w600,
-                    color: DdtTheme.sidePanelTextSecondary(context),
-                  ),
-                ),
-                if (comment.createdAt != null) ...[
-                  SizedBox(width: 10.w),
-                  Text(
-                    formatTaskDateTime(comment.createdAt!.toLocal()),
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.microSize,
-                      color: DdtTheme.sidePanelTextMuted(context),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            SizedBox(height: 6.h),
-            SelectableText(
-              comment.text,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.labelSize,
-                height: 1.4,
-                color: DdtTheme.sidePanelTextPrimary(context),
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8.r),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+            decoration: BoxDecoration(
+              color: isOwn
+                  ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.16 : 0.08)
+                  : DdtTheme.inputFillColor(context),
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(
+                color: isOwn
+                    ? DdtTheme.primaryColor.withValues(
+                        alpha: isDark ? 0.34 : 0.22,
+                      )
+                    : DdtTheme.glassBorderColor(brightness),
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 20.w,
+                      height: 20.w,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: DdtTheme.primaryColor.withValues(
+                          alpha: isDark ? 0.22 : 0.10,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: DdtIcon(
+                        DdtIcons.user,
+                        size: 10.sp,
+                        color: primary,
+                      ),
+                    ),
+                    SizedBox(width: 7.w),
+                    Expanded(
+                      child: Text(
+                        isOwn
+                            ? 'Вы'
+                            : formatUserRef(
+                                comment.authorId,
+                                fallback: 'Пользователь',
+                              ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.labelSmallSize,
+                          fontWeight: FontWeight.w600,
+                          color: DdtTheme.sidePanelTextPrimary(context),
+                        ),
+                      ),
+                    ),
+                    if (comment.createdAt != null) ...[
+                      SizedBox(width: 8.w),
+                      Text(
+                        formatTaskDateTime(comment.createdAt!.toLocal()),
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.microSize,
+                          color: DdtTheme.sidePanelTextMuted(context),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                SizedBox(height: 6.h),
+                SelectableText(
+                  comment.text,
+                  style: DdtTheme.style(
+                    fontSize: DdtTypography.labelSize,
+                    height: 1.45,
+                    color: DdtTheme.sidePanelTextPrimary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
-  }
-
-  double widgetMaxWidth(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    return width < 700 ? width * 0.78 : 520.w;
   }
 }

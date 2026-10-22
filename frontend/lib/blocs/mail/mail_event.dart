@@ -93,6 +93,11 @@ final class MailMessageSelected extends MailEvent {
   List<Object?> get props => [message];
 }
 
+/// Закрыть открытое письмо и вернуться к списку.
+final class MailDetailClosed extends MailEvent {
+  const MailDetailClosed();
+}
+
 /// Отправить новое письмо.
 final class MailMessageSendRequested extends MailEvent {
   const MailMessageSendRequested({

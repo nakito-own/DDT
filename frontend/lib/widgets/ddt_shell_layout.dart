@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_section.dart';
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_app_bar_section_actions.dart';
 import 'ddt_glass_app_bar.dart';
 import 'ddt_glass_navigation_rail.dart';
+import 'ddt_icon.dart';
 import 'ddt_shell_metrics.dart';
 
 class DdtShellLayout extends StatelessWidget {
@@ -33,6 +36,16 @@ class DdtShellLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (DdtAdaptive.isCompact(context)) {
+      return _CompactShellLayout(
+        title: title,
+        selectedSection: selectedSection,
+        onSectionSelected: onSectionSelected,
+        padContent: padContent,
+        child: child,
+      );
+    }
+
     final shellInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing);
     final contentEdge = DdtTheme.shellSizeOf(context, contentRightInset);
     final contentBottom = DdtTheme.shellSizeOf(context, contentBottomInset);
@@ -45,6 +58,7 @@ class DdtShellLayout extends StatelessWidget {
         : contentRowTop;
 
     return Scaffold(
+      backgroundColor: DdtTheme.scaffoldBackground(context),
       extendBodyBehindAppBar: true,
       body: SafeArea(
         child: DdtShellMetrics(
@@ -108,6 +122,185 @@ class DdtShellLayout extends StatelessWidget {
   }
 }
 
+class _CompactShellLayout extends StatefulWidget {
+  const _CompactShellLayout({
+    required this.title,
+    required this.selectedSection,
+    required this.onSectionSelected,
+    required this.padContent,
+    required this.child,
+  });
+
+  final String title;
+  final AppSection selectedSection;
+  final ValueChanged<AppSection> onSectionSelected;
+  final bool padContent;
+  final Widget child;
+
+  @override
+  State<_CompactShellLayout> createState() => _CompactShellLayoutState();
+}
+
+class _CompactShellLayoutState extends State<_CompactShellLayout>
+    with SingleTickerProviderStateMixin {
+  final _sheets = DdtSectionSheetController();
+  final _bar = DdtCompactBarController();
+  late final AnimationController _drawerController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    reverseDuration: const Duration(milliseconds: 200),
+  );
+  bool _drawerShown = false;
+
+  @override
+  void dispose() {
+    _sheets.dispose();
+    _bar.dispose();
+    _drawerController.dispose();
+    super.dispose();
+  }
+
+  void _openDrawer() {
+    setState(() => _drawerShown = true);
+    _drawerController.forward();
+  }
+
+  Future<void> _closeDrawer() async {
+    await _drawerController.reverse();
+    if (mounted) setState(() => _drawerShown = false);
+  }
+
+  bool get _secondaryRow {
+    return switch (widget.selectedSection) {
+      AppSection.space ||
+      AppSection.calendar ||
+      AppSection.analytics => true,
+      _ => false,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contentEdge = DdtTheme.shellSizeOf(
+      context,
+      DdtShellLayout.contentRightInset,
+    );
+    final contentBottom = DdtTheme.shellSizeOf(
+      context,
+      DdtShellLayout.contentBottomInset,
+    );
+    final contentTopInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing / 2);
+    final railLeftInset = DdtTheme.shellSizeOf(
+      context,
+      DdtShellLayout.railAreaLeftInset,
+    );
+
+    return DdtCompactBarScope(
+      controller: _bar,
+      child: DdtSectionSheetScope(
+        controller: _sheets,
+        child: ListenableBuilder(
+          listenable: _bar,
+          builder: (context, _) {
+            final showBack = _bar.hasOverride;
+            final secondaryRow = !showBack && _secondaryRow;
+            final logicalBar = secondaryRow
+                ? DdtGlassAppBar.barHeight + DdtGlassAppBar.secondaryRowHeight
+                : DdtGlassAppBar.barHeight;
+            final barHeight = DdtTheme.shellSizeOf(context, logicalBar);
+            final contentRowTop = railLeftInset + barHeight + contentTopInset;
+            final contentInsetTop = widget.padContent
+                ? contentRowTop + contentTopInset
+                : contentRowTop;
+            final foreground = DdtTheme.textPrimary(context);
+
+            return PopScope(
+              canPop: !_drawerShown,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop && _drawerShown) _closeDrawer();
+              },
+              child: Scaffold(
+              backgroundColor: DdtTheme.scaffoldBackground(context),
+              body: Stack(
+                children: [
+                  SafeArea(
+                child: DdtShellMetrics(
+                  topReserve: contentRowTop,
+                  contentInsetTop: contentInsetTop,
+                  contentInsetBottom: contentBottom,
+                  contentInsetRight: contentEdge,
+                  contentInsetAfterRail: contentEdge,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: contentEdge,
+                        right: contentEdge,
+                        top: 0,
+                        bottom: 0,
+                        child: _ShellMainContent(
+                          padContent: widget.padContent,
+                          contentRowTop: contentRowTop,
+                          child: widget.child,
+                        ),
+                      ),
+                      Positioned(
+                        left: railLeftInset,
+                        right: railLeftInset,
+                        top: railLeftInset,
+                        height: barHeight,
+                        child: DdtGlassAppBar(
+                          title: _bar.title ?? widget.title,
+                          secondaryRow: secondaryRow,
+                          leading: IconButton(
+                            tooltip: showBack ? 'Назад' : 'Разделы',
+                            onPressed: showBack ? _bar.onBack : _openDrawer,
+                            icon: DdtIcon(
+                              showBack ? DdtIcons.back : DdtIcons.dragHandle,
+                              size: DdtGlassAppBar.actionIconSizeOf(context),
+                              color: foreground,
+                            ),
+                          ),
+                          actions: showBack
+                              ? null
+                              : DdtAppBarSectionActions(
+                                  section: widget.selectedSection,
+                                ),
+                          center:
+                              !showBack &&
+                                  widget.selectedSection == AppSection.calendar
+                              ? const CalendarAppBarDateNav()
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                  ),
+                  if (_drawerShown)
+                    Positioned.fill(
+                      child: DdtMobileDrawerLayer(
+                        progress: CurvedAnimation(
+                          parent: _drawerController,
+                          curve: Curves.easeOutCubic,
+                          reverseCurve: Curves.easeInCubic,
+                        ),
+                        selectedSection: widget.selectedSection,
+                        onSectionSelected: widget.onSectionSelected,
+                        onDismiss: _closeDrawer,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellMainContent extends StatelessWidget {
   const _ShellMainContent({
     required this.padContent,
@@ -146,3 +339,4 @@ class _ShellMainContent extends StatelessWidget {
     );
   }
 }
+

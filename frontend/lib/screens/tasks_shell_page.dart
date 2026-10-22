@@ -8,6 +8,8 @@ import '../blocs/tasks/tasks_bloc.dart';
 import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/kanban_board_skeleton.dart';
 
 /// Оболочка раздела задач: управляет загрузкой и ошибками.
@@ -79,6 +81,14 @@ class TasksShellPage extends StatefulWidget {
 }
 
 class _TasksShellPageState extends State<TasksShellPage> {
+  final _chrome = DdtFloatingChromeController();
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -105,18 +115,35 @@ class _TasksShellPageState extends State<TasksShellPage> {
             isInitialLoading &&
             GoRouterState.of(context).uri.path.endsWith('/kanban');
 
-        return Stack(
+        final compact = DdtAdaptive.isCompact(context);
+
+        return DdtFloatingChrome(
+          controller: _chrome,
+          child: ListenableBuilder(
+            listenable: _chrome,
+            builder: (context, _) {
+              return Stack(
           fit: StackFit.expand,
           children: [
             widget.child,
+            if (compact && _chrome.visible)
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [TasksMobileViewBar()],
+                ),
+              ),
             if (showKanbanPlaceholder)
               ColoredBox(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: DdtTheme.scaffoldBackground(context),
                 child: const KanbanBoardSkeleton(),
               )
             else if (isInitialError)
               ColoredBox(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: DdtTheme.scaffoldBackground(context),
                 child: Center(
                   child: Padding(
                     padding: EdgeInsets.all(24.w),
@@ -146,6 +173,9 @@ class _TasksShellPageState extends State<TasksShellPage> {
                 ),
               ),
           ],
+              );
+            },
+          ),
         );
       },
     );

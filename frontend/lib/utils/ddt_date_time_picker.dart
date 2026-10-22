@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -170,103 +172,130 @@ class _DdtDateTimePickerDialogState extends State<_DdtDateTimePickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
     final textPrimary = DdtTheme.textPrimary(context);
     final textMuted = DdtTheme.textMuted(context);
+    final surfaceColor = DdtTheme.pickerSurfaceColor(
+      context,
+    ).withValues(alpha: isDark ? 0.80 : 0.86);
 
     return Dialog(
-      backgroundColor: DdtTheme.pickerSurfaceColor(context),
-      shape: RoundedRectangleBorder(borderRadius: DdtTheme.radius),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 360.w),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 12.h),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Выберите дату и время',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.panelTitleSize,
-                  fontWeight: FontWeight.w700,
-                  color: textPrimary,
-                ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+      child: ClipRRect(
+        borderRadius: DdtTheme.radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: 360.w),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: DdtTheme.radius,
+              border: Border.all(
+                color: DdtTheme.glassBorderColor(brightness),
               ),
-              SizedBox(height: 12.h),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  colorScheme: Theme.of(context).colorScheme.copyWith(
-                    surface: DdtTheme.pickerSurfaceColor(context),
-                  ),
-                ),
-                child: CalendarDatePicker(
-                  initialDate: _selectedDate,
-                  firstDate: widget.firstDate,
-                  lastDate: widget.lastDate,
-                  currentDate: DateTime.now(),
-                  onDateChanged: (date) => setState(() => _selectedDate = date),
-                ),
-              ),
-              Divider(color: DdtTheme.sidePanelDivider(context)),
-              SizedBox(height: 8.h),
-              Text(
-                'Время',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.labelSize,
-                  fontWeight: FontWeight.w600,
-                  color: textMuted,
-                ),
-              ),
-              SizedBox(height: 8.h),
-              Row(
-                children: [
-                  Expanded(
-                    child: _TimeField(
-                      controller: _hourController,
-                      fillColor: DdtTheme.pickerInputFillColor(context),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.w),
-                    child: Text(
-                      ':',
-                      style: DdtTheme.style(
-                        fontSize: DdtTypography.pageTitleSize,
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: _TimeField(
-                      controller: _minuteController,
-                      fillColor: DdtTheme.pickerInputFillColor(context),
-                    ),
-                  ),
-                ],
-              ),
-              if (_timeError != null) ...[
-                SizedBox(height: 8.h),
-                Text(
-                  _timeError!,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSmallSize,
-                    color: AppColors.error,
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
               ],
-              SizedBox(height: 12.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+            ),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 12.h),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Отмена'),
+                  Text(
+                    'Выберите дату и время',
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.panelTitleSize,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
                   ),
-                  TextButton(onPressed: _confirm, child: const Text('ОК')),
+                  SizedBox(height: 12.h),
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: Theme.of(context).colorScheme.copyWith(
+                        surface: Colors.transparent,
+                      ),
+                    ),
+                    child: CalendarDatePicker(
+                      initialDate: _selectedDate,
+                      firstDate: widget.firstDate,
+                      lastDate: widget.lastDate,
+                      currentDate: DateTime.now(),
+                      onDateChanged: (date) =>
+                          setState(() => _selectedDate = date),
+                    ),
+                  ),
+                  Divider(color: DdtTheme.sidePanelDivider(context)),
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Время',
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.labelSize,
+                      fontWeight: FontWeight.w600,
+                      color: textMuted,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _TimeField(
+                          controller: _hourController,
+                          fillColor: DdtTheme.pickerInputFillColor(context),
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w),
+                        child: Text(
+                          ':',
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.pageTitleSize,
+                            fontWeight: FontWeight.w600,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _TimeField(
+                          controller: _minuteController,
+                          fillColor: DdtTheme.pickerInputFillColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_timeError != null) ...[
+                    SizedBox(height: 8.h),
+                    Text(
+                      _timeError!,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSmallSize,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: 12.h),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Отмена'),
+                      ),
+                      TextButton(onPressed: _confirm, child: const Text('ОК')),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),

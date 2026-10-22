@@ -31,8 +31,8 @@ Future<void> main() async {
   await DdtTypography.ensureLoaded();
 
   await BoltKit.initialize(
-    primaryColor: const Color(0xFF1976D2),
-    accentColor: const Color(0xFF64B5F6),
+    primaryColor: DdtTheme.primaryColor,
+    accentColor: DdtTheme.accentColor,
   );
 
   await GetStorage.init(_themeStorageBox);

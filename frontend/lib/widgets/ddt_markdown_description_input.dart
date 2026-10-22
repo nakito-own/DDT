@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:markdown_live/markdown_live.dart';
@@ -27,7 +26,7 @@ class DdtMarkdownDescriptionInput extends StatefulWidget {
     final base = isDark ? MarkdownLiveTheme.dark() : MarkdownLiveTheme.light();
     final textPrimary = DdtTheme.sidePanelTextPrimary(context);
     final textMuted = DdtTheme.sidePanelTextMuted(context);
-    final primary = AppColors.primary;
+    final primary = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final codeBg = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : Colors.black.withValues(alpha: 0.06);
@@ -120,12 +119,16 @@ class _DdtMarkdownDescriptionInputState
 
   @override
   Widget build(BuildContext context) {
-    final fill = DdtTheme.inputFillColor(context);
+    final fill = _focused
+        ? DdtTheme.inputFillColorFocused(context)
+        : (_hovering
+              ? DdtTheme.inputFillColorHover(context)
+              : DdtTheme.inputFillColor(context));
     final border = _focused
-        ? AppColors.primary
-        : DdtTheme.inputBorderColor(context).withValues(
-            alpha: _hovering ? 0.55 : 0.5,
-          );
+        ? DdtTheme.primaryColor
+        : (_hovering
+              ? DdtTheme.borderStrong(context)
+              : DdtTheme.borderSubtle(context));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -141,19 +144,25 @@ class _DdtMarkdownDescriptionInputState
           ),
           SizedBox(height: 7.h),
         ],
-        MarkdownLiveToolbar(
-          controller: widget.controller,
-          backgroundColor: fill,
-          activeColor: AppColors.primary,
-          inactiveColor: DdtTheme.sidePanelTextSecondary(context),
-          iconSize: 17.sp,
-          height: 36.h,
-          padding: EdgeInsets.symmetric(horizontal: 4.w),
-          spacing: 0,
-          borderRadius: DdtTheme.inputControlBorderRadius,
-          showDividers: true,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: DdtTheme.inputControlBorderRadius,
+            border: Border.all(color: DdtTheme.borderSubtle(context)),
+          ),
+          child: MarkdownLiveToolbar(
+            controller: widget.controller,
+            backgroundColor: DdtTheme.inputFillColor(context),
+            activeColor: DdtTheme.primaryColor,
+            inactiveColor: DdtTheme.sidePanelTextSecondary(context),
+            iconSize: 16.sp,
+            height: 34.h,
+            padding: EdgeInsets.symmetric(horizontal: 4.w),
+            spacing: 0,
+            borderRadius: DdtTheme.inputControlBorderRadius,
+            showDividers: true,
+          ),
         ),
-        SizedBox(height: 8.h),
+        SizedBox(height: 6.h),
         MouseRegion(
           onEnter: (_) => setState(() => _hovering = true),
           onExit: (_) => setState(() => _hovering = false),

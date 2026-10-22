@@ -12,9 +12,9 @@ import '../utils/analytics_formatters.dart';
 import 'analytics_charts.dart';
 
 const _successColor = analyticsPositiveColor;
-const _warningColor = Color(0xFFF9A825);
-const _dangerColor = Color(0xFFC62828);
-const _purpleColor = Color(0xFF7B1FA2);
+const _warningColor = Color(0xFFD4943A);
+const _dangerColor = Color(0xFFD65C5C);
+const _purpleColor = Color(0xFF7D6BC4);
 
 class AnalyticsTableColumn {
   const AnalyticsTableColumn(
@@ -47,7 +47,8 @@ class AnalyticsDataTable extends StatelessWidget {
       return SizedBox(height: 80.h, child: const AnalyticsEmptyChart());
     }
 
-    final borderColor = DdtTheme.textMuted(context).withValues(alpha: 0.14);
+    final borderColor = DdtTheme.borderSubtle(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseWidth = columns.fold<double>(
       0,
       (sum, column) => sum + column.width,
@@ -64,7 +65,7 @@ class AnalyticsDataTable extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: 8.w,
-                vertical: header ? 8.h : 7.h,
+                vertical: header ? 9.h : 7.5.h,
               ),
               child: Align(
                 alignment: switch (columns[index].align) {
@@ -80,35 +81,54 @@ class AnalyticsDataTable extends StatelessWidget {
 
         final header = DecoratedBox(
           decoration: BoxDecoration(
-            color: DdtTheme.textMuted(context).withValues(alpha: 0.07),
-            border: Border(bottom: BorderSide(color: borderColor)),
+            color: isDark
+                ? DdtTheme.darkSurfaceSubtle.withValues(alpha: 0.72)
+                : DdtTheme.lightSurfaceSubtle.withValues(alpha: 0.80),
+            border: Border(
+              top: BorderSide(color: borderColor),
+              bottom: BorderSide(color: borderColor),
+            ),
           ),
-          child: Row(
-            children: [
-              for (var i = 0; i < columns.length; i++)
-                cell(
-                  i,
-                  Text(
-                    columns[i].title.toUpperCase(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: columns[i].align,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.microSize,
-                      fontWeight: FontWeight.w700,
-                      color: DdtTheme.textMuted(context),
+          child: Padding(
+            padding: DdtTheme.scrollbarContentGutter(
+              context,
+              AxisDirection.down,
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < columns.length; i++)
+                  cell(
+                    i,
+                    Text(
+                      columns[i].title.toUpperCase(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: columns[i].align,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.microSize,
+                        fontWeight: FontWeight.w700,
+                        color: DdtTheme.textSecondary(context),
+                      ).copyWith(letterSpacing: 0.4),
                     ),
+                    header: true,
                   ),
-                  header: true,
-                ),
-            ],
+              ],
+            ),
           ),
         );
+
+        final gutter = DdtTheme.scrollbarContentGutter(
+          context,
+          AxisDirection.down,
+        );
+        final totalRowWidth =
+            widths.fold<double>(0, (sum, width) => sum + width) +
+            gutter.horizontal;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
-            width: widths.fold<double>(0, (sum, width) => sum + width),
+            width: totalRowWidth,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight.h),
               child: Column(
@@ -219,10 +239,11 @@ class _TicketLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final style = DdtTheme.style(
       fontSize: DdtTypography.labelSmallSize,
       fontWeight: FontWeight.w600,
-      color: AppColors.primary,
+      color: isDark ? DdtTheme.accentColor : AppColors.primary,
     );
     final target = url;
     if (target == null || target.isEmpty) return Text(id, style: style);
@@ -267,20 +288,26 @@ class _Badge extends StatelessWidget {
     final tint = color;
     if (tint == null) return _CellText(label);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark
+        ? Color.lerp(tint, Colors.white, 0.36)!
+        : Color.lerp(tint, Colors.black, 0.14)!;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.5.h),
       decoration: BoxDecoration(
-        color: tint.withValues(alpha: isDark ? 0.22 : 0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: tint.withValues(alpha: isDark ? 0.18 : 0.10),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(
+          color: tint.withValues(alpha: isDark ? 0.38 : 0.24),
+        ),
       ),
       child: Text(
-        label.toUpperCase(),
+        label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: DdtTheme.style(
           fontSize: DdtTypography.microSize,
-          fontWeight: FontWeight.w700,
-          color: tint,
+          fontWeight: FontWeight.w600,
+          color: fg,
         ),
       ),
     );
