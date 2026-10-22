@@ -13,22 +13,42 @@ class TaskPriorityBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = priorityColor(priority);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = priorityColor(priority);
+    final labelColor = isDark
+        ? Color.lerp(baseColor, Colors.white, 0.36)!
+        : Color.lerp(baseColor, Colors.black, 0.14)!;
+    final dotColor = isDark
+        ? Color.lerp(baseColor, Colors.white, 0.22)!
+        : baseColor;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: DdtTheme.radius,
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Text(
-        priority.label,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.captionSize,
-          fontWeight: FontWeight.w600,
-          color: color,
+        color: baseColor.withValues(alpha: isDark ? 0.18 : 0.10),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(
+          color: baseColor.withValues(alpha: isDark ? 0.38 : 0.24),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5.w,
+            height: 5.w,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          SizedBox(width: 5.w),
+          Text(
+            priority.label,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.captionSize,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+        ],
       ),
     );
   }

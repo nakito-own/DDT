@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/ddt_theme.dart';
@@ -69,25 +68,33 @@ class _DdtTappableState extends State<DdtTappable> {
   }
 
   Color? _resolveBackgroundColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final base = widget.selected
         ? widget.selectedBackgroundColor
         : widget.backgroundColor;
 
+    final isFilled = base != null && base.a > 0 && base != Colors.transparent;
+
     if (!widget.enableHoverFill || !_hovered) {
+      if (isFilled) return base;
+      if (widget.enableHoverFill) {
+        return isDark
+            ? Colors.white.withValues(alpha: 0.0)
+            : DdtTheme.primaryColor.withValues(alpha: 0.0);
+      }
       return base;
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isFilled = base != null && base.a > 0 && base != Colors.transparent;
-
     if (isFilled) {
       return Color.alphaBlend(
-        AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.05),
+        DdtTheme.primaryColor.withValues(alpha: isDark ? 0.08 : 0.06),
         base,
       );
     }
 
-    return AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08);
+    return isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : DdtTheme.primaryColor.withValues(alpha: 0.08);
   }
 
   @override

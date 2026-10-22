@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -131,29 +133,40 @@ class _TaskGanttBar extends StatelessWidget {
         : statusColumnColor(task.status);
     final unfinished = task == null || task.status != TaskStatus.done;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final radius = BorderRadius.circular(5.r);
-    final fill = statusColor.withValues(alpha: isDark ? 0.5 : 0.28);
+    final radius = BorderRadius.circular(6.r);
+    final fill = statusColor.withValues(alpha: isDark ? 0.30 : 0.18);
+    final borderColor = statusColor.withValues(alpha: isDark ? 0.58 : 0.38);
 
-    Widget bar = Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: () => activity.onCellTap?.call(activity),
-        borderRadius: radius,
-        splashFactory: NoSplash.splashFactory,
-        child: Ink(
-          decoration: BoxDecoration(color: fill, borderRadius: radius),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.w),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                activity.title ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.labelSmallSize,
-                  fontWeight: FontWeight.w600,
-                  color: DdtTheme.taskCardTextPrimary(context),
+    Widget bar = ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => activity.onCellTap?.call(activity),
+            borderRadius: radius,
+            splashFactory: NoSplash.splashFactory,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: radius,
+                border: Border.all(color: borderColor),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.w),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    activity.title ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.labelSmallSize,
+                      fontWeight: FontWeight.w600,
+                      color: DdtTheme.taskCardTextPrimary(context),
+                    ),
+                  ),
                 ),
               ),
             ),

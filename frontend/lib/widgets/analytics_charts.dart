@@ -10,18 +10,18 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
 
-/// Closed and success series: lighter and more saturated than a dark forest green.
-const analyticsPositiveColor = Color(0xFF22C55E);
+/// Closed and success series: muted sage-emerald green.
+const analyticsPositiveColor = Color(0xFF3E9B74);
 
 List<Color> get _palette => [
-  AppColors.primary,
+  DdtTheme.primaryColor,
   analyticsPositiveColor,
-  const Color(0xFFF9A825),
-  const Color(0xFF7B1FA2),
-  const Color(0xFF00838F),
-  const Color(0xFFC62828),
-  const Color(0xFF546E7A),
-  const Color(0xFFEF6C00),
+  const Color(0xFFD4943A),
+  const Color(0xFF7D6BC4),
+  const Color(0xFF4A90C2),
+  const Color(0xFFD1606A),
+  const Color(0xFF6B7C93),
+  const Color(0xFFD67249),
 ];
 
 const _chartDuration = Duration(milliseconds: 420);
@@ -35,12 +35,19 @@ TextStyle _chartTooltipTextStyle(BuildContext context) =>
     DdtTheme.chartTooltipTextStyle(context);
 
 BorderSide _chartTooltipBorder(BuildContext context) =>
-    BorderSide(color: DdtTheme.textMuted(context).withValues(alpha: 0.35));
+    BorderSide(color: DdtTheme.borderStrong(context));
 
 BoxDecoration _chartTooltipDecoration(BuildContext context) => BoxDecoration(
   color: _chartTooltipBg(context),
-  borderRadius: BorderRadius.circular(4),
+  borderRadius: BorderRadius.circular(8),
   border: Border.fromBorderSide(_chartTooltipBorder(context)),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.12),
+      blurRadius: 10,
+      offset: const Offset(0, 4),
+    ),
+  ],
 );
 
 const _tooltipPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 8);
@@ -382,19 +389,19 @@ Color analyticsStatusColor(String label) {
   if (text.contains('закры') || text.contains('заверш')) {
     return analyticsPositiveColor;
   }
-  if (text.contains('ожидан')) return const Color(0xFFF9A825);
+  if (text.contains('ожидан')) return const Color(0xFFD4943A);
   if (text.contains('процесс') || text.contains('работ')) {
-    return AppColors.primary;
+    return DdtTheme.primaryColor;
   }
-  if (text.contains('назнач')) return const Color(0xFF7B1FA2);
-  return const Color(0xFF546E7A);
+  if (text.contains('назнач')) return const Color(0xFF7D6BC4);
+  return const Color(0xFF6B7C93);
 }
 
 Color analyticsSeriesColor(int index) => _palette[index % _palette.length];
 
 Color analyticsSliceColor(String label, int index) {
   final status = analyticsStatusColor(label);
-  if (status != const Color(0xFF546E7A)) return status;
+  if (status != const Color(0xFF6B7C93)) return status;
   return analyticsSeriesColor(index);
 }
 
@@ -1076,7 +1083,7 @@ class AnalyticsTrendChart extends StatelessWidget {
         children: [
           const _ChartLegend(
             items: [
-              _LegendItem('Создано', Color(0xFF1976D2)),
+              _LegendItem('Создано', DdtTheme.primaryColor),
               _LegendItem('Закрыто', analyticsPositiveColor),
             ],
           ),
@@ -1187,7 +1194,7 @@ class AnalyticsTrendChart extends StatelessWidget {
       children: [
         const _ChartLegend(
           items: [
-            _LegendItem('Создано', Color(0xFF1976D2)),
+            _LegendItem('Создано', DdtTheme.primaryColor),
             _LegendItem('Закрыто', analyticsPositiveColor),
           ],
         ),
@@ -1425,8 +1432,8 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
         const _ChartLegend(
           items: [
             _LegendItem('Закрыто', analyticsPositiveColor),
-            _LegendItem('В работе', Color(0xFF1976D2)),
-            _LegendItem('Ожидание действий от клиента', Color(0xFFF9A825)),
+            _LegendItem('В работе', DdtTheme.primaryColor),
+            _LegendItem('Ожидание действий от клиента', Color(0xFFD4943A)),
           ],
         ),
         SizedBox(height: 8.h),
@@ -1788,7 +1795,7 @@ class AnalyticsSolvedChart extends StatelessWidget {
         const _ChartLegend(
           items: [
             _LegendItem('Решено', analyticsPositiveColor),
-            _LegendItem('Подтверждение', Color(0xFF1976D2)),
+            _LegendItem('Подтверждение', DdtTheme.primaryColor),
           ],
         ),
         SizedBox(height: 8.h),

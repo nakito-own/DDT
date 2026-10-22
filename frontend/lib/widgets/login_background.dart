@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -136,15 +135,15 @@ class _GradientFallback extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? [
-                  const Color(0xFF030508),
-                  AppColors.primary.withValues(alpha: 0.55),
-                  const Color(0xFF0A1018),
+              ? const [
+                  Color(0xFF101520),
+                  Color(0xFF172032),
+                  Color(0xFF121824),
                 ]
-              : [
-                  AppColors.primary.withValues(alpha: 0.22),
-                  const Color(0xFFDCE8F5),
-                  AppColors.accent.withValues(alpha: 0.28),
+              : const [
+                  Color(0xFFE6ECF7),
+                  Color(0xFFEEF2F7),
+                  Color(0xFFE3EBF6),
                 ],
         ),
       ),

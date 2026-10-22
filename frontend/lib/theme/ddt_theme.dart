@@ -11,8 +11,9 @@ import 'ddt_typography.dart';
 class DdtTheme {
   DdtTheme._();
 
-  static const double borderRadius = 16;
-  static const double inputControlRadius = 10;
+  static const double borderRadius = 12;
+  static const double inputControlRadius = 8;
+  static const double badgeRadius = 6;
   static const double inputControlHeight = 44;
   static const double compactInputControlHeight = 36;
   static const double inputHorizontalPadding = 12;
@@ -25,32 +26,57 @@ class DdtTheme {
   /// Reserved space between scrollable content and the scrollbar track.
   static const double scrollbarGutter = 12;
 
-  static const Color lightBackground = Color(0xFFFFFFFF);
+  /// Viewport width below which the shell switches to the phone layout.
+  static const double compactLayoutWidth = 1040;
+
+  static bool isCompactLayout(BuildContext context) {
+    return MediaQuery.sizeOf(context).width < compactLayoutWidth;
+  }
+
+  // Refined Muted Slate-Blue & Sage/Amber/Coral Palette (calm, non-caustic, high legibility)
+  static const Color primaryColor = Color(0xFF5279C7);
+  static const Color primaryHoverColor = Color(0xFF4267B2);
+  static const Color accentColor = Color(0xFF8AA8E6);
+  static const Color successColor = Color(0xFF3E9B74);
+  static const Color warningColor = Color(0xFFD4943A);
+  static const Color dangerColor = Color(0xFFD65C5C);
+  static const Color infoColor = Color(0xFF4A90C2);
+
+  // Light Mode Surfaces (Soft Frosted Slate & Pearl Hierarchy)
+  static const Color lightBackground = Color(0xFFEEF2F7);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightWidget = Color(0xFFFFFFFF);
-  static const Color lightInputFill = Color(0xFFF8FAFC);
-  static const Color lightBorderStrong = Color(0xFF64748B);
+  static const Color lightSurfaceSubtle = Color(0xFFF6F8FC);
+  static const Color lightInputFill = Color(0xB8FFFFFF);
+  static const Color lightBorderSubtle = Color(0xFFDCE3EE);
+  static const Color lightBorderStrong = Color(0xFFC4CFE0);
 
-  static const double lightShellGlassBackgroundOpacity = 0.08;
-  static const double lightGlassBackgroundOpacity = 0.16;
-  static const double lightGlassBackgroundOpacityActive = 0.22;
+  static const double lightShellGlassBackgroundOpacity = 0.72;
+  static const double lightGlassBackgroundOpacity = 0.78;
+  static const double lightGlassBackgroundOpacityActive = 0.92;
 
-  static const Color darkBackground = Color(0xFF050508);
-  static const Color darkSurface = Color(0xFF0C0C10);
-  static const Color darkWidget = Color(0xFF121216);
-  static const Color darkInputFill = Color(0xFF15151A);
-  static const Color darkBorderStrong = Color(0xFF3F3F48);
+  // Dark Mode Surfaces (Elevated Slate-Graphite with Clear Contrast)
+  static const Color darkBackground = Color(0xFF141923);
+  static const Color darkSurface = Color(0xFF1C2331);
+  static const Color darkWidget = Color(0xFF222A3A);
+  static const Color darkSurfaceSubtle = Color(0xFF181E2B);
+  static const Color darkInputFill = Color(0xB81E2636);
+  static const Color darkBorderSubtle = Color(0xFF2D374D);
+  static const Color darkBorderStrong = Color(0xFF3E4B66);
 
-  static const Color lightTextPrimary = Color(0xFF020617);
-  static const Color lightTextSecondary = Color(0xFF1E293B);
-  static const Color lightTextMuted = Color(0xFF334155);
+  static const Color lightTextPrimary = Color(0xFF182232);
+  static const Color lightTextSecondary = Color(0xFF475569);
+  static const Color lightTextMuted = Color(0xFF64748B);
 
-  static const Color darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color darkTextSecondary = Color(0xFFE2E8F0);
+  static const Color darkTextPrimary = Color(0xFFF1F5F9);
+  static const Color darkTextSecondary = Color(0xFFCBD5E1);
   static const Color darkTextMuted = Color(0xFF94A3B8);
 
   static bool _isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
+
+  static Color scaffoldBackground(BuildContext context) =>
+      _isDark(context) ? darkBackground : lightBackground;
 
   static Color textPrimary(BuildContext context) =>
       _isDark(context) ? darkTextPrimary : lightTextPrimary;
@@ -61,16 +87,28 @@ class DdtTheme {
   static Color textMuted(BuildContext context) =>
       _isDark(context) ? darkTextMuted : lightTextMuted;
 
+  static Color surfaceSubtle(BuildContext context) =>
+      _isDark(context) ? darkSurfaceSubtle : lightSurfaceSubtle;
+
+  static Color borderSubtle(BuildContext context) =>
+      _isDark(context) ? darkBorderSubtle : lightBorderSubtle;
+
+  static Color borderStrong(BuildContext context) =>
+      _isDark(context) ? darkBorderStrong : lightBorderStrong;
+
   static Color loginTitleColor(BuildContext context) =>
-      _isDark(context) ? darkTextPrimary : const Color(0xFF0D47A1);
+      _isDark(context) ? darkTextPrimary : lightTextPrimary;
 
   static BorderRadius get radius => BorderRadius.circular(borderRadius.r);
 
   static BorderRadius get inputControlBorderRadius =>
       BorderRadius.circular(inputControlRadius);
 
-  static const Color darkPickerSurface = Color(0xFF1C1C22);
-  static const Color darkPickerInputFill = Color(0xFF141418);
+  static BorderRadius get badgeBorderRadius =>
+      BorderRadius.circular(badgeRadius.r);
+
+  static const Color darkPickerSurface = Color(0xFF202838);
+  static const Color darkPickerInputFill = Color(0xFF19202E);
 
   static Color inputFillColor(BuildContext context) =>
       _isDark(context) ? darkInputFill : lightInputFill;
@@ -78,12 +116,12 @@ class DdtTheme {
   static Color pickerSurfaceColor(BuildContext context) =>
       _isDark(context) ? darkPickerSurface : lightSurface;
 
-  /// High-contrast tooltip surface for charts (inverted vs shell background).
+  /// High-contrast tooltip surface for charts and desktop hover hints.
   static Color chartTooltipBackground(BuildContext context) =>
-      _isDark(context) ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+      _isDark(context) ? const Color(0xFF242D40) : const Color(0xFF1E293B);
 
   static Color chartTooltipForeground(BuildContext context) =>
-      _isDark(context) ? lightTextPrimary : Colors.white;
+      const Color(0xFFF8FAFC);
 
   static TextStyle chartTooltipTextStyle(BuildContext context) => style(
     fontSize: DdtTypography.labelSmallSize,
@@ -97,17 +135,29 @@ class DdtTheme {
     return TooltipThemeData(
       decoration: BoxDecoration(
         color: isDark
-            ? const Color(0xFFF1F5F9)
-            : const Color(0xFF1E293B).withValues(alpha: 0.94),
+            ? const Color(0xFF1E2433).withValues(alpha: 0.96)
+            : const Color(0xFF0F172A).withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.36 : 0.14),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       textStyle: style(
         fontSize: DdtTypography.captionSize,
         fontWeight: FontWeight.w500,
-        color: isDark ? lightTextPrimary : Colors.white,
+        color: const Color(0xFFF8FAFC),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      waitDuration: const Duration(milliseconds: 400),
+      waitDuration: const Duration(milliseconds: 350),
     );
   }
 
@@ -122,25 +172,25 @@ class DdtTheme {
 
   static TextStyle inputHintStyle(BuildContext context) => style(
     fontSize: DdtTypography.bodySize,
-    color: textMuted(context).withValues(alpha: 0.62),
+    color: textMuted(context).withValues(alpha: 0.72),
   );
 
   static Color inputBorderColor(BuildContext context) =>
       _isDark(context) ? darkBorderStrong : lightBorderStrong;
 
   static Color inputFillColorHover(BuildContext context) =>
-      _isDark(context) ? const Color(0xFF191920) : const Color(0xFFF4F7FA);
+      _isDark(context) ? const Color(0xD6232B3D) : const Color(0xD9FFFFFF);
 
   static Color inputFillColorFocused(BuildContext context) =>
-      _isDark(context) ? const Color(0xFF18181E) : const Color(0xFFFFFFFF);
+      _isDark(context) ? const Color(0xEB252E42) : const Color(0xF5FFFFFF);
 
   static List<BoxShadow> inputFocusShadow(BuildContext context) {
     final isDark = _isDark(context);
     return [
       BoxShadow(
-        color: AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10),
-        blurRadius: 7,
-        spreadRadius: 0,
+        color: primaryColor.withValues(alpha: isDark ? 0.25 : 0.16),
+        blurRadius: 0,
+        spreadRadius: 2.5,
       ),
     ];
   }
@@ -176,8 +226,8 @@ class DdtTheme {
     BorderRadius? borderRadius,
   }) {
     return _outlineBorder(
-      borderRadius: borderRadius ?? radius,
-      color: color ?? inputBorderColor(context).withValues(alpha: 0.5),
+      borderRadius: borderRadius ?? inputControlBorderRadius,
+      color: color ?? inputBorderColor(context).withValues(alpha: 0.75),
       width: width,
     );
   }
@@ -225,20 +275,21 @@ class DdtTheme {
   static SizedBox verticalGap() => SizedBox(height: shellSize(spacing));
 
   static Color glassBorderColor(Brightness brightness) {
-    return brightness == Brightness.dark ? Colors.white : AppColors.primary;
+    return brightness == Brightness.dark ? darkBorderStrong : lightBorderSubtle;
   }
 
   static double glassBorderOpacity(Brightness brightness) {
-    return brightness == Brightness.dark ? 0.34 : 0.58;
+    return brightness == Brightness.dark ? 0.85 : 1.0;
   }
 
-  static Color shellSurfaceColor(BuildContext context) =>
-      _isDark(context) ? darkWidget : lightSurface;
+  static Color shellSurfaceColor(BuildContext context) => _isDark(context)
+      ? darkSurface.withValues(alpha: 0.72)
+      : lightSurface.withValues(alpha: 0.74);
 
   static Color shellSurfaceBorderColor(BuildContext context) {
     return _isDark(context)
-        ? Colors.white.withValues(alpha: 0.14)
-        : lightBorderStrong.withValues(alpha: 0.32);
+        ? Colors.white.withValues(alpha: 0.11)
+        : Colors.white.withValues(alpha: 0.85);
   }
 
   static BoxDecoration shellSurfaceDecoration(
@@ -253,21 +304,30 @@ class DdtTheme {
       color: shellSurfaceColor(context),
       borderRadius: BorderRadius.circular(radius ?? borderRadius.r),
       border: showBorder
-          ? Border.all(color: shellSurfaceBorderColor(context))
+          ? Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.11)
+                  : lightBorderSubtle.withValues(alpha: 0.9),
+            )
           : null,
       boxShadow: addShadow
           ? [
               BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.05),
-                blurRadius: 16,
+                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.045),
+                blurRadius: 18,
                 offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.14 : 0.02),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
               ),
             ]
           : null,
     );
   }
 
-  /// Shell panels (app bar, navigation rail, page sections) use a solid fill.
+  /// Shell panels (navigation rail, analytics panels, settings cards) use a frosted glass surface.
   static Widget glass({
     required BuildContext context,
     required Widget child,
@@ -276,33 +336,72 @@ class DdtTheme {
     EdgeInsetsGeometry? padding,
     bool addShadow = true,
     bool showBorder = true,
+    double blurSigma = 18,
   }) {
+    final isDark = _isDark(context);
+    final resolvedRadius = BorderRadius.circular(borderRadius.r);
+    final fill = isDark
+        ? darkSurface.withValues(alpha: 0.68)
+        : lightSurface.withValues(alpha: 0.74);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.11)
+        : lightBorderSubtle.withValues(alpha: 0.92);
+
     return Container(
       width: width,
       height: height,
-      padding: padding,
-      decoration: shellSurfaceDecoration(
-        context,
-        addShadow: addShadow,
-        showBorder: showBorder,
+      decoration: BoxDecoration(
+        borderRadius: resolvedRadius,
+        boxShadow: addShadow
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.14 : 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: resolvedRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: fill,
+              borderRadius: resolvedRadius,
+              border: showBorder ? Border.all(color: borderColor) : null,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
-  /// Floating app bar: frosted glass tinted like [shellSurfaceColor], soft drop shadow.
+  /// Floating app bar: frosted acrylic desktop bar with crisp specular border and subtle shadow.
   static Widget shellAppBarGlass({
     required BuildContext context,
     required Widget child,
     double? width,
     double? height,
     EdgeInsetsGeometry? padding,
-    double blurSigma = 14,
+    double blurSigma = 22,
   }) {
     final isDark = _isDark(context);
     final borderRadiusGeometry = radius;
-    final substrate = shellSurfaceColor(context);
-    final frostTint = substrate.withValues(alpha: isDark ? 0.46 : 0.58);
+    final frostTint = isDark
+        ? darkSurface.withValues(alpha: 0.66)
+        : lightSurface.withValues(alpha: 0.72);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : lightBorderSubtle.withValues(alpha: 0.92);
 
     return Container(
       width: width,
@@ -311,8 +410,8 @@ class DdtTheme {
         borderRadius: borderRadiusGeometry,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
-            blurRadius: 20,
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
+            blurRadius: 18,
             spreadRadius: 0,
             offset: const Offset(0, 4),
           ),
@@ -327,6 +426,7 @@ class DdtTheme {
             decoration: BoxDecoration(
               borderRadius: borderRadiusGeometry,
               color: frostTint,
+              border: Border.all(color: borderColor),
             ),
             child: child,
           ),
@@ -347,142 +447,193 @@ class DdtTheme {
     required BuildContext context,
     required Widget child,
     EdgeInsetsGeometry? padding,
-    double blurIntensity = 6,
+    double blurIntensity = 22,
     double? cornerRadius,
   }) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-    final radius = cornerRadius ?? borderRadius.r;
-    final effectivePadding = padding ?? EdgeInsets.all(8.w);
+    final isDark = _isDark(context);
+    final resolvedRadius = BorderRadius.circular(
+      cornerRadius ?? borderRadius.r,
+    );
+    final effectivePadding = padding ?? EdgeInsets.all(6.w);
+    final bgColor = isDark
+        ? darkPickerSurface.withValues(alpha: 0.78)
+        : lightSurface.withValues(alpha: 0.84);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : lightBorderSubtle;
 
-    return GlassContainer(
-      type: GlassType.custom,
-      shape: GlassShape.roundedRectangle,
-      radius: radius,
-      padding: effectivePadding,
-      blurIntensity: blurIntensity,
-      backgroundColor: isDark
-          ? const Color(0xFF1C1C1E).withValues(alpha: 0.32)
-          : Colors.white.withValues(alpha: 0.3),
-      backgroundOpacity: isDark ? 0.2 : lightGlassBackgroundOpacity,
-      borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.65,
-      borderWidth: 1,
-      addShadow: true,
-      shadowBlurRadius: 24,
-      shadowSpreadRadius: -4,
-      shadowColor: Colors.black.withValues(alpha: isDark ? 0.34 : 0.16),
-      shadowOffset: const Offset(0, 8),
-      child: child,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: resolvedRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+            blurRadius: 24,
+            spreadRadius: -2,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: resolvedRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: blurIntensity,
+            sigmaY: blurIntensity,
+          ),
+          child: Container(
+            padding: effectivePadding,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: resolvedRadius,
+              border: Border.all(color: borderColor),
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
-  static GlassContainer taskCardGlass({
+  static Widget taskCardGlass({
     required BuildContext context,
     required Widget child,
     EdgeInsetsGeometry? padding,
     VoidCallback? onTap,
     bool isDragging = false,
-    double blurIntensity = 6,
+    double blurIntensity = 14,
     double? cornerRadius,
   }) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-    final radius = cornerRadius ?? borderRadius.r;
+    final isDark = _isDark(context);
+    final resolvedRadius = BorderRadius.circular(
+      cornerRadius ?? borderRadius.r,
+    );
+    final effectivePadding = padding ?? EdgeInsets.all(spacing.w);
 
-    return GlassContainer(
-      type: GlassType.custom,
-      shape: GlassShape.roundedRectangle,
-      radius: radius,
-      padding: padding ?? EdgeInsets.all(spacing.w),
-      blurIntensity: blurIntensity,
-      backgroundColor: isDark
-          ? const Color(0xFF1C1C1E).withValues(alpha: isDragging ? 0.42 : 0.32)
-          : Colors.white.withValues(alpha: isDragging ? 0.38 : 0.3),
-      backgroundOpacity: isDark
-          ? (isDragging ? 0.26 : 0.2)
-          : (isDragging
-                ? lightGlassBackgroundOpacityActive
-                : lightGlassBackgroundOpacity),
-      borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.65,
-      borderWidth: 1,
-      addShadow: false,
+    return _DdtInteractiveCardSurface(
+      borderRadius: resolvedRadius,
+      padding: effectivePadding,
       onTap: onTap,
+      isDragging: isDragging,
+      isDark: isDark,
+      blurIntensity: blurIntensity,
       child: child,
     );
   }
 
-  static GlassContainer calendarEventGlass({
+  static Widget calendarEventGlass({
     required BuildContext context,
     required Widget child,
     EdgeInsetsGeometry? padding,
     VoidCallback? onTap,
-    double blurIntensity = 6,
+    double blurIntensity = 10,
     double? cornerRadius,
     bool confirmed = true,
     Color? accent,
   }) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-    final radius = cornerRadius ?? 5.r;
-    final baseNeutral = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-    final confirmedTint = Color.lerp(
-      baseNeutral,
-      accent ?? AppColors.primary,
-      isDark ? 0.32 : 0.18,
-    )!;
+    final isDark = _isDark(context);
+    final resolvedRadius = BorderRadius.circular(cornerRadius ?? 6.r);
+    final effectiveAccent = accent ?? primaryColor;
+    final baseNeutral = isDark ? darkWidget : lightSurface;
+    final fill = confirmed
+        ? Color.lerp(
+            baseNeutral,
+            effectiveAccent,
+            isDark ? 0.28 : 0.15,
+          )!.withValues(alpha: isDark ? 0.82 : 0.86)
+        : (isDark
+              ? darkSurfaceSubtle.withValues(alpha: 0.72)
+              : lightSurfaceSubtle.withValues(alpha: 0.78));
+    final borderColor = confirmed
+        ? effectiveAccent.withValues(alpha: isDark ? 0.48 : 0.32)
+        : (isDark ? Colors.white.withValues(alpha: 0.10) : lightBorderSubtle);
 
-    return GlassContainer(
-      type: GlassType.custom,
-      shape: GlassShape.roundedRectangle,
-      radius: radius,
-      padding: padding,
-      blurIntensity: blurIntensity,
-      backgroundColor: confirmed ? confirmedTint : baseNeutral,
-      backgroundOpacity: confirmed
-          ? (isDark ? 0.46 : 0.72)
-          : (isDark ? 0.34 : 0.55),
-      borderColor: confirmed ? glassBorderColor(brightness) : Colors.transparent,
-      borderOpacity: confirmed ? glassBorderOpacity(brightness) * 0.55 : 0,
-      borderWidth: confirmed ? 1 : 0,
-      addShadow: false,
-      onTap: onTap,
-      child: child,
+    Widget content = ClipRRect(
+      borderRadius: resolvedRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blurIntensity, sigmaY: blurIntensity),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: resolvedRadius,
+            border: Border.all(color: borderColor),
+          ),
+          child: child,
+        ),
+      ),
     );
+
+    if (onTap != null) {
+      content = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: content,
+        ),
+      );
+    }
+
+    return content;
   }
 
   static Color sidePanelSurfaceColor(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    return isDark
+        ? darkSurface.withValues(alpha: 0.90)
+        : lightSurface.withValues(alpha: 0.92);
   }
 
-  static GlassContainer sidePanelGlass({
+  static Widget sidePanelGlass({
     required BuildContext context,
     required Widget child,
+    double blurSigma = 24,
   }) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
+    final isDark = _isDark(context);
+    final resolvedRadius = BorderRadius.circular(borderRadius.r);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.13)
+        : lightBorderSubtle;
 
-    return GlassContainer(
-      type: GlassType.minimal,
-      shape: GlassShape.roundedRectangle,
-      radius: borderRadius.r,
+    return Container(
       width: double.infinity,
       height: double.infinity,
-      padding: EdgeInsets.zero,
-      blurIntensity: 0,
-      backgroundOpacity: 1,
-      backgroundColor: sidePanelSurfaceColor(context),
-      borderColor: glassBorderColor(brightness),
-      borderOpacity: glassBorderOpacity(brightness) * 0.55,
-      borderWidth: 1,
-      addShadow: true,
-      shadowBlurRadius: 32,
-      shadowSpreadRadius: -6,
-      shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.14),
-      shadowOffset: const Offset(-6, 0),
-      child: child,
+      decoration: BoxDecoration(
+        borderRadius: resolvedRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+            blurRadius: 36,
+            spreadRadius: -4,
+            offset: const Offset(-8, 0),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(-2, 0),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: resolvedRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            decoration: BoxDecoration(
+              color: sidePanelSurfaceColor(context),
+              borderRadius: resolvedRadius,
+              border: Border.all(color: borderColor),
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
@@ -524,8 +675,8 @@ class DdtTheme {
 
   static Color sidePanelDivider(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.22)
-        : lightBorderStrong.withValues(alpha: 0.72);
+        ? darkBorderSubtle
+        : lightBorderSubtle;
   }
 
   static ThemeData sidePanelTheme(BuildContext context) {
@@ -561,13 +712,13 @@ class DdtTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: darkTextPrimary,
-          side: BorderSide(color: darkBorderStrong),
-          shape: roundedShape,
-          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 12.h),
+          side: const BorderSide(color: darkBorderStrong),
+          shape: RoundedRectangleBorder(borderRadius: inputControlBorderRadius),
+          padding: EdgeInsets.symmetric(horizontal: spacing.w, vertical: 10.h),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+        style: TextButton.styleFrom(foregroundColor: accentColor),
       ),
     );
   }
@@ -600,10 +751,10 @@ class DdtTheme {
   }
 
   static const Duration selectionAnimationDuration = Duration(
-    milliseconds: 220,
+    milliseconds: 180,
   );
   static const Curve selectionAnimationCurve = Curves.easeOutCubic;
-  static const Duration refreshContentDuration = Duration(milliseconds: 280);
+  static const Duration refreshContentDuration = Duration(milliseconds: 260);
   static const Duration refreshShimmerDuration = Duration(milliseconds: 1400);
 
   static const WidgetStateProperty<Color> _transparentOverlay =
@@ -623,6 +774,13 @@ class DdtTheme {
       crossAxisMargin: scrollbarCrossAxisMargin,
       mainAxisMargin: scrollbarMainAxisMargin,
       minThumbLength: 32,
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.dragged)) {
+          return const Color(0xFF94A3B8).withValues(alpha: 0.65);
+        }
+        return const Color(0xFF94A3B8).withValues(alpha: 0.35);
+      }),
     );
   }
 
@@ -638,6 +796,10 @@ class DdtTheme {
     if (!isVertical) {
       return EdgeInsets.zero;
     }
+
+    // Phone layout has no reserved track. A right-only gutter there shifts
+    // cards off center.
+    if (isCompactLayout(context)) return EdgeInsets.zero;
 
     final gap = shellSizeOf(context, scrollbarGutter);
     final isRtl = Directionality.maybeOf(context) == TextDirection.rtl;
@@ -673,28 +835,42 @@ class DdtTheme {
     );
   }
 
+  static void _ensureBoltPalette() {
+    AppColors.initialize(primary: primaryColor, accent: accentColor);
+    AppTheme.initialize(primary: primaryColor, accent: accentColor);
+  }
+
   static ThemeData light() {
+    _ensureBoltPalette();
     final theme = AppTheme.lightTheme();
     final typography = textTheme(Brightness.light);
     final shape = roundedShape;
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: inputControlBorderRadius,
+    );
 
     return _applyInteractionTheme(
       theme.copyWith(
-        iconTheme: IconThemeData(size: 20, color: lightTextSecondary),
+        primaryColor: primaryColor,
+        iconTheme: const IconThemeData(size: 20, color: lightTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: lightBackground,
         colorScheme: theme.colorScheme.copyWith(
+          primary: primaryColor,
+          secondary: accentColor,
+          error: dangerColor,
           surface: lightSurface,
           onSurface: lightTextPrimary,
           onSurfaceVariant: lightTextSecondary,
           outline: lightBorderStrong,
+          outlineVariant: lightBorderSubtle,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
           titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: lightTextPrimary,
+            fontWeight: FontWeight.w600,
           ),
         ),
         dialogTheme: theme.dialogTheme.copyWith(
@@ -704,41 +880,44 @@ class DdtTheme {
         cardTheme: theme.cardTheme.copyWith(
           color: lightSurface,
           shape: shape,
-          elevation: 2,
-          shadowColor: Colors.black.withValues(alpha: 0.10),
+          elevation: 0,
+          shadowColor: Colors.black.withValues(alpha: 0.05),
         ),
-        dividerTheme: DividerThemeData(
-          color: lightBorderStrong.withValues(alpha: 0.55),
+        dividerTheme: const DividerThemeData(
+          color: lightBorderSubtle,
           thickness: 1,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
+            backgroundColor: primaryColor,
             foregroundColor: Colors.white,
+            elevation: 0,
             textStyle: typography.labelLarge,
-            shape: shape,
+            shape: buttonShape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
-              vertical: 12.h,
+              vertical: 10.h,
             ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: lightTextPrimary,
+            backgroundColor: lightSurface,
             textStyle: typography.labelLarge,
-            side: BorderSide(color: AppColors.primary, width: 1.5),
-            shape: shape,
+            side: const BorderSide(color: lightBorderStrong, width: 1),
+            shape: buttonShape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
-              vertical: 12.h,
+              vertical: 10.h,
             ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.primary,
+            foregroundColor: primaryColor,
             textStyle: typography.labelLarge,
+            shape: buttonShape,
           ),
         ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
@@ -754,31 +933,31 @@ class DdtTheme {
             color: lightTextMuted,
           ),
           hintStyle: typography.bodyMedium?.copyWith(
-            color: lightTextMuted.withValues(alpha: 0.62),
+            color: lightTextMuted.withValues(alpha: 0.72),
           ),
           border: _outlineBorder(
-            borderRadius: radius,
-            color: lightBorderStrong.withValues(alpha: 0.5),
+            borderRadius: inputControlBorderRadius,
+            color: lightBorderSubtle,
           ),
           enabledBorder: _outlineBorder(
-            borderRadius: radius,
-            color: lightBorderStrong.withValues(alpha: 0.5),
+            borderRadius: inputControlBorderRadius,
+            color: lightBorderSubtle,
           ),
           focusedBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.primary,
+            borderRadius: inputControlBorderRadius,
+            color: primaryColor,
           ),
           errorBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.error,
+            borderRadius: inputControlBorderRadius,
+            color: dangerColor,
           ),
           focusedErrorBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.error,
+            borderRadius: inputControlBorderRadius,
+            color: dangerColor,
           ),
           disabledBorder: _outlineBorder(
-            borderRadius: radius,
-            color: lightBorderStrong.withValues(alpha: 0.35),
+            borderRadius: inputControlBorderRadius,
+            color: lightBorderSubtle.withValues(alpha: 0.6),
           ),
         ),
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.light),
@@ -790,27 +969,36 @@ class DdtTheme {
   }
 
   static ThemeData dark() {
+    _ensureBoltPalette();
     final theme = AppTheme.darkTheme();
     final typography = textTheme(Brightness.dark);
     final shape = roundedShape;
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: inputControlBorderRadius,
+    );
 
     return _applyInteractionTheme(
       theme.copyWith(
-        iconTheme: IconThemeData(size: 20, color: darkTextSecondary),
+        primaryColor: primaryColor,
+        iconTheme: const IconThemeData(size: 20, color: darkTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
         scaffoldBackgroundColor: darkBackground,
         colorScheme: theme.colorScheme.copyWith(
+          primary: primaryColor,
+          secondary: accentColor,
+          error: dangerColor,
           surface: darkSurface,
           onSurface: darkTextPrimary,
           onSurfaceVariant: darkTextSecondary,
           outline: darkBorderStrong,
+          outlineVariant: darkBorderSubtle,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
           titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: darkTextPrimary,
+            fontWeight: FontWeight.w600,
           ),
         ),
         dialogTheme: theme.dialogTheme.copyWith(
@@ -822,38 +1010,41 @@ class DdtTheme {
           shape: shape,
           elevation: 0,
         ),
-        dividerTheme: DividerThemeData(
-          color: Colors.white.withValues(alpha: 0.16),
+        dividerTheme: const DividerThemeData(
+          color: darkBorderSubtle,
           thickness: 1,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
+            backgroundColor: primaryColor,
             foregroundColor: Colors.white,
+            elevation: 0,
             textStyle: typography.labelLarge,
-            shape: shape,
+            shape: buttonShape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
-              vertical: 12.h,
+              vertical: 10.h,
             ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: darkTextPrimary,
+            backgroundColor: darkWidget,
             textStyle: typography.labelLarge,
-            side: BorderSide(color: AppColors.primary, width: 1.5),
-            shape: shape,
+            side: const BorderSide(color: darkBorderStrong, width: 1),
+            shape: buttonShape,
             padding: EdgeInsets.symmetric(
               horizontal: spacing.w,
-              vertical: 12.h,
+              vertical: 10.h,
             ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.accent,
+            foregroundColor: accentColor,
             textStyle: typography.labelLarge,
+            shape: buttonShape,
           ),
         ),
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
@@ -867,31 +1058,31 @@ class DdtTheme {
             color: darkTextMuted,
           ),
           hintStyle: typography.bodyMedium?.copyWith(
-            color: darkTextMuted.withValues(alpha: 0.62),
+            color: darkTextMuted.withValues(alpha: 0.72),
           ),
           border: _outlineBorder(
-            borderRadius: radius,
-            color: darkBorderStrong.withValues(alpha: 0.5),
+            borderRadius: inputControlBorderRadius,
+            color: darkBorderSubtle,
           ),
           enabledBorder: _outlineBorder(
-            borderRadius: radius,
-            color: darkBorderStrong.withValues(alpha: 0.5),
+            borderRadius: inputControlBorderRadius,
+            color: darkBorderSubtle,
           ),
           focusedBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.primary,
+            borderRadius: inputControlBorderRadius,
+            color: primaryColor,
           ),
           errorBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.error,
+            borderRadius: inputControlBorderRadius,
+            color: dangerColor,
           ),
           focusedErrorBorder: _outlineBorder(
-            borderRadius: radius,
-            color: AppColors.error,
+            borderRadius: inputControlBorderRadius,
+            color: dangerColor,
           ),
           disabledBorder: _outlineBorder(
-            borderRadius: radius,
-            color: darkBorderStrong.withValues(alpha: 0.35),
+            borderRadius: inputControlBorderRadius,
+            color: darkBorderSubtle.withValues(alpha: 0.6),
           ),
         ),
         dropdownMenuTheme: dropdownMenuThemeData(typography, Brightness.dark),
@@ -912,8 +1103,7 @@ class DdtTheme {
     bool compact = false,
     BorderRadius? borderRadius,
   }) {
-    final radiusValue =
-        borderRadius ?? (compact ? inputControlBorderRadius : radius);
+    final radiusValue = borderRadius ?? inputControlBorderRadius;
 
     OutlineInputBorder border(Color color, {double width = 1}) =>
         OutlineInputBorder(
@@ -921,7 +1111,7 @@ class DdtTheme {
           borderSide: BorderSide(color: color, width: width),
         );
 
-    final borderColor = inputBorderColor(context);
+    final subtleColor = borderSubtle(context);
     return InputDecoration(
       labelText: labelText,
       hintText: hintText,
@@ -938,12 +1128,12 @@ class DdtTheme {
       labelStyle: inputLabelStyle(context),
       floatingLabelStyle: inputFloatingLabelStyle(context),
       hintStyle: inputHintStyle(context),
-      border: border(borderColor.withValues(alpha: 0.5)),
-      enabledBorder: border(borderColor.withValues(alpha: 0.5)),
-      focusedBorder: border(AppColors.primary),
-      errorBorder: border(AppColors.error),
-      focusedErrorBorder: border(AppColors.error),
-      disabledBorder: border(borderColor.withValues(alpha: 0.35)),
+      border: border(subtleColor),
+      enabledBorder: border(subtleColor),
+      focusedBorder: border(primaryColor),
+      errorBorder: border(dangerColor),
+      focusedErrorBorder: border(dangerColor),
+      disabledBorder: border(subtleColor.withValues(alpha: 0.55)),
     );
   }
 
@@ -961,5 +1151,125 @@ class DdtTheme {
       height: height,
       decoration: decoration,
     );
+  }
+}
+
+class _DdtInteractiveCardSurface extends StatefulWidget {
+  const _DdtInteractiveCardSurface({
+    required this.borderRadius,
+    required this.padding,
+    required this.onTap,
+    required this.isDragging,
+    required this.isDark,
+    required this.blurIntensity,
+    required this.child,
+  });
+
+  final BorderRadius borderRadius;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+  final bool isDragging;
+  final bool isDark;
+  final double blurIntensity;
+  final Widget child;
+
+  @override
+  State<_DdtInteractiveCardSurface> createState() =>
+      _DdtInteractiveCardSurfaceState();
+}
+
+class _DdtInteractiveCardSurfaceState
+    extends State<_DdtInteractiveCardSurface> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final interactive = widget.onTap != null;
+    final activeHover = interactive && _hovered && !widget.isDragging;
+
+    final backgroundColor = isDark
+        ? (widget.isDragging
+              ? const Color(0xE6283146)
+              : activeHover
+              ? const Color(0xCC262F43)
+              : DdtTheme.darkWidget.withValues(alpha: 0.72))
+        : (widget.isDragging
+              ? DdtTheme.lightSurface.withValues(alpha: 0.94)
+              : activeHover
+              ? DdtTheme.lightSurface.withValues(alpha: 0.88)
+              : DdtTheme.lightSurface.withValues(alpha: 0.76));
+
+    final borderColor = widget.isDragging
+        ? DdtTheme.accentColor.withValues(alpha: isDark ? 0.65 : 0.55)
+        : activeHover
+        ? (isDark
+              ? DdtTheme.accentColor.withValues(alpha: 0.45)
+              : DdtTheme.primaryColor.withValues(alpha: 0.35))
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.11)
+              : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90));
+
+    final shadows = widget.isDragging
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.12),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: isDark
+                    ? (activeHover ? 0.30 : 0.20)
+                    : (activeHover ? 0.06 : 0.03),
+              ),
+              blurRadius: activeHover ? 14 : 8,
+              offset: Offset(0, activeHover ? 4 : 2),
+            ),
+          ];
+
+    Widget card = Container(
+      decoration: BoxDecoration(
+        borderRadius: widget.borderRadius,
+        boxShadow: shadows,
+      ),
+      child: ClipRRect(
+        borderRadius: widget.borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: widget.blurIntensity,
+            sigmaY: widget.blurIntensity,
+          ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: widget.borderRadius,
+              border: Border.all(color: borderColor),
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+
+    if (interactive) {
+      card = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: card,
+        ),
+      );
+    }
+
+    return card;
   }
 }

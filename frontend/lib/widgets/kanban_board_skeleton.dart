@@ -1,4 +1,5 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../theme/ddt_icons.dart';
@@ -66,34 +67,50 @@ class _SkeletonColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = statusColumnColor(status);
-    final columnColor = statusColor.withValues(
-      alpha: status == TaskStatus.inProgress ? 0.12 : 0.08,
+    final baseTrack = isDark
+        ? DdtTheme.darkSurface.withValues(alpha: 0.62)
+        : Colors.white.withValues(alpha: 0.62);
+    final columnColor = Color.alphaBlend(
+      statusColor.withValues(alpha: isDark ? 0.06 : 0.04),
+      baseTrack,
     );
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.10)
+        : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
     final heights = KanbanBoardSkeleton._cardHeights[status] ?? const [100.0];
 
-    return AppCard(
-      type: CardType.outlined,
+    return ClipRRect(
       borderRadius: DdtTheme.radius,
-      padding: EdgeInsets.all(DdtTheme.spacing.w),
-      backgroundColor: columnColor,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SkeletonColumnHeader(status: status),
-          SizedBox(height: DdtTheme.spacing.h),
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: heights.length,
-              separatorBuilder: (context, index) =>
-                  SizedBox(height: DdtTheme.spacing.h),
-              itemBuilder: (context, index) {
-                return _SkeletonTaskCard(height: heights[index]);
-              },
-            ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: EdgeInsets.all(DdtTheme.spacing.w),
+          decoration: BoxDecoration(
+            color: columnColor,
+            borderRadius: DdtTheme.radius,
+            border: Border.all(color: borderColor),
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SkeletonColumnHeader(status: status),
+              SizedBox(height: DdtTheme.spacing.h),
+              Expanded(
+                child: ListView.separated(
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: heights.length,
+                  separatorBuilder: (context, index) =>
+                      SizedBox(height: DdtTheme.spacing.h),
+                  itemBuilder: (context, index) {
+                    return _SkeletonTaskCard(height: heights[index]);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -106,42 +123,67 @@ class _SkeletonColumnHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusColor = statusColumnColor(status);
+
     return Row(
       children: [
+        Container(
+          width: 8.w,
+          height: 8.w,
+          decoration: BoxDecoration(
+            color: statusColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withValues(alpha: 0.35),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: 8.w),
         Expanded(
           child: Text(
             status.label,
             style: DdtTheme.style(
-              fontSize: DdtTypography.sectionTitleSize,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
+              fontSize: DdtTypography.bodyLargeSize,
+              fontWeight: FontWeight.w600,
+              color: DdtTheme.textPrimary(context),
             ),
           ),
         ),
         Container(
-          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+          padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.5.h),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            borderRadius: DdtTheme.radius,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.white.withValues(alpha: 0.80),
+            borderRadius: DdtTheme.badgeBorderRadius,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : DdtTheme.lightBorderSubtle,
+            ),
           ),
           child: Text(
             '0',
             style: DdtTheme.style(
-              fontSize: DdtTypography.labelSmallSize,
+              fontSize: DdtTypography.captionSize,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+              color: DdtTheme.textSecondary(context),
             ),
           ),
         ),
-        SizedBox(width: 8.w),
+        SizedBox(width: 6.w),
         IgnorePointer(
           child: IconButton(
             tooltip: 'Добавить задачу',
             onPressed: () {},
             icon: DdtIcon(
               DdtIcons.add,
-              size: 20.sp,
-              color: AppColors.primary,
+              size: 16.sp,
+              color: DdtTheme.textSecondary(context),
             ),
             visualDensity: VisualDensity.compact,
           ),

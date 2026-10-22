@@ -9,6 +9,10 @@ import 'ddt_theme.dart';
 class DdtScrollBehavior extends MaterialScrollBehavior {
   const DdtScrollBehavior();
 
+  static bool _isVertical(AxisDirection direction) {
+    return direction == AxisDirection.down || direction == AxisDirection.up;
+  }
+
   @override
   Widget buildScrollbar(
     BuildContext context,
@@ -19,6 +23,7 @@ class DdtScrollBehavior extends MaterialScrollBehavior {
       case TargetPlatform.linux:
       case TargetPlatform.macOS:
       case TargetPlatform.windows:
+        if (DdtTheme.isCompactLayout(context)) return child;
         final gutter = DdtTheme.scrollbarContentGutter(
           context,
           details.direction,
@@ -27,6 +32,41 @@ class DdtScrollBehavior extends MaterialScrollBehavior {
             ? child
             : Padding(padding: gutter, child: child);
         return Scrollbar(controller: details.controller, child: paddedChild);
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.iOS:
+        return child;
+    }
+  }
+}
+
+/// Same track clearance on both sides, so task and mail cards stay centered.
+class DdtBalancedScrollBehavior extends DdtScrollBehavior {
+  const DdtBalancedScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    if (!DdtScrollBehavior._isVertical(details.direction) ||
+        DdtTheme.isCompactLayout(context)) {
+      return super.buildScrollbar(context, child, details);
+    }
+
+    switch (getPlatform(context)) {
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+        final gap = DdtTheme.shellSizeOf(context, DdtTheme.scrollbarGutter);
+        return Scrollbar(
+          controller: details.controller,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: gap),
+            child: child,
+          ),
+        );
       case TargetPlatform.android:
       case TargetPlatform.fuchsia:
       case TargetPlatform.iOS:

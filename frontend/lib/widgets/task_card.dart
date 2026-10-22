@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../theme/ddt_icons.dart';
@@ -28,15 +27,16 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final overdue = isTaskOverdue(task);
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
-    final metaMuted = DdtTheme.taskCardIconMuted(context).withValues(alpha: 0.62);
+    final metaMuted = DdtTheme.textMuted(context);
 
     final card = DdtTheme.taskCardGlass(
       context: context,
       isDragging: isDragging,
-      padding: EdgeInsets.fromLTRB(10.w, 8.h, 10.w, 8.h),
+      padding: EdgeInsets.fromLTRB(12.w, 10.h, 12.w, 10.h),
       onTap: isDragging ? null : onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,7 +47,7 @@ class TaskCard extends StatelessWidget {
               DdtIcon(
                 DdtIcons.dragHandle,
                 size: 11.sp,
-                color: metaMuted,
+                color: metaMuted.withValues(alpha: 0.65),
               ),
               if (task.key.isNotEmpty) ...[
                 SizedBox(width: 6.w),
@@ -57,22 +57,43 @@ class TaskCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: DdtTheme.style(
-                      fontSize: DdtTypography.microSize,
-                      fontWeight: FontWeight.w500,
+                      fontSize: DdtTypography.captionSize,
+                      fontWeight: FontWeight.w600,
                       color: metaMuted,
                     ),
                   ),
                 ),
               ] else
                 const Spacer(),
+              if (task.archive) ...[
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: DdtTheme.badgeBorderRadius,
+                    border: Border.all(color: DdtTheme.borderSubtle(context)),
+                  ),
+                  child: Text(
+                    'Архив',
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.microSize,
+                      fontWeight: FontWeight.w600,
+                      color: metaMuted,
+                    ),
+                  ),
+                ),
+                if (onArchive != null) SizedBox(width: 6.w),
+              ],
               if (onArchive != null)
                 IconButton(
                   tooltip: 'В архив',
                   onPressed: onArchive,
                   icon: DdtIcon(
                     DdtIcons.close,
-                    size: 14.sp,
-                    color: textSecondary,
+                    size: 13.sp,
+                    color: metaMuted,
                   ),
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -80,26 +101,18 @@ class TaskCard extends StatelessWidget {
                 ),
             ],
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 5.h),
           Text(
             task.title,
             style: DdtTheme.style(
               fontSize: DdtTypography.bodySize,
               fontWeight: FontWeight.w600,
+              height: 1.32,
               color: textPrimary,
             ),
           ),
-          if (task.archive)
-            Text(
-              'Архив',
-              style: DdtTheme.style(
-                fontSize: DdtTypography.captionSize,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
           if (task.description.isNotEmpty) ...[
-            SizedBox(height: 6.h),
+            SizedBox(height: 5.h),
             Text(
               DdtMarkdownBody.plainTextPreview(task.description),
               maxLines: 2,
@@ -107,7 +120,7 @@ class TaskCard extends StatelessWidget {
               style: DdtTheme.style(
                 fontSize: DdtTypography.labelSmallSize,
                 color: textSecondary,
-                height: 1.3,
+                height: 1.35,
               ),
             ),
           ],
@@ -127,11 +140,16 @@ class TaskCard extends StatelessWidget {
               task.executorId != null ||
               (task.links?.isNotEmpty ?? false) ||
               task.comments.isNotEmpty) ...[
-            SizedBox(height: 8.h),
+            SizedBox(height: 9.h),
+            Container(
+              height: 1,
+              color: DdtTheme.borderSubtle(context).withValues(alpha: 0.7),
+            ),
+            SizedBox(height: 7.h),
             _TaskCardMeta(
               task: task,
               overdue: overdue,
-              textSecondary: textSecondary,
+              textSecondary: metaMuted,
             ),
           ],
         ],
@@ -243,7 +261,7 @@ class _TaskCardMeta extends StatelessWidget {
           _MetaItem(
             icon: DdtIcons.calendar,
             label: formatTaskDate(task.deadline!),
-            color: overdue ? AppColors.error : textSecondary,
+            color: overdue ? DdtTheme.dangerColor : textSecondary,
           ),
         if (task.executorId != null)
           _MetaItem(
@@ -277,12 +295,12 @@ class _MetaItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = color ?? DdtTheme.taskCardTextSecondary(context);
+    final textColor = color ?? DdtTheme.textMuted(context);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        DdtIcon(icon, size: 14.sp, color: textColor),
+        DdtIcon(icon, size: 12.sp, color: textColor),
         SizedBox(width: 4.w),
         Text(
           label,

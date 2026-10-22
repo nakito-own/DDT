@@ -273,20 +273,22 @@ class _DayCellState extends State<_DayCell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final day = widget.day;
     final selected = widget.selected;
     final isEdge = widget.isEdge;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final color = isEdge
-        ? AppColors.primary
+        ? DdtTheme.primaryColor
         : selected
-        ? AppColors.primary.withValues(alpha: 0.18)
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.20 : 0.12)
         : _hovered
-        ? AppColors.primary.withValues(alpha: 0.10)
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.12 : 0.08)
         : Colors.transparent;
     final textColor = isEdge
         ? Colors.white
         : selected || _hovered
-        ? AppColors.primary
+        ? accent
         : DdtTheme.textPrimary(context);
 
     return MouseRegion(
@@ -300,21 +302,15 @@ class _DayCellState extends State<_DayCell> {
           curve: DdtTheme.selectionAnimationCurve,
           height: 32,
           alignment: Alignment.center,
-          transform: Matrix4.translationValues(
-            0,
-            _hovered && !isEdge ? -1 : 0,
-            0,
-          ),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(isEdge ? 99 : 8),
-            boxShadow: isEdge || _hovered
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: isEdge
                 ? [
                     BoxShadow(
-                      color: AppColors.primary.withValues(
-                        alpha: isEdge ? 0.28 : 0.12,
-                      ),
-                      blurRadius: isEdge ? 8 : 6,
+                      color: DdtTheme.primaryColor.withValues(alpha: 0.24),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
                     ),
                   ]
                 : null,

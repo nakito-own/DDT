@@ -6,16 +6,16 @@ import 'calendar_event.dart';
 /// Distinct colors for stacked calendars. Index 0 matches the app primary.
 abstract final class CalendarPalette {
   static const colors = <Color>[
-    Color(0xFF1976D2),
-    Color(0xFF00897B),
-    Color(0xFFEF6C00),
-    Color(0xFF7B1FA2),
-    Color(0xFF2E7D32),
-    Color(0xFFC2185B),
-    Color(0xFF0097A7),
-    Color(0xFF5C6BC0),
-    Color(0xFF6D4C41),
-    Color(0xFF00838F),
+    Color(0xFF5279C7),
+    Color(0xFF3E9B74),
+    Color(0xFFD4943A),
+    Color(0xFF7D6BC4),
+    Color(0xFF4A90C2),
+    Color(0xFFC4648B),
+    Color(0xFF3D9690),
+    Color(0xFFD1606A),
+    Color(0xFF5D70B8),
+    Color(0xFF4395A8),
   ];
 
   static Color colorFor(int? index) {

@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_gantt/flutter_gantt.dart';
@@ -11,6 +10,8 @@ import '../theme/ddt_theme.dart';
 import '../utils/task_gantt_mapper.dart';
 import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_shell_metrics.dart';
 
@@ -116,20 +117,18 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
 
   GanttTheme _ganttTheme(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final gridLineColor = isDark
-        ? Colors.white.withValues(alpha: 0.1)
-        : AppColors.primary.withValues(alpha: 0.12);
+    final gridLineColor = DdtTheme.borderSubtle(context);
 
     return GanttTheme.of(
       context,
       backgroundColor: Colors.transparent,
       weekendColor: isDark
-          ? Colors.white.withValues(alpha: 0.03)
-          : AppColors.primary.withValues(alpha: 0.03),
+          ? Colors.white.withValues(alpha: 0.025)
+          : const Color(0xFFF1F5F9).withValues(alpha: 0.7),
       defaultCellColor: gridLineColor,
-      todayBackgroundColor: AppColors.primary,
+      todayBackgroundColor: DdtTheme.primaryColor,
       todayTextColor: Colors.white,
-      cellHeight: 26.h,
+      cellHeight: 28.h,
       rowPadding: 4.h,
       rowsGroupPadding: 2.h,
       headerHeight: 56.h,
@@ -240,7 +239,13 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
             ),
             SizedBox(height: 8.h),
             Expanded(
-              child: Gantt(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: DdtAdaptive.isCompact(context)
+                      ? TasksMobileViewBar.reserve
+                      : 0,
+                ),
+                child: Gantt(
                 controller: _ganttController,
                 theme: _ganttTheme(context),
                 activities: activities,
@@ -248,6 +253,7 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
                 gridAreaFlex: 5,
                 monthToText: ganttMonthLabel,
                 onActivityChanged: _onActivityChanged,
+                ),
               ),
             ),
           ],
@@ -313,28 +319,23 @@ class _GanttToolbarButton extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: DdtTheme.radius,
+          borderRadius: DdtTheme.inputControlBorderRadius,
           splashFactory: NoSplash.splashFactory,
           child: Ink(
-            width: 32.w,
-            height: 32.w,
+            width: 30.w,
+            height: 30.w,
             decoration: BoxDecoration(
-              borderRadius: DdtTheme.radius,
+              borderRadius: DdtTheme.inputControlBorderRadius,
               color: isDark
-                  ? Colors.white.withValues(alpha: enabled ? 0.06 : 0.03)
-                  : AppColors.primary.withValues(alpha: enabled ? 0.06 : 0.03),
+                  ? Colors.white.withValues(alpha: enabled ? 0.07 : 0.03)
+                  : Colors.white.withValues(alpha: enabled ? 0.78 : 0.45),
               border: Border.all(
-                color: DdtTheme.glassBorderColor(Theme.of(context).brightness)
-                    .withValues(
-                      alpha:
-                          DdtTheme.glassBorderOpacity(
-                            Theme.of(context).brightness,
-                          ) *
-                          0.45,
-                    ),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : DdtTheme.borderSubtle(context),
               ),
             ),
-            child: DdtIcon(icon, size: 16.sp, color: color, fitParent: true),
+            child: DdtIcon(icon, size: 14.sp, color: color, fitParent: true),
           ),
         ),
       ),

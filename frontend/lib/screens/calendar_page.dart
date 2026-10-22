@@ -8,13 +8,13 @@ import '../blocs/calendar/calendar_bloc.dart';
 import '../models/calendar_event.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
+import '../theme/ddt_icons.dart';
 import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/calendar_sidebar.dart';
+import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_section_refresh.dart';
-import '../widgets/ddt_section_sidebar.dart';
 import '../widgets/ddt_shell_metrics.dart';
-import '../widgets/ddt_side_panel_divider.dart';
 import '../theme/ddt_typography.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -140,15 +140,11 @@ class _CalendarPageState extends State<CalendarPage> {
           previous.ownCalendarEnabled != current.ownCalendarEnabled ||
           (previous.isRefreshing && !current.isRefreshing),
       listener: (context, state) => _syncPlannerEvents(state.visibleEvents),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const DdtSectionSidebarFrame(child: CalendarSidebar()),
-          DdtSectionSidebar.afterScrollbarGapBox(),
-          const DdtSidePanelDivider(),
-          DdtSectionSidebar.dividerGap(),
-          Expanded(
-            child: BlocBuilder<CalendarBloc, CalendarState>(
+      child: DdtAdaptiveSectionColumns(
+        sheetTitle: 'Календарь',
+        sheetIcon: DdtIcons.calendar,
+        sidebar: const CalendarSidebar(),
+        body: BlocBuilder<CalendarBloc, CalendarState>(
               buildWhen: (previous, current) =>
                   (previous.isLoading && previous.events.isEmpty) !=
                       (current.isLoading && current.events.isEmpty) ||
@@ -199,8 +195,6 @@ class _CalendarPageState extends State<CalendarPage> {
                 );
               },
             ),
-          ),
-        ],
       ),
     );
   }
@@ -296,9 +290,11 @@ class _CalendarBody extends StatelessWidget {
     DateTime day,
     bool isToday,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final weekdayLabel = _weekDayFullLabels[(day.weekday - 1) % 7];
     final textPrimary = DdtTheme.taskCardTextPrimary(context);
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
 
     return SizedBox(
       height: 46,
@@ -314,8 +310,8 @@ class _CalendarBody extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: DdtTypography.style(
                   size: DdtTypography.labelSmallSize,
-                  fontWeight: FontWeight.w600,
-                  color: textSecondary,
+                  fontWeight: isToday ? FontWeight.w600 : FontWeight.w500,
+                  color: isToday ? accent : textSecondary,
                   height: 1.0,
                 ),
               ),
@@ -325,8 +321,8 @@ class _CalendarBody extends StatelessWidget {
               width: 26,
               height: 26,
               decoration: BoxDecoration(
-                color: isToday ? AppColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(13),
+                color: isToday ? DdtTheme.primaryColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(7),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -624,20 +620,18 @@ class _PlannerCalendarState extends State<_PlannerCalendar> {
             },
           ),
           dayParam: DayParam(
-            todayColor: AppColors.primary.withValues(
-              alpha: isDark ? 0.08 : 0.06,
+            todayColor: DdtTheme.primaryColor.withValues(
+              alpha: isDark ? 0.07 : 0.04,
             ),
             dayTopPadding: 0,
             dayBottomPadding: 8,
             dayCustomPainter: (heightPerMinute, isToday) => LinesPainter(
               heightPerMinute: heightPerMinute,
               isToday: isToday,
-              lineColor: isDark
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : Colors.black.withValues(alpha: 0.08),
-              hourStrokeWidth: 0.45,
-              halfStrokeWidth: 0.2,
-              quarterStrokeWidth: 0.12,
+              lineColor: DdtTheme.borderSubtle(context),
+              hourStrokeWidth: 0.75,
+              halfStrokeWidth: 0.35,
+              quarterStrokeWidth: 0.15,
             ),
             dayEventBuilder: (event, height, width, _) =>
                 _CalendarBody.buildPlannerEvent(context, event, height, width),
@@ -647,20 +641,15 @@ class _PlannerCalendarState extends State<_PlannerCalendar> {
             timesIndicatorsCustomPainter: (heightPerMinute) => HoursPainter(
               heightPerMinute: heightPerMinute,
               showCurrentHour: true,
-              hourColor: isDark
-                  ? Colors.white.withValues(alpha: 0.55)
-                  : Colors.black.withValues(alpha: 0.5),
-              halfHourColor: isDark
-                  ? Colors.white.withValues(alpha: 0.34)
-                  : Colors.black.withValues(alpha: 0.32),
-              quarterHourColor: isDark
-                  ? Colors.white.withValues(alpha: 0.22)
-                  : Colors.black.withValues(alpha: 0.2),
-              currentHourIndicatorColor: AppColors.accent,
+              hourColor: DdtTheme.textSecondary(context),
+              halfHourColor: DdtTheme.textMuted(context).withValues(alpha: 0.6),
+              quarterHourColor:
+                  DdtTheme.textMuted(context).withValues(alpha: 0.3),
+              currentHourIndicatorColor: DdtTheme.dangerColor,
             ),
           ),
-          currentHourIndicatorParam: CurrentHourIndicatorParam(
-            currentHourIndicatorColor: AppColors.accent,
+          currentHourIndicatorParam: const CurrentHourIndicatorParam(
+            currentHourIndicatorColor: DdtTheme.dangerColor,
           ),
         ),
       ),
