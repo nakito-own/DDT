@@ -1,4 +1,3 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import '../theme/ddt_icons.dart';
 
@@ -7,7 +6,7 @@ import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 
 /// Единый чекбокс приложения с общей анимацией и визуальными состояниями.
-class DdtCheckbox extends StatelessWidget {
+class DdtCheckbox extends StatefulWidget {
   const DdtCheckbox({
     super.key,
     required this.value,
@@ -24,45 +23,54 @@ class DdtCheckbox extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
+  State<DdtCheckbox> createState() => _DdtCheckboxState();
+}
+
+class _DdtCheckboxState extends State<DdtCheckbox> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    final isEnabled = enabled && onChanged != null;
-    final activeColor = AppColors.primary.withValues(
+    final isEnabled = widget.enabled && widget.onChanged != null;
+    final activeColor = DdtTheme.primaryColor.withValues(
       alpha: isEnabled ? 1 : 0.48,
     );
+    final uncheckedBorder = _hovered && isEnabled
+        ? DdtTheme.borderStrong(context)
+        : DdtTheme.inputBorderColor(
+            context,
+          ).withValues(alpha: isEnabled ? 0.85 : 0.45);
 
     final indicator = AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
-      width: 20,
-      height: 20,
+      width: 18,
+      height: 18,
       decoration: BoxDecoration(
-        color: value ? activeColor : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        color: widget.value ? activeColor : DdtTheme.inputFillColor(context),
+        borderRadius: BorderRadius.circular(5),
         border: Border.all(
-          color: value
-              ? activeColor
-              : DdtTheme.inputBorderColor(
-                  context,
-                ).withValues(alpha: isEnabled ? 0.55 : 0.3),
+          color: widget.value ? activeColor : uncheckedBorder,
           width: 1.4,
         ),
-        boxShadow: value && isEnabled
+        boxShadow: widget.value && isEnabled
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  blurRadius: 6,
+                  color: DdtTheme.primaryColor.withValues(alpha: 0.22),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
                 ),
               ]
             : null,
       ),
       alignment: Alignment.center,
       child: AnimatedScale(
-        scale: value ? 1 : 0,
-        duration: const Duration(milliseconds: 160),
+        scale: widget.value ? 1 : 0,
+        duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutBack,
         child: DdtIcon(
           DdtIcons.check,
-          size: 12,
+          size: 11,
           color: Colors.white,
           fitParent: true,
         ),
@@ -70,34 +78,40 @@ class DdtCheckbox extends StatelessWidget {
     );
 
     return Semantics(
-      checked: value,
+      checked: widget.value,
       enabled: isEnabled,
-      label: label,
-      child: InkWell(
-        onTap: isEnabled ? () => onChanged!(!value) : null,
-        borderRadius: DdtTheme.inputControlBorderRadius,
-        child: Padding(
-          padding: padding,
-          child: Row(
-            mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              indicator,
-              if (label != null) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label!,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.bodySize,
-                      fontWeight: FontWeight.w500,
-                      color: DdtTheme.textPrimary(
-                        context,
-                      ).withValues(alpha: isEnabled ? 1 : 0.55),
+      label: widget.label,
+      child: MouseRegion(
+        onEnter: isEnabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: isEnabled ? (_) => setState(() => _hovered = false) : null,
+        child: InkWell(
+          onTap: isEnabled ? () => widget.onChanged!(!widget.value) : null,
+          borderRadius: DdtTheme.inputControlBorderRadius,
+          child: Padding(
+            padding: widget.padding,
+            child: Row(
+              mainAxisSize: widget.label == null
+                  ? MainAxisSize.min
+                  : MainAxisSize.max,
+              children: [
+                indicator,
+                if (widget.label != null) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.label!,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.bodySize,
+                        fontWeight: FontWeight.w500,
+                        color: DdtTheme.textPrimary(
+                          context,
+                        ).withValues(alpha: isEnabled ? 1 : 0.55),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

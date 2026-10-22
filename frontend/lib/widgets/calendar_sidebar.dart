@@ -603,10 +603,12 @@ class _MiniDayBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final textColor = selected
         ? Colors.white
         : today
-        ? AppColors.primary
+        ? accent
         : DdtTheme.textPrimary(context);
 
     return Container(
@@ -614,10 +616,16 @@ class _MiniDayBadge extends StatelessWidget {
       height: 26,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? AppColors.primary : null,
-        shape: BoxShape.circle,
+        color: selected
+            ? DdtTheme.primaryColor
+            : (today
+                  ? DdtTheme.primaryColor.withValues(
+                      alpha: isDark ? 0.16 : 0.08,
+                    )
+                  : null),
+        borderRadius: BorderRadius.circular(6.r),
         border: today && !selected
-            ? Border.all(color: AppColors.primary, width: 1.5)
+            ? Border.all(color: accent, width: 1.2)
             : null,
       ),
       child: Text(
@@ -727,11 +735,14 @@ class _MiniDayCellState extends State<_MiniDayCell> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = widget.today;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final Color? fill = _hovered
-        ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
-        : null;
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.20 : 0.10)
+        : (today
+              ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.15 : 0.08)
+              : null);
     final Color textColor = today
-        ? AppColors.primary
+        ? accent
         : widget.dimmed
         ? DdtTheme.textMuted(context)
         : DdtTheme.textPrimary(context);
@@ -754,9 +765,9 @@ class _MiniDayCellState extends State<_MiniDayCell> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: fill,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(6.r),
                 border: today
-                    ? Border.all(color: AppColors.primary, width: 1.5)
+                    ? Border.all(color: accent, width: 1.2)
                     : null,
               ),
               child: Text(
@@ -799,16 +810,17 @@ class _MiniMonthCellState extends State<_MiniMonthCell> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     final selected = widget.selected;
     final Color? fill = selected
-        ? AppColors.primary
+        ? DdtTheme.primaryColor
         : _hovered
-        ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.20 : 0.10)
         : null;
     final textColor = selected
         ? Colors.white
         : widget.today
-        ? AppColors.primary
+        ? accent
         : DdtTheme.textPrimary(context);
 
     return MouseRegion(
@@ -828,7 +840,7 @@ class _MiniMonthCellState extends State<_MiniMonthCell> {
             color: fill,
             borderRadius: BorderRadius.circular(8.r),
             border: widget.today && !selected
-                ? Border.all(color: AppColors.primary, width: 1.5)
+                ? Border.all(color: accent, width: 1.5)
                 : null,
           ),
           child: Text(
@@ -1113,12 +1125,17 @@ class _CalendarSourceRowState extends State<_CalendarSourceRow> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fill = widget.color.withValues(
       alpha: widget.checked
-          ? (isDark ? 0.28 : 0.16)
-          : (isDark ? 0.14 : 0.08),
+          ? (isDark ? 0.20 : 0.11)
+          : (isDark ? 0.08 : 0.05),
     );
-    final radius = BorderRadius.circular(8.r);
+    final borderColor = widget.color.withValues(
+      alpha: widget.checked
+          ? (isDark ? 0.42 : 0.28)
+          : (isDark ? 0.18 : 0.14),
+    );
+    final radius = BorderRadius.circular(7.r);
     return Padding(
-      padding: EdgeInsets.only(bottom: 3.h),
+      padding: EdgeInsets.only(bottom: 4.h),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
@@ -1129,8 +1146,9 @@ class _CalendarSourceRowState extends State<_CalendarSourceRow> {
               enableHoverFill: enabled,
               backgroundColor: fill,
               borderRadius: radius,
+              border: Border.all(color: borderColor, width: 1),
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 5.h),
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
                 child: Row(
                   children: [
                     IgnorePointer(
@@ -1142,6 +1160,15 @@ class _CalendarSourceRowState extends State<_CalendarSourceRow> {
                       ),
                     ),
                     SizedBox(width: 8.w),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: widget.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 7.w),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1153,7 +1180,7 @@ class _CalendarSourceRowState extends State<_CalendarSourceRow> {
                             style: DdtTheme.style(
                               fontSize: DdtTypography.labelSize,
                               fontWeight: widget.checked
-                                  ? FontWeight.w700
+                                  ? FontWeight.w600
                                   : FontWeight.w500,
                               color: DdtTheme.taskCardTextPrimary(context),
                             ),
@@ -1225,6 +1252,8 @@ class _PersonResultRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : AppColors.primary;
     return Padding(
       padding: EdgeInsets.only(top: 3.h),
       child: DdtTappable(
@@ -1238,7 +1267,7 @@ class _PersonResultRow extends StatelessWidget {
               DdtIcon(
                 DdtIcons.user,
                 size: 12.sp,
-                color: AppColors.primary,
+                color: accent,
               ),
               SizedBox(width: 8.w),
               Expanded(
@@ -1270,7 +1299,7 @@ class _PersonResultRow extends StatelessWidget {
               DdtIcon(
                 DdtIcons.add,
                 size: 11.sp,
-                color: AppColors.primary,
+                color: accent,
               ),
             ],
           ),

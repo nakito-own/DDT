@@ -1,14 +1,14 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../theme/ddt_icons.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/notifications/notifications_bloc.dart';
 import '../models/app_notification.dart';
 import '../models/user_profile.dart';
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_context_menu.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
@@ -19,6 +19,8 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.actions,
     this.center,
+    this.leading,
+    this.secondaryRow = false,
   });
 
   final String title;
@@ -27,10 +29,19 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Horizontally centered in the bar, above the title row.
   final Widget? center;
 
+  /// Shown only on the compact shell, before the title.
+  final Widget? leading;
+
+  /// Moves [actions] and [center] onto a second, horizontally scrolling row.
+  final bool secondaryRow;
+
   static const double barHeight = 56;
 
+  /// Extra row under the title on the compact shell.
+  static const double secondaryRowHeight = 48;
+
   /// Shared compact controls for section actions and trailing app bar icons.
-  static const double actionIconLogicalSize = 17;
+  static const double actionIconLogicalSize = 16;
   static const double actionButtonLogicalSize = 32;
 
   static double actionIconSizeOf(BuildContext context) =>
@@ -50,9 +61,11 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final foregroundColor = isDark ? Colors.white : AppColors.primary;
+    if (secondaryRow || leading != null) {
+      return _buildCompactBar(context);
+    }
+
+    final foregroundColor = DdtTheme.textPrimary(context);
     final height = DdtTheme.shellSizeOf(context, barHeight);
     final horizontalPadding = DdtTheme.shellSizeOf(context, 16);
 
@@ -77,14 +90,20 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
               if (actions != null) ...[
-                SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
+                SizedBox(width: DdtTheme.shellSizeOf(context, 14)),
+                Container(
+                  width: 1,
+                  height: DdtTheme.shellSizeOf(context, 18),
+                  color: DdtTheme.borderSubtle(context),
+                ),
+                SizedBox(width: DdtTheme.shellSizeOf(context, 14)),
                 actions!,
               ],
               const Spacer(),
               const _NotificationBellButton(),
-              SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+              SizedBox(width: DdtTheme.shellSizeOf(context, 6)),
               const _UserEmailIsland(),
-              SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+              SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
             ],
           ),
           ?center,
@@ -92,10 +111,98 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
+
+  Widget _buildCompactBar(BuildContext context) {
+    final foregroundColor = DdtTheme.textPrimary(context);
+    final height = DdtTheme.shellSizeOf(context, barHeight);
+    final secondary = secondaryRow
+        ? DdtTheme.shellSizeOf(context, secondaryRowHeight)
+        : 0.0;
+    final sheets = DdtSectionSheetScope.maybeOf(context);
+    final reading = DdtCompactBarScope.maybeOf(context)?.hasOverride ?? false;
+    final showSheet = !reading && (sheets?.hasSheet ?? false);
+    final leadingWidget = leading;
+
+    return DdtTheme.shellAppBarGlass(
+      context: context,
+      height: height + secondary,
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: barHeight.round(),
+            child: Row(
+              children: [
+                if (leadingWidget != null) leadingWidget,
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.panelTitleSize,
+                      fontWeight: FontWeight.w600,
+                      color: foregroundColor,
+                    ),
+                  ),
+                ),
+                if (showSheet)
+                  IconButton(
+                    tooltip: sheets!.title,
+                    visualDensity: VisualDensity.compact,
+                    padding: actionIconButtonPadding(context),
+                    constraints: actionIconButtonConstraints(context),
+                    onPressed: () => sheets.open(context),
+                    icon: DdtIcon(
+                      sheets.icon,
+                      color: foregroundColor,
+                      size: actionIconSizeOf(context),
+                    ),
+                  ),
+                const _NotificationBellButton(),
+                SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+                const _UserEmailIsland(),
+                SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+              ],
+            ),
+          ),
+          if (secondaryRow)
+            Expanded(
+              flex: secondary.round(),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.only(
+                  left: DdtTheme.shellSizeOf(context, 8),
+                  right: DdtTheme.shellSizeOf(context, 8),
+                  bottom: DdtTheme.shellSizeOf(context, 6),
+                ),
+                child: Row(
+                  children: [
+                    ?center,
+                    if (center != null && actions != null)
+                      SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                    ?actions,
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
-class _NotificationBellButton extends StatelessWidget {
+class _NotificationBellButton extends StatefulWidget {
   const _NotificationBellButton();
+
+  @override
+  State<_NotificationBellButton> createState() =>
+      _NotificationBellButtonState();
+}
+
+class _NotificationBellButtonState extends State<_NotificationBellButton> {
+  bool _hovered = false;
 
   void _openPanel(BuildContext anchorContext) {
     if (anchorContext.read<AuthBloc>().state is! AuthAuthenticated) {
@@ -106,16 +213,22 @@ class _NotificationBellButton extends StatelessWidget {
       context: anchorContext,
       anchorContext: anchorContext,
       placement: DdtContextMenuPlacement.belowEnd,
-      offset: Offset(0, 2.h),
+      offset: Offset(0, 4.h),
       childBuilder: (dismiss) => _NotificationsPanel(onDismiss: dismiss),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final foregroundColor = isDark ? Colors.white : AppColors.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foregroundColor = _hovered
+        ? DdtTheme.textPrimary(context)
+        : DdtTheme.textSecondary(context);
+    final bgColor = _hovered
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFFF1F5F9))
+        : Colors.transparent;
 
     return BlocBuilder<NotificationsBloc, NotificationsState>(
       buildWhen: (previous, current) =>
@@ -124,19 +237,33 @@ class _NotificationBellButton extends StatelessWidget {
         final unread = state.unreadCount;
         return Builder(
           builder: (anchorContext) {
-            return IconButton(
-              tooltip: 'Уведомления',
-              visualDensity: VisualDensity.compact,
-              padding: DdtGlassAppBar.actionIconButtonPadding(context),
-              constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
-              onPressed: () => _openPanel(anchorContext),
-              icon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text('$unread'),
-                child: DdtIcon(
-                  DdtIcons.bell,
-                  color: foregroundColor,
-                  size: DdtGlassAppBar.actionIconSizeOf(context),
+            return MouseRegion(
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: DdtTheme.inputControlBorderRadius,
+                ),
+                child: IconButton(
+                  tooltip: 'Уведомления',
+                  visualDensity: VisualDensity.compact,
+                  padding: DdtGlassAppBar.actionIconButtonPadding(context),
+                  constraints: DdtGlassAppBar.actionIconButtonConstraints(
+                    context,
+                  ),
+                  onPressed: () => _openPanel(anchorContext),
+                  icon: Badge(
+                    isLabelVisible: unread > 0,
+                    backgroundColor: DdtTheme.primaryColor,
+                    textColor: Colors.white,
+                    label: Text('$unread'),
+                    child: DdtIcon(
+                      DdtIcons.bell,
+                      color: foregroundColor,
+                      size: DdtGlassAppBar.actionIconSizeOf(context),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -160,7 +287,7 @@ class _NotificationsPanel extends StatelessWidget {
 
         return DdtTheme.contextMenuGlass(
           context: context,
-          padding: EdgeInsets.all(16.w),
+          padding: EdgeInsets.all(14.w),
           child: SizedBox(
             width: 360.w,
             child: Column(
@@ -188,9 +315,12 @@ class _NotificationsPanel extends StatelessWidget {
                       ),
                   ],
                 ),
+                SizedBox(height: 6.h),
+                Divider(height: 1, color: DdtTheme.borderSubtle(context)),
+                SizedBox(height: 8.h),
                 if (items.isEmpty)
                   Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24.h),
+                    padding: EdgeInsets.symmetric(vertical: 28.h),
                     child: Text(
                       state.connected
                           ? 'Новых уведомлений пока нет'
@@ -209,7 +339,7 @@ class _NotificationsPanel extends StatelessWidget {
                       shrinkWrap: true,
                       itemCount: items.length,
                       separatorBuilder: (context, index) =>
-                          SizedBox(height: 8.h),
+                          SizedBox(height: 6.h),
                       itemBuilder: (context, index) {
                         final item = items[index];
                         return _NotificationTile(
@@ -250,23 +380,50 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = DdtTheme.taskCardTextSecondary(context);
     final primary = DdtTheme.taskCardTextPrimary(context);
+    final tileRadius = BorderRadius.circular(8.r);
 
     return Material(
       color: item.read
           ? Colors.transparent
-          : AppColors.primary.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(12.r),
+          : DdtTheme.primaryColor.withValues(alpha: isDark ? 0.14 : 0.07),
+      borderRadius: tileRadius,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12.r),
+        borderRadius: tileRadius,
         onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.all(12.w),
+        child: Container(
+          padding: EdgeInsets.all(10.w),
+          decoration: BoxDecoration(
+            borderRadius: tileRadius,
+            border: Border.all(
+              color: item.read
+                  ? DdtTheme.borderSubtle(context)
+                  : DdtTheme.primaryColor.withValues(
+                      alpha: isDark ? 0.30 : 0.18,
+                    ),
+            ),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DdtIcon(_icon, size: 18.sp, color: AppColors.primary),
+              Container(
+                width: 28.w,
+                height: 28.w,
+                decoration: BoxDecoration(
+                  color: DdtTheme.primaryColor.withValues(
+                    alpha: isDark ? 0.20 : 0.10,
+                  ),
+                  borderRadius: BorderRadius.circular(6.r),
+                ),
+                alignment: Alignment.center,
+                child: DdtIcon(
+                  _icon,
+                  size: 13.sp,
+                  color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+                ),
+              ),
               SizedBox(width: 10.w),
               Expanded(
                 child: Column(
@@ -280,7 +437,7 @@ class _NotificationTile extends StatelessWidget {
                         color: primary,
                       ),
                     ),
-                    SizedBox(height: 4.h),
+                    SizedBox(height: 3.h),
                     Text(
                       item.body,
                       style: DdtTheme.style(
@@ -307,8 +464,6 @@ class _UserEmailIsland extends StatefulWidget {
 }
 
 class _UserEmailIslandState extends State<_UserEmailIsland> {
-  static const double _cornerRadius = 999;
-
   bool _hovered = false;
 
   void _openProfilePanel(BuildContext anchorContext) {
@@ -318,13 +473,14 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
       context: context,
       anchorContext: anchorContext,
       placement: DdtContextMenuPlacement.belowEnd,
-      offset: Offset(0, 2.h),
+      offset: Offset(0, 4.h),
       childBuilder: (dismiss) => _UserProfileContextPanel(onDismiss: dismiss),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = DdtTheme.taskCardTextPrimary(context);
     final mutedColor = DdtTheme.taskCardTextSecondary(context);
 
@@ -340,6 +496,12 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
             ? authState.user.email
             : null;
         final isAuthenticated = authState is AuthAuthenticated;
+        final bgColor = _hovered && isAuthenticated
+            ? (isDark ? const Color(0xFF1B202E) : const Color(0xFFF1F5F9))
+            : (isDark ? const Color(0xFF151924) : const Color(0xFFF8FAFC));
+        final borderColor = _hovered && isAuthenticated
+            ? DdtTheme.borderStrong(context)
+            : DdtTheme.borderSubtle(context);
 
         return Builder(
           builder: (anchorContext) {
@@ -358,42 +520,62 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                 onTap: isAuthenticated
                     ? () => _openProfilePanel(anchorContext)
                     : null,
-                child: AnimatedOpacity(
+                child: AnimatedContainer(
                   duration: DdtTheme.selectionAnimationDuration,
-                  opacity: _hovered && isAuthenticated ? 0.88 : 1,
-                  child: DdtTheme.taskCardGlass(
-                    context: context,
-                    cornerRadius: _cornerRadius.r,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: DdtTheme.shellSizeOf(context, 12),
-                      vertical: DdtTheme.shellSizeOf(context, 6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        DdtIcon(
-                          DdtIcons.userCircle,
-                          size: DdtGlassAppBar.actionIconSizeOf(context),
-                          color: email != null ? AppColors.primary : mutedColor,
+                  curve: DdtTheme.selectionAnimationCurve,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: DdtTheme.shellSizeOf(context, 10),
+                    vertical: DdtTheme.shellSizeOf(context, 5),
+                  ),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: DdtTheme.inputControlBorderRadius,
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: DdtTheme.shellSizeOf(context, 20),
+                        height: DdtTheme.shellSizeOf(context, 20),
+                        decoration: BoxDecoration(
+                          color: email != null
+                              ? DdtTheme.primaryColor.withValues(
+                                  alpha: isDark ? 0.22 : 0.12,
+                                )
+                              : DdtTheme.borderSubtle(context),
+                          shape: BoxShape.circle,
                         ),
-                        SizedBox(width: DdtTheme.shellSizeOf(context, 6)),
+                        alignment: Alignment.center,
+                        child: DdtIcon(
+                          DdtIcons.user,
+                          size: DdtTheme.shellSizeOf(context, 10),
+                          color: email != null
+                              ? (isDark
+                                    ? DdtTheme.accentColor
+                                    : DdtTheme.primaryColor)
+                              : mutedColor,
+                        ),
+                      ),
+                      if (!DdtAdaptive.isCompact(context)) ...[
+                        SizedBox(width: DdtTheme.shellSizeOf(context, 7)),
                         ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: DdtTheme.shellSizeOf(context, 220),
-                          ),
-                          child: Text(
-                            email ?? 'Не авторизован',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: DdtTheme.style(
-                              fontSize: DdtTypography.labelSmallSize,
-                              fontWeight: FontWeight.w500,
-                              color: email != null ? textColor : mutedColor,
-                            ),
+                        constraints: BoxConstraints(
+                          maxWidth: DdtTheme.shellSizeOf(context, 220),
+                        ),
+                        child: Text(
+                          email ?? 'Не авторизован',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.labelSmallSize,
+                            fontWeight: FontWeight.w500,
+                            color: email != null ? textColor : mutedColor,
                           ),
                         ),
+                      ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -424,7 +606,7 @@ class _UserProfileContextPanel extends StatelessWidget {
 
         return DdtTheme.contextMenuGlass(
           context: context,
-          padding: EdgeInsets.fromLTRB(12.w, 12.h, 12.w, 8.h),
+          padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 10.h),
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: _menuMinWidth.w),
             child: Column(
@@ -439,6 +621,8 @@ class _UserProfileContextPanel extends StatelessWidget {
                 else ...[
                   _ProfilePanelHeader(profile: profile),
                   SizedBox(height: 12.h),
+                  Divider(height: 1, color: DdtTheme.borderSubtle(context)),
+                  SizedBox(height: 10.h),
                   _ProfilePanelField(label: 'Email', value: profile.email),
                   if (profile.jobTitle != null)
                     _ProfilePanelField(
@@ -462,7 +646,9 @@ class _UserProfileContextPanel extends StatelessWidget {
                     value: connected ? 'Подключён' : 'Нет связи',
                   ),
                 ],
-                SizedBox(height: 8.h),
+                SizedBox(height: 6.h),
+                Divider(height: 1, color: DdtTheme.borderSubtle(context)),
+                SizedBox(height: 6.h),
                 _ProfileLogoutButton(
                   isLoading: isLoading,
                   onPressed: isLoading
@@ -491,21 +677,38 @@ class _ProfilePanelHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        DdtIcon(
-          DdtIcons.userCircle,
-          size: 36.sp,
-          color: AppColors.primary,
+        Container(
+          width: 36.w,
+          height: 36.w,
+          decoration: BoxDecoration(
+            color: DdtTheme.primaryColor.withValues(
+              alpha: isDark ? 0.22 : 0.10,
+            ),
+            borderRadius: BorderRadius.circular(8.r),
+            border: Border.all(
+              color: DdtTheme.primaryColor.withValues(
+                alpha: isDark ? 0.35 : 0.20,
+              ),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: DdtIcon(
+            DdtIcons.user,
+            size: 16.sp,
+            color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+          ),
         ),
-        SizedBox(width: 12.w),
+        SizedBox(width: 10.w),
         Expanded(
           child: Text(
             profile.label,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: DdtTheme.style(
-              fontSize: DdtTypography.bodyLargeSize,
+              fontSize: DdtTypography.bodySize,
               fontWeight: FontWeight.w600,
               color: DdtTheme.taskCardTextPrimary(context),
             ),
@@ -525,7 +728,7 @@ class _ProfilePanelField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 10.h),
+      padding: EdgeInsets.only(bottom: 8.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -533,7 +736,7 @@ class _ProfilePanelField extends StatelessWidget {
             label,
             style: DdtTheme.style(
               fontSize: DdtTypography.captionSize,
-              color: DdtTheme.taskCardTextSecondary(context),
+              color: DdtTheme.textMuted(context),
             ),
           ),
           SizedBox(height: 2.h),
@@ -584,10 +787,10 @@ class _ProfileLogoutButtonState extends State<_ProfileLogoutButton> {
         child: AnimatedContainer(
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
-          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 9.h),
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
           decoration: BoxDecoration(
             color: enabled && _hovered
-                ? AppColors.error.withValues(alpha: isDark ? 0.18 : 0.1)
+                ? DdtTheme.dangerColor.withValues(alpha: isDark ? 0.18 : 0.08)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(
               DdtContextMenu.itemBorderRadius.r,
@@ -600,7 +803,7 @@ class _ProfileLogoutButtonState extends State<_ProfileLogoutButton> {
                     height: 18.sp,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.error.withValues(alpha: 0.7),
+                      color: DdtTheme.dangerColor.withValues(alpha: 0.7),
                     ),
                   )
                 : Text(
@@ -609,8 +812,8 @@ class _ProfileLogoutButtonState extends State<_ProfileLogoutButton> {
                       fontSize: DdtTypography.labelSize,
                       fontWeight: FontWeight.w600,
                       color: enabled
-                          ? AppColors.error
-                          : AppColors.error.withValues(alpha: 0.45),
+                          ? DdtTheme.dangerColor
+                          : DdtTheme.dangerColor.withValues(alpha: 0.45),
                     ),
                   ),
           ),

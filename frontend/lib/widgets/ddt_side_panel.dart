@@ -4,19 +4,22 @@ import '../theme/ddt_icons.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../blocs/tasks/tasks_bloc.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_icon.dart';
 
 const Duration _kSidePanelDuration = Duration(milliseconds: 340);
 const Curve _kSidePanelCurve = Curves.easeInOutCubic;
 const double _kSidePanelBlurSigma = 4;
-const double _kSidePanelScrollFadeHeight = 40;
+const double _kSidePanelScrollFadeHeight = 32;
 /// Scroll content starts this far through the fade (0 = opaque edge, 1 = fully transparent edge).
-const double _kSidePanelFadeContentAnchor = 0.68;
+const double _kSidePanelFadeContentAnchor = 0.28;
 
 OverlayEntry? _activeSidePanelOverlayEntry;
 
@@ -65,6 +68,58 @@ Future<T?> showDdtSidePanel<T>(
   required Widget child,
   double? maxWidth,
 }) {
+  if (DdtAdaptive.isCompact(context)) {
+    final chrome = DdtFloatingChrome.read(context);
+    chrome?.hold();
+    TasksBloc? tasksBloc;
+    try {
+      tasksBloc = BlocProvider.of<TasksBloc>(context, listen: false);
+    } on ProviderNotFoundException {
+      tasksBloc = null;
+    }
+    final surface = Theme.of(context).brightness == Brightness.dark
+        ? DdtTheme.darkSurface
+        : DdtTheme.lightSurface;
+    return showModalBottomSheet<T>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      backgroundColor: surface,
+      builder: (sheetContext) {
+        final viewInsets = MediaQuery.viewInsetsOf(sheetContext).bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: viewInsets),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final height = constraints.maxHeight * 0.94;
+              Widget sheet = SizedBox(
+                height: height,
+                child: Navigator(
+                  onGenerateRoute: (_) => _DdtSidePanelPageRoute<T>(
+                    builder: (_) => child,
+                    onClose: (result) async {
+                      final navigator = Navigator.of(sheetContext);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (navigator.mounted) navigator.pop(result);
+                      });
+                    },
+                  ),
+                ),
+              );
+              final tasks = tasksBloc;
+              if (tasks != null) {
+                sheet = BlocProvider.value(value: tasks, child: sheet);
+              }
+              return sheet;
+            },
+          ),
+        );
+      },
+    ).whenComplete(() => chrome?.release());
+  }
+
   final overlayState = Overlay.of(context, rootOverlay: true);
   final completer = Completer<T?>();
 
@@ -173,25 +228,23 @@ class _DdtSidePanelOverlayState<T> extends State<_DdtSidePanelOverlay<T>>
       },
     );
 
+    final panelBody = Material(
+      type: MaterialType.transparency,
+      child: Navigator(
+        onGenerateRoute: (_) => _DdtSidePanelPageRoute<T>(
+          builder: (_) => widget.child,
+          onClose: _dismiss,
+        ),
+      ),
+    );
+
     final panel = SlideTransition(
       position: _slideAnimation,
       child: Align(
         alignment: Alignment.topRight,
         child: Padding(
           padding: DdtTheme.sidePanelInsets(context),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Material(
-              type: MaterialType.transparency,
-              child: Navigator(
-                onGenerateRoute: (_) => _DdtSidePanelPageRoute<T>(
-                  builder: (_) => widget.child,
-                  onClose: _dismiss,
-                ),
-              ),
-            ),
-          ),
+          child: SizedBox(width: width, height: height, child: panelBody),
         ),
       ),
     );
@@ -315,98 +368,106 @@ class DdtSidePanelShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColor = DdtTheme.sidePanelSurfaceColor(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chromeColor = isDark ? DdtTheme.darkSurface : DdtTheme.lightSurface;
     final headerExtent = _SidePanelHeaderChrome.scrollTopInset(context);
     final footerExtent = footer == null
         ? 0.0
         : _SidePanelFooterChrome.scrollBottomInset(context);
 
+    final panel = Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Positioned.fill(
+          child: ClipRect(
+            child: _SidePanelInsetScrollChild(
+              scrollPadding: EdgeInsets.only(
+                top: headerExtent,
+                bottom: footerExtent,
+                left: DdtTheme.spacing.w,
+                right: DdtTheme.spacing.w,
+              ),
+              child: child,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _SidePanelHeaderChrome(
+            surfaceColor: chromeColor,
+            title: title,
+            actions: actions,
+            onClose: onClose,
+          ),
+        ),
+        if (footer != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _SidePanelFooterChrome(
+              surfaceColor: chromeColor,
+              footer: footer!,
+            ),
+          ),
+      ],
+    );
+
+    final framed = DdtAdaptive.isCompact(context)
+        ? ColoredBox(color: chromeColor, child: panel)
+        : DdtTheme.sidePanelGlass(context: context, child: panel);
+
     return Material(
       type: MaterialType.transparency,
       child: Theme(
         data: DdtTheme.sidePanelTheme(context),
-        child: DdtTheme.sidePanelGlass(
-          context: context,
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned.fill(
-                child: ClipRect(
-                  child: _SidePanelInsetScrollChild(
-                    scrollPadding: EdgeInsets.only(
-                      top: headerExtent,
-                      bottom: footerExtent,
-                      left: DdtTheme.spacing.w,
-                      right: DdtTheme.spacing.w,
-                    ),
-                    child: child,
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _SidePanelHeaderChrome(
-                  surfaceColor: surfaceColor,
-                  title: title,
-                  actions: actions,
-                  onClose: onClose,
-                ),
-              ),
-              if (footer != null)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _SidePanelFooterChrome(
-                    surfaceColor: surfaceColor,
-                    footer: footer!,
-                  ),
-                ),
-            ],
-          ),
-        ),
+        child: framed,
       ),
     );
   }
 }
 
-class _SidePanelScrollFade extends StatelessWidget {
-  const _SidePanelScrollFade({
+class _SidePanelChromeFade extends StatelessWidget {
+  const _SidePanelChromeFade({
     required this.surfaceColor,
+    required this.fadeTail,
     required this.atTop,
   });
 
   final Color surfaceColor;
+  final double fadeTail;
   final bool atTop;
 
   @override
   Widget build(BuildContext context) {
+    final solid = surfaceColor.withValues(alpha: 1.0);
+    final clear = surfaceColor.withValues(alpha: 0.0);
+
     return IgnorePointer(
-      child: SizedBox(
-        height: _kSidePanelScrollFadeHeight.h,
-        width: double.infinity,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: const [0, 0.42, 1],
-              colors: atTop
-                  ? [
-                      surfaceColor,
-                      surfaceColor.withValues(alpha: 0.72),
-                      surfaceColor.withValues(alpha: 0),
-                    ]
-                  : [
-                      surfaceColor.withValues(alpha: 0),
-                      surfaceColor.withValues(alpha: 0.72),
-                      surfaceColor,
-                    ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          final edgeRatio = height <= 0
+              ? 0.35
+              : (fadeTail / height).clamp(0.0, 1.0);
+
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: atTop
+                    ? [solid, solid, clear]
+                    : [clear, solid, solid],
+                stops: atTop
+                    ? [0.0, (1.0 - edgeRatio).clamp(0.0, 1.0), 1.0]
+                    : [0.0, edgeRatio, 1.0],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -436,50 +497,53 @@ class _SidePanelHeaderChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final fadeTail = _kSidePanelScrollFadeHeight.h;
+
+    return Stack(
       children: [
-        ColoredBox(
-          color: surfaceColor,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              DdtTheme.spacing.w,
-              14.h,
-              4.w,
-              14.h,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.panelTitleSize,
-                      fontWeight: FontWeight.w700,
-                      color: DdtTheme.sidePanelTextPrimary(context),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (actions != null) ...actions!,
-                IconButton(
-                  tooltip: 'Закрыть',
-                  onPressed: onClose ?? () => Navigator.of(context).pop(),
-                  icon: DdtIcon(
-                    DdtIcons.close,
-                    size: 20.sp,
-                    color: DdtTheme.sidePanelTextPrimary(context),
-                  ),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
+        Positioned.fill(
+          child: _SidePanelChromeFade(
+            surfaceColor: surfaceColor,
+            fadeTail: fadeTail,
+            atTop: true,
           ),
         ),
-        _SidePanelScrollFade(surfaceColor: surfaceColor, atTop: true),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            DdtTheme.spacing.w,
+            14.h,
+            4.w,
+            14.h + fadeTail,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: DdtTheme.style(
+                    fontSize: DdtTypography.panelTitleSize,
+                    fontWeight: FontWeight.w700,
+                    color: DdtTheme.sidePanelTextPrimary(context),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (actions != null) ...actions!,
+              IconButton(
+                tooltip: 'Закрыть',
+                onPressed: onClose ?? () => Navigator.of(context).pop(),
+                icon: DdtIcon(
+                  DdtIcons.close,
+                  size: 20.sp,
+                  color: DdtTheme.sidePanelTextPrimary(context),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -495,7 +559,7 @@ class _SidePanelFooterChrome extends StatelessWidget {
   final Widget footer;
 
   static double _footerSolidHeight(BuildContext context) {
-    return DdtTheme.spacing.w * 2 + 52.h;
+    return DdtTheme.spacing.w * 2 + 44.h;
   }
 
   static double scrollBottomInset(BuildContext context) {
@@ -505,17 +569,25 @@ class _SidePanelFooterChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final fadeTail = _kSidePanelScrollFadeHeight.h;
+
+    return Stack(
       children: [
-        _SidePanelScrollFade(surfaceColor: surfaceColor, atTop: false),
-        ColoredBox(
-          color: surfaceColor,
-          child: Padding(
-            padding: EdgeInsets.all(DdtTheme.spacing.w),
-            child: footer,
+        Positioned.fill(
+          child: _SidePanelChromeFade(
+            surfaceColor: surfaceColor,
+            fadeTail: fadeTail,
+            atTop: false,
           ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            DdtTheme.spacing.w,
+            fadeTail + DdtTheme.spacing.w,
+            DdtTheme.spacing.w,
+            DdtTheme.spacing.w,
+          ),
+          child: footer,
         ),
       ],
     );

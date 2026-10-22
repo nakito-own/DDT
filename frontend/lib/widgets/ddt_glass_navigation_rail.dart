@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_section.dart';
@@ -18,8 +17,8 @@ class DdtGlassNavigationRail extends StatelessWidget {
   final ValueChanged<AppSection> onSectionSelected;
 
   static const double railWidth = 52;
-  static const double _railTopInset = 12;
-  static const double _railBottomInset = 4;
+  static const double _railTopInset = 10;
+  static const double _railBottomInset = 8;
 
   static final List<AppSection> _primarySections = AppSection.values
       .where((section) => section != AppSection.settings)
@@ -32,7 +31,7 @@ class DdtGlassNavigationRail extends StatelessWidget {
     return RepaintBoundary(
       child: DdtTheme.glass(
         context: context,
-        showBorder: false,
+        showBorder: true,
         width: DdtTheme.shellSizeOf(context, railWidth),
         height: double.infinity,
         padding: EdgeInsets.fromLTRB(
@@ -55,6 +54,14 @@ class DdtGlassNavigationRail extends StatelessWidget {
                 SizedBox(height: DdtTheme.shellSizeOf(context, 4)),
             ],
             const Spacer(),
+            Container(
+              height: 1,
+              margin: EdgeInsets.symmetric(
+                horizontal: DdtTheme.shellSizeOf(context, 6),
+                vertical: DdtTheme.shellSizeOf(context, 6),
+              ),
+              color: DdtTheme.borderSubtle(context),
+            ),
             _NavigationRailItem(
               section: AppSection.settings,
               isSelected: selectedSection == AppSection.settings,
@@ -87,7 +94,7 @@ class _NavigationRailItem extends StatefulWidget {
 
 class _NavigationRailItemState extends State<_NavigationRailItem>
     with SingleTickerProviderStateMixin {
-  static const Duration _tooltipFadeIn = Duration(milliseconds: 150);
+  static const Duration _tooltipFadeIn = Duration(milliseconds: 140);
   static const Duration _tooltipFadeOut = Duration(milliseconds: 75);
 
   bool _hovered = false;
@@ -105,7 +112,7 @@ class _NavigationRailItemState extends State<_NavigationRailItem>
       reverseDuration: _tooltipFadeOut,
     );
     _tooltipSlide = Tween<Offset>(
-      begin: const Offset(-0.06, 0),
+      begin: const Offset(-0.05, 0),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
@@ -164,44 +171,48 @@ class _NavigationRailItemState extends State<_NavigationRailItem>
   }
 
   Color _foregroundColor(BuildContext context) {
-    if (widget.isDark) {
-      if (widget.isSelected) {
-        return AppColors.primary;
-      }
-      return _hovered
-          ? Colors.white.withValues(alpha: 0.88)
-          : Colors.white.withValues(alpha: 0.58);
-    }
-
     if (widget.isSelected) {
-      return DdtTheme.loginTitleColor(context);
+      return widget.isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
     }
-
-    return _hovered
-        ? DdtTheme.lightTextPrimary
-        : DdtTheme.textSecondary(context);
+    if (_hovered) {
+      return DdtTheme.textPrimary(context);
+    }
+    return DdtTheme.textMuted(context);
   }
 
   Color _backgroundColor() {
     if (widget.isSelected) {
-      return AppColors.primary.withValues(
+      return DdtTheme.primaryColor.withValues(
         alpha: widget.isDark
-            ? (_hovered ? 0.26 : 0.2)
-            : (_hovered ? 0.16 : 0.12),
+            ? (_hovered ? 0.24 : 0.18)
+            : (_hovered ? 0.15 : 0.10),
       );
     }
 
-    if (!_hovered) {
-      return Colors.transparent;
+    if (widget.isDark) {
+      return Colors.white.withValues(alpha: _hovered ? 0.07 : 0.0);
     }
 
-    return AppColors.primary.withValues(alpha: widget.isDark ? 0.12 : 0.08);
+    return DdtTheme.primaryColor.withValues(alpha: _hovered ? 0.09 : 0.0);
+  }
+
+  Color _borderColor() {
+    if (widget.isSelected) {
+      return DdtTheme.primaryColor.withValues(
+        alpha: widget.isDark ? 0.32 : 0.20,
+      );
+    }
+    return DdtTheme.primaryColor.withValues(alpha: 0.0);
   }
 
   @override
   Widget build(BuildContext context) {
     final foregroundColor = _foregroundColor(context);
     final backgroundColor = _backgroundColor();
+    final borderColor = _borderColor();
+    final itemRadius = BorderRadius.circular(
+      DdtTheme.shellSizeOf(context, DdtTheme.inputControlRadius),
+    );
 
     return CompositedTransformTarget(
       link: _tooltipLink,
@@ -218,39 +229,53 @@ class _NavigationRailItemState extends State<_NavigationRailItem>
         child: GestureDetector(
           onTap: widget.onTap,
           behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: DdtTheme.selectionAnimationDuration,
-            curve: DdtTheme.selectionAnimationCurve,
-            padding: EdgeInsets.symmetric(
-              vertical: DdtTheme.shellSizeOf(context, 10),
-              horizontal: DdtTheme.shellSizeOf(context, 4),
-            ),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: DdtTheme.radius,
-            ),
-            child: AnimatedScale(
-              scale: _hovered ? 1.04 : 1,
-              alignment: Alignment.center,
-              duration: DdtTheme.selectionAnimationDuration,
-              curve: DdtTheme.selectionAnimationCurve,
-              child: TweenAnimationBuilder<Color?>(
-                tween: ColorTween(end: foregroundColor),
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              AnimatedContainer(
                 duration: DdtTheme.selectionAnimationDuration,
                 curve: DdtTheme.selectionAnimationCurve,
-                builder: (context, color, _) {
-                  final resolvedColor = color ?? foregroundColor;
+                padding: EdgeInsets.symmetric(
+                  vertical: DdtTheme.shellSizeOf(context, 10),
+                  horizontal: DdtTheme.shellSizeOf(context, 4),
+                ),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: itemRadius,
+                  border: Border.all(color: borderColor),
+                ),
+                child: TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: foregroundColor),
+                  duration: DdtTheme.selectionAnimationDuration,
+                  curve: DdtTheme.selectionAnimationCurve,
+                  builder: (context, color, _) {
+                    final resolvedColor = color ?? foregroundColor;
 
-                  return Center(
-                    child: DdtIcon(
-                      widget.section.icon,
-                      color: resolvedColor,
-                      size: DdtTheme.shellSizeOf(context, 20),
-                    ),
-                  );
-                },
+                    return Center(
+                      child: DdtIcon(
+                        widget.section.icon,
+                        color: resolvedColor,
+                        size: DdtTheme.shellSizeOf(context, 18),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
+              AnimatedContainer(
+                duration: DdtTheme.selectionAnimationDuration,
+                curve: DdtTheme.selectionAnimationCurve,
+                width: DdtTheme.shellSizeOf(context, 3),
+                height: widget.isSelected
+                    ? DdtTheme.shellSizeOf(context, 18)
+                    : 0,
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? DdtTheme.accentColor
+                      : DdtTheme.primaryColor,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -320,11 +345,11 @@ class _MaterialTooltipBox extends StatelessWidget {
       TargetPlatform.macOS ||
       TargetPlatform.linux ||
       TargetPlatform.windows =>
-        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       TargetPlatform.android ||
       TargetPlatform.fuchsia ||
       TargetPlatform.iOS =>
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     };
   }
 
@@ -333,7 +358,7 @@ class _MaterialTooltipBox extends StatelessWidget {
       TargetPlatform.macOS ||
       TargetPlatform.linux ||
       TargetPlatform.windows =>
-        24.0,
+        26.0,
       TargetPlatform.android ||
       TargetPlatform.fuchsia ||
       TargetPlatform.iOS =>
@@ -351,12 +376,15 @@ class _MaterialTooltipBox extends StatelessWidget {
         switch (theme.brightness) {
           Brightness.dark => (
             theme.textTheme.bodyMedium!.copyWith(
-              color: Colors.black,
+              color: DdtTheme.darkTextPrimary,
               fontSize: _fontSize(platform),
             ),
             BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              color: const Color(0xFF232C3F).withValues(alpha: 0.94),
+              borderRadius: const BorderRadius.all(Radius.circular(6)),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.14),
+              ),
             ),
           ),
           Brightness.light => (
@@ -365,8 +393,8 @@ class _MaterialTooltipBox extends StatelessWidget {
               fontSize: _fontSize(platform),
             ),
             BoxDecoration(
-              color: Colors.grey[700]!.withValues(alpha: 0.9),
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              color: const Color(0xFF1E293B).withValues(alpha: 0.92),
+              borderRadius: const BorderRadius.all(Radius.circular(6)),
             ),
           ),
         };

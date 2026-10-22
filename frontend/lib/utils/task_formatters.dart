@@ -36,37 +36,37 @@ bool isTaskOverdue(Task task) {
 Color priorityColor(TaskPriority priority) {
   switch (priority) {
     case TaskPriority.insignificant:
-      return Colors.grey;
+      return const Color(0xFF758599);
     case TaskPriority.low:
-      return const Color(0xFF1976D2);
+      return const Color(0xFF4A90C2);
     case TaskPriority.medium:
-      return const Color(0xFFF57C00);
+      return const Color(0xFFD4943A);
     case TaskPriority.high:
-      return const Color(0xFFE65100);
+      return const Color(0xFFD67249);
     case TaskPriority.blocker:
-      return const Color(0xFFC62828);
+      return const Color(0xFFD15462);
   }
 }
 
 Color statusColumnColor(TaskStatus status) {
   switch (status) {
     case TaskStatus.todo:
-      return const Color(0xFF1976D2);
+      return const Color(0xFF6B85C7);
     case TaskStatus.inProgress:
-      return const Color(0xFF64B5F6);
+      return const Color(0xFF4A90C2);
     case TaskStatus.done:
-      return const Color(0xFF07753F);
+      return const Color(0xFF3E9B74);
   }
 }
 
 const _taskTypePalette = <Color>[
-  Color(0xFF5E35B1),
-  Color(0xFF00897B),
-  Color(0xFFD81B60),
-  Color(0xFF6D4C41),
-  Color(0xFF3949AB),
-  Color(0xFF00ACC1),
-  Color(0xFFF4511E),
+  Color(0xFF7269B5),
+  Color(0xFF3D9488),
+  Color(0xFFC2597E),
+  Color(0xFF8C6B5D),
+  Color(0xFF5279C7),
+  Color(0xFF4A90B8),
+  Color(0xFFD4764E),
 ];
 
 Color taskTypeColor(int typeId) {

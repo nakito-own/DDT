@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../theme/ddt_theme.dart';
+
 /// Main scroll areas (tasks, mail, analytics dashboard, contacts).
 const double kDdtScrollEdgeFadeHeight = 36.0;
 
@@ -54,7 +56,7 @@ class DdtScrollEdgeFade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = backgroundColor ?? Theme.of(context).scaffoldBackgroundColor;
+    final bg = backgroundColor ?? DdtTheme.scaffoldBackground(context);
 
     return Stack(
       clipBehavior: Clip.hardEdge,

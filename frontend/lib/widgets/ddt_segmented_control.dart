@@ -1,4 +1,5 @@
-import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -19,10 +20,7 @@ class DdtSegmentedControlSegment<T> {
   final FaIconData? icon;
 }
 
-/// Segmented selector styled for DDT glass UI.
-///
-/// Follows the structure of [GlassWidgets.tabBar] from bolt_ui_kit, but uses
-/// DDT theme colors and supports optional icons per segment.
+/// Modern desktop web segmented selector (recessed track + elevated active pill).
 class DdtSegmentedControl<T> extends StatelessWidget {
   const DdtSegmentedControl({
     super.key,
@@ -32,11 +30,12 @@ class DdtSegmentedControl<T> extends StatelessWidget {
     this.compact = false,
   });
 
-  static const double _segmentRadius = DdtTheme.borderRadius + 12;
-  static const double _segmentPaddingHorizontal = 16;
-  static const double _segmentPaddingVertical = 4;
-  static const double _segmentPaddingHorizontalCompact = 11;
-  static const double _segmentPaddingVerticalCompact = 2;
+  static const double _trackRadius = DdtTheme.inputControlRadius;
+  static const double _segmentRadius = 6;
+  static const double _segmentPaddingHorizontal = 13;
+  static const double _segmentPaddingVertical = 5;
+  static const double _segmentPaddingHorizontalCompact = 10;
+  static const double _segmentPaddingVerticalCompact = 3;
 
   final List<DdtSegmentedControlSegment<T>> segments;
   final T? selected;
@@ -45,26 +44,41 @@ class DdtSegmentedControl<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(compact ? 2.w : 3.w),
-      decoration: DdtTheme.shellSurfaceDecoration(
-        context,
-        addShadow: false,
-        radius: 30.r,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < segments.length; i++) ...[
-            if (i > 0) SizedBox(width: 2.w),
-            _DdtSegmentedControlItem<T>(
-              segment: segments[i],
-              isSelected: segments[i].value == selected,
-              compact: compact,
-              onTap: () => onChanged(segments[i].value),
-            ),
-          ],
-        ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.white.withValues(alpha: 0.56);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.11)
+        : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
+    final resolvedRadius = BorderRadius.circular(_trackRadius.r);
+
+    return ClipRRect(
+      borderRadius: resolvedRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: EdgeInsets.all((compact ? 2 : 3).w),
+          decoration: BoxDecoration(
+            color: trackColor,
+            borderRadius: resolvedRadius,
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < segments.length; i++) ...[
+                if (i > 0) SizedBox(width: 2.w),
+                _DdtSegmentedControlItem<T>(
+                  segment: segments[i],
+                  isSelected: segments[i].value == selected,
+                  compact: compact,
+                  onTap: () => onChanged(segments[i].value),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -95,25 +109,32 @@ class _DdtSegmentedControlItemState<T>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textSecondary = DdtTheme.taskCardTextSecondary(context);
-
     final isSelected = widget.isSelected;
+
     final foregroundColor = isSelected
-        ? AppColors.primary.withValues(alpha: 0.95)
+        ? DdtTheme.textPrimary(context)
         : (_hovered
-              ? (isDark
-                    ? Colors.white.withValues(alpha: 0.82)
-                    : DdtTheme.lightTextPrimary)
-              : textSecondary);
+              ? DdtTheme.textSecondary(context)
+              : DdtTheme.textMuted(context));
+
+    final iconColor = isSelected
+        ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
+        : foregroundColor;
 
     final backgroundColor = isSelected
-        ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+        ? (isDark
+              ? const Color(0xD9283248)
+              : Colors.white.withValues(alpha: 0.92))
         : (_hovered
-              ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.06)
+              ? (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.white.withValues(alpha: 0.58))
               : Colors.transparent);
 
     final borderColor = isSelected
-        ? AppColors.primary.withValues(alpha: isDark ? 0.45 : 0.32)
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : DdtTheme.lightBorderSubtle)
         : Colors.transparent;
 
     return MouseRegion(
@@ -142,6 +163,17 @@ class _DdtSegmentedControlItemState<T>
               DdtSegmentedControl._segmentRadius.r,
             ),
             border: Border.all(color: borderColor),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.26 : 0.05,
+                      ),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -149,10 +181,10 @@ class _DdtSegmentedControlItemState<T>
               if (widget.segment.icon != null) ...[
                 DdtIcon(
                   widget.segment.icon!,
-                  size: (widget.compact ? 12 : 14).sp,
-                  color: foregroundColor,
+                  size: (widget.compact ? 12 : 13).sp,
+                  color: iconColor,
                 ),
-                SizedBox(width: (widget.compact ? 4 : 5).w),
+                SizedBox(width: (widget.compact ? 4 : 6).w),
               ],
               Text(
                 widget.segment.label,
