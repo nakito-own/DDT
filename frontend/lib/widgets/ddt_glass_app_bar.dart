@@ -21,6 +21,8 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.center,
     this.leading,
     this.secondaryRow = false,
+    this.compact = false,
+    this.overlay = false,
   });
 
   final String title;
@@ -31,6 +33,13 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// Shown only on the compact shell, before the title.
   final Widget? leading;
+
+  /// Phone layout: title and actions stay in one compact row even when
+  /// [leading] is absent.
+  final bool compact;
+
+  /// Compact phone header without the glass bar. Sits on the top fade.
+  final bool overlay;
 
   /// Moves [actions] and [center] onto a second, horizontally scrolling row.
   final bool secondaryRow;
@@ -61,7 +70,7 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (secondaryRow || leading != null) {
+    if (compact || secondaryRow || leading != null) {
       return _buildCompactBar(context);
     }
 
@@ -122,6 +131,72 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
     final reading = DdtCompactBarScope.maybeOf(context)?.hasOverride ?? false;
     final showSheet = !reading && (sheets?.hasSheet ?? false);
     final leadingWidget = leading;
+    final titleRow = Row(
+      children: [
+        if (leadingWidget != null)
+          leadingWidget
+        else
+          SizedBox(width: DdtTheme.shellSizeOf(context, 16)),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.panelTitleSize,
+              fontWeight: FontWeight.w600,
+              color: foregroundColor,
+            ),
+          ),
+        ),
+        if (showSheet)
+          IconButton(
+            tooltip: sheets!.title,
+            visualDensity: VisualDensity.compact,
+            padding: actionIconButtonPadding(context),
+            constraints: actionIconButtonConstraints(context),
+            onPressed: () => sheets.open(context),
+            icon: DdtIcon(
+              sheets.icon,
+              color: foregroundColor,
+              size: actionIconSizeOf(context),
+            ),
+          ),
+        const _NotificationBellButton(),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
+        const _UserEmailIsland(),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+      ],
+    );
+    final actionsRow = secondaryRow
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.only(
+              left: DdtTheme.shellSizeOf(context, 8),
+              right: DdtTheme.shellSizeOf(context, 8),
+              bottom: DdtTheme.shellSizeOf(context, 6),
+            ),
+            child: Row(
+              children: [
+                ?center,
+                if (center != null && actions != null)
+                  SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                ?actions,
+              ],
+            ),
+          )
+        : null;
+
+    if (overlay) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: height, child: titleRow),
+          if (actionsRow != null) SizedBox(height: secondary, child: actionsRow),
+        ],
+      );
+    }
 
     return DdtTheme.shellAppBarGlass(
       context: context,
@@ -130,63 +205,9 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            flex: barHeight.round(),
-            child: Row(
-              children: [
-                if (leadingWidget != null) leadingWidget,
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.panelTitleSize,
-                      fontWeight: FontWeight.w600,
-                      color: foregroundColor,
-                    ),
-                  ),
-                ),
-                if (showSheet)
-                  IconButton(
-                    tooltip: sheets!.title,
-                    visualDensity: VisualDensity.compact,
-                    padding: actionIconButtonPadding(context),
-                    constraints: actionIconButtonConstraints(context),
-                    onPressed: () => sheets.open(context),
-                    icon: DdtIcon(
-                      sheets.icon,
-                      color: foregroundColor,
-                      size: actionIconSizeOf(context),
-                    ),
-                  ),
-                const _NotificationBellButton(),
-                SizedBox(width: DdtTheme.shellSizeOf(context, 4)),
-                const _UserEmailIsland(),
-                SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-              ],
-            ),
-          ),
-          if (secondaryRow)
-            Expanded(
-              flex: secondary.round(),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.only(
-                  left: DdtTheme.shellSizeOf(context, 8),
-                  right: DdtTheme.shellSizeOf(context, 8),
-                  bottom: DdtTheme.shellSizeOf(context, 6),
-                ),
-                child: Row(
-                  children: [
-                    ?center,
-                    if (center != null && actions != null)
-                      SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-                    ?actions,
-                  ],
-                ),
-              ),
-            ),
+          Expanded(flex: barHeight.round(), child: titleRow),
+          if (actionsRow != null)
+            Expanded(flex: secondary.round(), child: actionsRow),
         ],
       ),
     );
@@ -497,8 +518,8 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
             : null;
         final isAuthenticated = authState is AuthAuthenticated;
         final bgColor = _hovered && isAuthenticated
-            ? (isDark ? const Color(0xFF1B202E) : const Color(0xFFF1F5F9))
-            : (isDark ? const Color(0xFF151924) : const Color(0xFFF8FAFC));
+            ? (isDark ? DdtTheme.darkWidget : const Color(0xFFF1F5F9))
+            : (isDark ? DdtTheme.darkSurface : const Color(0xFFF8FAFC));
         final borderColor = _hovered && isAuthenticated
             ? DdtTheme.borderStrong(context)
             : DdtTheme.borderSubtle(context);

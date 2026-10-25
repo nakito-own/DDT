@@ -24,6 +24,7 @@ import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_user_chip.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
+import '../widgets/ddt_mobile_navigation_bar.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_panel_primary_button.dart';
@@ -1013,7 +1014,7 @@ class _MailListState extends State<_MailList> {
                       ? MailMobileDock.reserve
                       : 0.0;
                   final listView = ScrollConfiguration(
-                    behavior: const DdtBalancedScrollBehavior(),
+                    behavior: const DdtScrollBehavior(),
                     child: ListView.separated(
                       controller: _scrollController,
                       padding: EdgeInsets.fromLTRB(
@@ -1076,18 +1077,24 @@ class _MailListState extends State<_MailList> {
                 child: _buildMessagesToolbar(context),
               ),
               if (widget.showDock)
-                const Positioned(
+                Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 0,
-                  child: Row(
+                  bottom: DdtAdaptive.floatingBottomBar(context)
+                      ? DdtMobileNavigationBar.clearance(context)
+                      : 0,
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [MailMobileDock()],
                   ),
                 ),
               Positioned(
                 right: 12.w,
-                bottom: widget.showDock ? MailMobileDock.reserve : 12.h,
+                bottom:
+                    (widget.showDock ? MailMobileDock.reserve : 12.h) +
+                    (DdtAdaptive.floatingBottomBar(context)
+                        ? DdtMobileNavigationBar.clearance(context)
+                        : 0),
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _showScrollToTopButton,
                   builder: (context, show, child) {
@@ -1331,7 +1338,7 @@ class _MailDetail extends StatelessWidget {
 
         return DdtTheme.glass(
           context: context,
-          padding: EdgeInsets.all(20.w),
+          padding: EdgeInsets.fromLTRB(20.w, 20.h, 12.w, 20.h),
           child: detail,
         );
       },

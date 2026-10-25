@@ -94,20 +94,7 @@ Future<T?> showDdtSidePanel<T>(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final height = constraints.maxHeight * 0.94;
-              Widget sheet = SizedBox(
-                height: height,
-                child: Navigator(
-                  onGenerateRoute: (_) => _DdtSidePanelPageRoute<T>(
-                    builder: (_) => child,
-                    onClose: (result) async {
-                      final navigator = Navigator.of(sheetContext);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (navigator.mounted) navigator.pop(result);
-                      });
-                    },
-                  ),
-                ),
-              );
+              Widget sheet = SizedBox(height: height, child: child);
               final tasks = tasksBloc;
               if (tasks != null) {
                 sheet = BlocProvider.value(value: tasks, child: sheet);

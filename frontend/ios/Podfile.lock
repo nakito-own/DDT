@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - liquid_glass_native (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - liquid_glass_native (from `.symlinks/plugins/liquid_glass_native/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  liquid_glass_native:
+    :path: ".symlinks/plugins/liquid_glass_native/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  liquid_glass_native: ee1cea2e4ef22e4102632b6826fb05d82188a44a
+
+PODFILE CHECKSUM: 88c1b19bd2de78a2d4638154af5ac5257c8fa06f
+
+COCOAPODS: 1.17.0

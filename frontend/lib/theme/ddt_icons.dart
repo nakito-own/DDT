@@ -13,7 +13,7 @@ abstract final class DdtIcons {
   static const FaIconData contacts = FontAwesomeIcons.addressBook;
   static const FaIconData analytics = FontAwesomeIcons.chartColumn;
   static const FaIconData grid = FontAwesomeIcons.tableCells;
-  static const FaIconData automations = FontAwesomeIcons.bolt;
+  static const FaIconData additions = FontAwesomeIcons.tableCellsLarge;
   static const FaIconData penToSquare = FontAwesomeIcons.penToSquare;
   static const FaIconData settings = FontAwesomeIcons.gear;
 

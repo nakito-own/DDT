@@ -42,7 +42,9 @@ abstract final class DdtSectionSidebar {
   static Widget afterScrollbarGapBox() => SizedBox(width: afterScrollbarGap.w);
 
   /// Empty space between the divider and the main content.
-  static Widget dividerGap() => DdtTheme.horizontalGap();
+  static const double contentGap = 8;
+
+  static Widget dividerGap() => SizedBox(width: contentGap.w);
 
   static double get afterPrimaryButtonGap => 10.h;
   static double get afterTitleGap => 12.h;

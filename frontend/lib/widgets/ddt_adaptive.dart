@@ -57,14 +57,41 @@ class DdtFloatingChrome extends InheritedNotifier<DdtFloatingChromeController> {
 
 /// Viewport split between the desktop shell and the phone/tablet shell.
 ///
-/// Wide windows keep the navigation rail and inline sidebars. Narrow windows
-/// use a drawer and bottom sheets. The cutoff sits under a typical desktop
-/// window so the web layout at laptop sizes stays the same.
+/// Wide windows keep the navigation rail and inline sidebars. Narrow native
+/// desktop windows keep the drawer. Narrow web and phones use a bottom bar.
 abstract final class DdtAdaptive {
   static const double compactBreakpoint = DdtTheme.compactLayoutWidth;
 
   static bool isCompact(BuildContext context) =>
       DdtTheme.isCompactLayout(context);
+
+  static bool get usesLiquidGlassNavigation =>
+      liquidGlassNavigation(web: kIsWeb, platform: defaultTargetPlatform);
+
+  static bool get usesMaterialBottomNavigation =>
+      materialBottomNavigation(web: kIsWeb, platform: defaultTargetPlatform);
+
+  static bool liquidGlassNavigation({
+    required bool web,
+    required TargetPlatform platform,
+  }) => !web && platform == TargetPlatform.iOS;
+
+  /// Material bar for Android and for the narrow web layout. iPhone keeps the
+  /// system glass bar, and a narrow desktop app keeps the drawer.
+  static bool materialBottomNavigation({
+    required bool web,
+    required TargetPlatform platform,
+  }) {
+    if (liquidGlassNavigation(web: web, platform: platform)) return false;
+    if (web) return true;
+    return platform == TargetPlatform.android;
+  }
+
+  /// Compact web, Android, and iPhone: the bottom bar floats over the page.
+  static bool floatingBottomBar(BuildContext context) {
+    if (!isCompact(context)) return false;
+    return usesLiquidGlassNavigation || usesMaterialBottomNavigation;
+  }
 }
 
 class _SectionSheetRegistration {
@@ -480,7 +507,10 @@ class DdtAppDrawer extends StatelessWidget {
   final ValueChanged<AppSection> onSectionSelected;
 
   static final List<AppSection> _primarySections = AppSection.values
-      .where((section) => section != AppSection.settings)
+      .where(
+        (section) =>
+            section != AppSection.settings && section != AppSection.more,
+      )
       .toList();
 
   final VoidCallback onDismiss;

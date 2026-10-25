@@ -7,19 +7,24 @@ import 'package:go_router/go_router.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/app_section.dart';
+import '../screens/additions_page.dart';
 import '../screens/analytics_page.dart';
 import '../screens/calendar_page.dart';
+import '../screens/event_create_page.dart';
 import '../screens/contacts_page.dart';
 import '../screens/ews_login_screen.dart';
 import '../screens/kanban_board_page.dart';
 import '../screens/mail_page.dart';
 import '../screens/main_shell_page.dart';
 import '../screens/settings_page.dart';
+import '../screens/task_create_page.dart';
 import '../screens/task_details_page.dart';
 import '../screens/tasks_gantt_page.dart';
 import '../screens/tasks_list_page.dart';
 import '../screens/tasks_shell_page.dart';
 import '../services/tasks_api.dart';
+import '../theme/ddt_theme.dart';
+import '../widgets/ddt_section_transition.dart';
 import 'route_paths.dart';
 
 /// Создаёт и возвращает настроенный [GoRouter].
@@ -57,8 +62,9 @@ AppRouter createAppRouter(AuthBloc authBloc) {
       ),
 
       // ─── Защищённые маршруты: внешняя оболочка с DdtShellLayout ───────────
-      // pageBuilder с NoTransitionPage исключает анимацию на уровне шелла:
-      // навигационный рейл и аппбар никогда не должны анимироваться.
+      // pageBuilder с NoTransitionPage не анимирует сам шелл:
+      // рейл и аппбар остаются на месте. Смена раздела анимируется
+      // только в области контента, см. [DdtSectionTransition].
       ShellRoute(
         pageBuilder: (context, state, child) {
           final section = AppSection.fromRoute(state.matchedLocation);
@@ -108,13 +114,22 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     ),
                   ),
                   GoRoute(
+                    path: 'new',
+                    name: RoutePaths.nameTaskCreate,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: state.pageKey,
+                      child: const TaskCreatePage(),
+                    ),
+                  ),
+                  GoRoute(
                     path: 'archive',
                     name: RoutePaths.nameTasksArchive,
                     pageBuilder: (context, state) => NoTransitionPage(
                       key: state.pageKey,
                       child: BlocProvider(
-                        create: (_) => TasksBloc(archivedOnly: true)
-                          ..add(const TasksBoardLoadRequested()),
+                        create: (_) =>
+                            TasksBloc(archivedOnly: true)
+                              ..add(const TasksBoardLoadRequested()),
                         child: const TasksListPage(),
                       ),
                     ),
@@ -124,7 +139,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     name: RoutePaths.nameTaskDetails,
                     pageBuilder: (context, state) {
                       final taskKey = state.pathParameters['taskKey'] ?? '';
-                      return NoTransitionPage(
+                      return _buildTaskOpenPage(
                         key: state.pageKey,
                         child:
                             taskKey.isEmpty ||
@@ -144,6 +159,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             name: RoutePaths.nameMail,
             pageBuilder: (context, state) =>
                 NoTransitionPage(key: state.pageKey, child: const MailPage()),
+          ),
+          GoRoute(
+            path: RoutePaths.calendarNew,
+            name: RoutePaths.nameCalendarNew,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const EventCreatePage(),
+            ),
           ),
           GoRoute(
             path: RoutePaths.calendar,
@@ -194,7 +217,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             pageBuilder: (context, state) {
               final taskKey = state.pathParameters['spaceKey'] ?? '';
               final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
-              return NoTransitionPage(
+              return _buildTaskOpenPage(
                 key: state.pageKey,
                 child: RoutePaths.isTaskKey(taskKey)
                     ? BlocProvider(
@@ -225,6 +248,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               );
             },
             routes: [
+              GoRoute(
+                path: '/space/:spaceKey/new',
+                name: RoutePaths.nameSpaceTaskCreate,
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const TaskCreatePage(),
+                ),
+              ),
               GoRoute(
                 path: RoutePaths.spaceList,
                 name: RoutePaths.nameSpaceList,
@@ -269,11 +300,15 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             ],
           ),
           GoRoute(
-            path: RoutePaths.automations,
-            name: RoutePaths.nameAutomations,
+            path: '/automations',
+            redirect: (context, state) => RoutePaths.tasksList,
+          ),
+          GoRoute(
+            path: RoutePaths.more,
+            name: RoutePaths.nameMore,
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderPage(section: AppSection.automations),
+              child: const AdditionsPage(),
             ),
           ),
           GoRoute(
@@ -314,10 +349,41 @@ final class AppRouter {
   }
 }
 
+/// Карточка задачи въезжает внутри оболочки: рейл и шапка не двигаются.
+CustomTransitionPage<void> _buildTaskOpenPage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return ColoredBox(
+        color: DdtTheme.scaffoldBackground(context),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Страница с плавным fade-переходом.
 ///
 /// Используется там, где анимация уместна (логин ↔ приложение).
-/// Для переключения секций внутри шелла используется [NoTransitionPage].
+/// Смена разделов внутри шелла анимируется в [DdtSectionTransition],
+/// а не страницей маршрута: рейл и аппбар не должны уезжать.
 CustomTransitionPage<void> _buildFadePage({
   required LocalKey key,
   required Widget child,

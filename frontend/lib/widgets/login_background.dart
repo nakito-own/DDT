@@ -136,9 +136,9 @@ class _GradientFallback extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isDark
               ? const [
-                  Color(0xFF101520),
-                  Color(0xFF172032),
-                  Color(0xFF121824),
+                  Color(0xFF05070C),
+                  Color(0xFF0C1018),
+                  Color(0xFF070910),
                 ]
               : const [
                   Color(0xFFE6ECF7),

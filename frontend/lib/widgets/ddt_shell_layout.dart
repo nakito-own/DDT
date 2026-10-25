@@ -7,7 +7,9 @@ import 'ddt_adaptive.dart';
 import 'ddt_app_bar_section_actions.dart';
 import 'ddt_glass_app_bar.dart';
 import 'ddt_glass_navigation_rail.dart';
+import 'ddt_mobile_navigation_bar.dart';
 import 'ddt_icon.dart';
+import 'ddt_section_transition.dart';
 import 'ddt_shell_metrics.dart';
 
 class DdtShellLayout extends StatelessWidget {
@@ -91,7 +93,9 @@ class DdtShellLayout extends StatelessWidget {
                     SizedBox(width: contentEdge),
                     Expanded(
                       child: _ShellMainContent(
+                        section: selectedSection,
                         padContent: padContent,
+                        extendUnderBottomBar: false,
                         contentRowTop: contentRowTop,
                         child: child,
                       ),
@@ -106,9 +110,7 @@ class DdtShellLayout extends StatelessWidget {
                 height: barHeight,
                 child: DdtGlassAppBar(
                   title: title,
-                  actions: DdtAppBarSectionActions(
-                    section: selectedSection,
-                  ),
+                  actions: DdtAppBarSectionActions(section: selectedSection),
                   center: selectedSection == AppSection.calendar
                       ? const CalendarAppBarDateNav()
                       : null,
@@ -172,9 +174,7 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
 
   bool get _secondaryRow {
     return switch (widget.selectedSection) {
-      AppSection.space ||
-      AppSection.calendar ||
-      AppSection.analytics => true,
+      AppSection.space || AppSection.analytics => true,
       _ => false,
     };
   }
@@ -185,10 +185,10 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
       context,
       DdtShellLayout.contentRightInset,
     );
-    final contentBottom = DdtTheme.shellSizeOf(
-      context,
-      DdtShellLayout.contentBottomInset,
-    );
+    final floatingBar = DdtAdaptive.floatingBottomBar(context);
+    final contentBottom = floatingBar
+        ? DdtMobileNavigationBar.clearance(context)
+        : DdtTheme.shellSizeOf(context, DdtShellLayout.contentBottomInset);
     final contentTopInset = DdtTheme.shellSizeOf(context, DdtTheme.spacing / 2);
     final railLeftInset = DdtTheme.shellSizeOf(
       context,
@@ -208,91 +208,110 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
                 ? DdtGlassAppBar.barHeight + DdtGlassAppBar.secondaryRowHeight
                 : DdtGlassAppBar.barHeight;
             final barHeight = DdtTheme.shellSizeOf(context, logicalBar);
-            final contentRowTop = railLeftInset + barHeight + contentTopInset;
-            final contentInsetTop = widget.padContent
-                ? contentRowTop + contentTopInset
-                : contentRowTop;
+            final headerTop = floatingBar ? 4.0 : railLeftInset;
+            final layoutTop = floatingBar
+                ? 0.0
+                : railLeftInset + barHeight + contentTopInset;
+            final contentInsetTop = floatingBar
+                ? headerTop + barHeight + DdtTheme.shellSizeOf(context, 4)
+                : widget.padContent
+                ? layoutTop + contentTopInset
+                : layoutTop;
             final foreground = DdtTheme.textPrimary(context);
+            final header = DdtGlassAppBar(
+              title: _bar.title ?? widget.title,
+              secondaryRow: secondaryRow,
+              compact: true,
+              overlay: floatingBar,
+              leading: showBack || !floatingBar
+                  ? IconButton(
+                      tooltip: showBack ? 'Назад' : 'Разделы',
+                      onPressed: showBack ? _bar.onBack : _openDrawer,
+                      icon: DdtIcon(
+                        showBack ? DdtIcons.back : DdtIcons.dragHandle,
+                        size: DdtGlassAppBar.actionIconSizeOf(context),
+                        color: foreground,
+                      ),
+                    )
+                  : null,
+              actions: showBack
+                  ? null
+                  : DdtAppBarSectionActions(section: widget.selectedSection),
+              center: null,
+            );
 
             return PopScope(
-              canPop: !_drawerShown,
+              canPop: floatingBar || !_drawerShown,
               onPopInvokedWithResult: (didPop, _) {
-                if (!didPop && _drawerShown) _closeDrawer();
+                if (!didPop && !floatingBar && _drawerShown) {
+                  _closeDrawer();
+                }
               },
               child: Scaffold(
-              backgroundColor: DdtTheme.scaffoldBackground(context),
-              body: Stack(
-                children: [
-                  SafeArea(
-                child: DdtShellMetrics(
-                  topReserve: contentRowTop,
-                  contentInsetTop: contentInsetTop,
-                  contentInsetBottom: contentBottom,
-                  contentInsetRight: contentEdge,
-                  contentInsetAfterRail: contentEdge,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        left: contentEdge,
-                        right: contentEdge,
-                        top: 0,
-                        bottom: 0,
-                        child: _ShellMainContent(
-                          padContent: widget.padContent,
-                          contentRowTop: contentRowTop,
-                          child: widget.child,
-                        ),
-                      ),
-                      Positioned(
-                        left: railLeftInset,
-                        right: railLeftInset,
-                        top: railLeftInset,
-                        height: barHeight,
-                        child: DdtGlassAppBar(
-                          title: _bar.title ?? widget.title,
-                          secondaryRow: secondaryRow,
-                          leading: IconButton(
-                            tooltip: showBack ? 'Назад' : 'Разделы',
-                            onPressed: showBack ? _bar.onBack : _openDrawer,
-                            icon: DdtIcon(
-                              showBack ? DdtIcons.back : DdtIcons.dragHandle,
-                              size: DdtGlassAppBar.actionIconSizeOf(context),
-                              color: foreground,
+                backgroundColor: DdtTheme.scaffoldBackground(context),
+                body: Stack(
+                  children: [
+                    SafeArea(
+                      bottom: !floatingBar,
+                      child: DdtShellMetrics(
+                        topReserve: contentInsetTop,
+                        contentInsetTop: contentInsetTop,
+                        contentInsetBottom: contentBottom,
+                        contentInsetRight: contentEdge,
+                        contentInsetAfterRail: contentEdge,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned(
+                              left: contentEdge,
+                              right: contentEdge,
+                              top: 0,
+                              bottom: 0,
+                              child: _ShellMainContent(
+                                section: widget.selectedSection,
+                                padContent: widget.padContent,
+                                extendUnderBottomBar: floatingBar,
+                                contentRowTop: layoutTop,
+                                child: widget.child,
+                              ),
                             ),
-                          ),
-                          actions: showBack
-                              ? null
-                              : DdtAppBarSectionActions(
-                                  section: widget.selectedSection,
-                                ),
-                          center:
-                              !showBack &&
-                                  widget.selectedSection == AppSection.calendar
-                              ? const CalendarAppBarDateNav()
-                              : null,
+                            Positioned(
+                              left: railLeftInset,
+                              right: railLeftInset,
+                              top: headerTop,
+                              height: floatingBar ? null : barHeight,
+                              child: header,
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                  ),
-                  if (_drawerShown)
-                    Positioned.fill(
-                      child: DdtMobileDrawerLayer(
-                        progress: CurvedAnimation(
-                          parent: _drawerController,
-                          curve: Curves.easeOutCubic,
-                          reverseCurve: Curves.easeInCubic,
-                        ),
-                        selectedSection: widget.selectedSection,
-                        onSectionSelected: widget.onSectionSelected,
-                        onDismiss: _closeDrawer,
                       ),
                     ),
-                ],
+                    if (floatingBar)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: DdtMobileNavigationBar(
+                          selectedSection: widget.selectedSection,
+                          onSectionSelected: widget.onSectionSelected,
+                        ),
+                      ),
+                    if (!floatingBar && _drawerShown)
+                      Positioned.fill(
+                        child: DdtMobileDrawerLayer(
+                          progress: CurvedAnimation(
+                            parent: _drawerController,
+                            curve: Curves.easeOutCubic,
+                            reverseCurve: Curves.easeInCubic,
+                          ),
+                          selectedSection: widget.selectedSection,
+                          onSectionSelected: widget.onSectionSelected,
+                          onDismiss: _closeDrawer,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
             );
           },
         ),
@@ -303,12 +322,16 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
 
 class _ShellMainContent extends StatelessWidget {
   const _ShellMainContent({
+    required this.section,
     required this.padContent,
+    required this.extendUnderBottomBar,
     required this.contentRowTop,
     required this.child,
   });
 
+  final AppSection section;
   final bool padContent;
+  final bool extendUnderBottomBar;
   final double contentRowTop;
   final Widget child;
 
@@ -318,25 +341,22 @@ class _ShellMainContent extends StatelessWidget {
         DdtShellMetrics.maybeOf(context)?.contentInsetBottom ??
         DdtTheme.shellSizeOf(context, DdtShellLayout.contentBottomInset);
 
-    final Widget content;
-    if (!padContent) {
-      content = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(height: contentRowTop),
-          Expanded(child: child),
-        ],
-      );
-    } else {
-      // Full height: scroll views use [DdtShellMetrics.scrollPadding] to align
-      // initially and scroll under the floating app bar.
-      content = child;
-    }
+    // Kanban drops the top inset, which changes this subtree. The transition
+    // has to stay in the same slot, otherwise leaving kanban for another
+    // section mounts a fresh animator and the page flip is skipped.
+    final page = padContent
+        ? child
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: contentRowTop),
+              Expanded(child: child),
+            ],
+          );
 
     return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: content,
+      padding: EdgeInsets.only(bottom: extendUnderBottomBar ? 0 : bottomInset),
+      child: DdtSectionTransition(section: section, child: page),
     );
   }
 }
-

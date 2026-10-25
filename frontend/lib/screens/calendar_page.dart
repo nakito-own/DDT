@@ -13,6 +13,8 @@ import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_side_panel.dart';
 import '../widgets/calendar_sidebar.dart';
 import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_app_bar_section_actions.dart';
+import '../widgets/ddt_mobile_navigation_bar.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../theme/ddt_typography.dart';
@@ -42,6 +44,21 @@ class _CalendarPageState extends State<CalendarPage> {
     final bloc = context.read<CalendarBloc>();
     // Синхронизируем уже загруженные события при открытии раздела.
     _syncPlannerEvents(bloc.state.visibleEvents);
+  }
+
+  var _mobileDayRequested = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_mobileDayRequested || !DdtAdaptive.isCompact(context)) return;
+    final bloc = context.read<CalendarBloc>();
+    if (bloc.viewModeChosen) {
+      _mobileDayRequested = true;
+      return;
+    }
+    _mobileDayRequested = true;
+    bloc.add(const CalendarViewModeChanged(CalendarViewMode.day));
   }
 
   @override
@@ -144,7 +161,10 @@ class _CalendarPageState extends State<CalendarPage> {
         sheetTitle: 'Календарь',
         sheetIcon: DdtIcons.calendar,
         sidebar: const CalendarSidebar(),
-        body: BlocBuilder<CalendarBloc, CalendarState>(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            BlocBuilder<CalendarBloc, CalendarState>(
               buildWhen: (previous, current) =>
                   (previous.isLoading && previous.events.isEmpty) !=
                       (current.isLoading && current.events.isEmpty) ||
@@ -152,49 +172,87 @@ class _CalendarPageState extends State<CalendarPage> {
                   ((previous.errorMessage != current.errorMessage) &&
                       (previous.events.isEmpty || current.events.isEmpty)),
               builder: (context, state) {
+                final compact = DdtAdaptive.isCompact(context);
+                final Widget content;
                 if (state.isLoading && state.events.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (state.errorMessage != null && state.events.isEmpty) {
-                  return _ErrorState(
+                  content = const Center(child: CircularProgressIndicator());
+                } else if (state.errorMessage != null &&
+                    state.events.isEmpty) {
+                  content = _ErrorState(
                     message: state.errorMessage!,
                     onRetry: () => context.read<CalendarBloc>().add(
                       const CalendarEventsLoadRequested(),
                     ),
                   );
+                } else {
+                  content = BlocBuilder<CalendarBloc, CalendarState>(
+                  buildWhen: (previous, current) =>
+                      previous.isRefreshing != current.isRefreshing,
+                  builder: (context, state) {
+                    return DdtSectionRefreshOverlay(
+                      isRefreshing: state.isRefreshing,
+                      child: BlocBuilder<CalendarBloc, CalendarState>(
+                        buildWhen: (previous, current) =>
+                            _calendarShellChanged(previous, current),
+                        builder: (context, state) {
+                          return _CalendarBody(
+                            state: state,
+                            eventsController: _eventsController,
+                            plannerInitialDate: _plannerInitialDate,
+                            plannerVerticalScrollOffset:
+                                _plannerVerticalScrollOffset,
+                            onPlannerVerticalScrollOffset: (offset) {
+                              _plannerVerticalScrollOffset = offset;
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
                 }
 
                 return Padding(
                   padding: DdtShellMetrics.fixedTopPadding(context),
-                  child: BlocBuilder<CalendarBloc, CalendarState>(
-                    buildWhen: (previous, current) =>
-                        previous.isRefreshing != current.isRefreshing,
-                    builder: (context, state) {
-                      return DdtSectionRefreshOverlay(
-                        isRefreshing: state.isRefreshing,
-                        child: BlocBuilder<CalendarBloc, CalendarState>(
-                          buildWhen: (previous, current) =>
-                              _calendarShellChanged(previous, current),
-                          builder: (context, state) {
-                            return _CalendarBody(
-                              state: state,
-                              eventsController: _eventsController,
-                              plannerInitialDate: _plannerInitialDate,
-                              plannerVerticalScrollOffset:
-                                  _plannerVerticalScrollOffset,
-                              onPlannerVerticalScrollOffset: (offset) {
-                                _plannerVerticalScrollOffset = offset;
-                              },
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                  child: compact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Center(child: CalendarAppBarDateNav()),
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  bottom:
+                                      CalendarMobileViewBar.reserve +
+                                      (DdtAdaptive.floatingBottomBar(context)
+                                          ? DdtMobileNavigationBar.clearance(
+                                              context,
+                                            )
+                                          : 0),
+                                ),
+                                child: content,
+                              ),
+                            ),
+                          ],
+                        )
+                      : content,
                 );
               },
             ),
+            if (DdtAdaptive.isCompact(context))
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: DdtAdaptive.floatingBottomBar(context)
+                    ? DdtMobileNavigationBar.clearance(context)
+                    : 0,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [CalendarMobileViewBar()],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +20,7 @@ import '../utils/ddt_toast.dart';
 import '../models/user_profile.dart';
 import '../services/directory_users.dart';
 import '../utils/task_formatters.dart';
+import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_user_chip.dart';
 import '../widgets/task_comments_section.dart';
 import '../widgets/task_side_panel.dart';
@@ -41,11 +44,24 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   Task? _task;
   bool _isLoading = true;
   String? _error;
+  var _restored = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadTask();
+  Task? _knownTask() {
+    final extra = GoRouterState.of(context).extra;
+    if (extra is Task &&
+        (extra.apiRef == widget.taskKey ||
+            extra.key == widget.taskKey ||
+            extra.id.toString() == widget.taskKey)) {
+      return extra;
+    }
+    for (final task in context.read<TasksBloc>().state.allTasks) {
+      if (task.apiRef == widget.taskKey ||
+          task.key == widget.taskKey ||
+          task.id.toString() == widget.taskKey) {
+        return task;
+      }
+    }
+    return null;
   }
 
   @override
@@ -53,15 +69,29 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.taskKey != widget.taskKey ||
         oldWidget.spaceKey != widget.spaceKey) {
+      _task = _knownTask();
+      _isLoading = _task == null;
       _loadTask();
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_restored) return;
+    _restored = true;
+    _task = _knownTask();
+    _isLoading = _task == null;
+    _loadTask();
+  }
+
   Future<void> _loadTask() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (_task == null && !_isLoading && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final task = await TasksApi().fetchTask(widget.taskKey);
@@ -71,10 +101,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         _isLoading = false;
       });
       context.read<TasksBloc>().add(TaskServerSnapshotReceived(task));
+      final canonical = RoutePaths.task(task.key);
       if (task.spaceId == null &&
           task.key.isNotEmpty &&
-          GoRouterState.of(context).uri.path != RoutePaths.task(task.key)) {
-        context.go(RoutePaths.task(task.key));
+          GoRouterState.of(context).uri.path != canonical) {
+        context.replace(canonical, extra: task);
       }
     } catch (error) {
       if (!mounted) return;
@@ -193,7 +224,12 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
             : SingleChildScrollView(
                 padding: DdtShellMetrics.scrollPadding(
                   context,
-                  base: EdgeInsets.all(20.w),
+                  base: EdgeInsets.fromLTRB(
+                    20.w,
+                    12.h,
+                    20.w,
+                    24.h + DdtShellMetrics.contentBottomPadding(context),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -248,7 +284,7 @@ class _WideTaskLayout extends StatefulWidget {
 class _WideTaskLayoutState extends State<_WideTaskLayout> {
   final _pageScroll = ScrollController();
   final _panelScroll = ScrollController();
-  double _chromeHeight = 240;
+  double _chromeHeight = 136;
 
   @override
   void didUpdateWidget(covariant _WideTaskLayout oldWidget) {
@@ -300,6 +336,9 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
   @override
   Widget build(BuildContext context) {
     final topInset = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+    final floatingBottom = DdtAdaptive.floatingBottomBar(context)
+        ? DdtShellMetrics.contentBottomPadding(context)
+        : 0.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,7 +349,10 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
               SingleChildScrollView(
                 controller: _pageScroll,
                 primary: false,
-                padding: EdgeInsets.only(top: _chromeHeight),
+                padding: EdgeInsets.only(
+                  top: _chromeHeight,
+                  bottom: floatingBottom,
+                ),
                 child: _TaskMainContent(
                   task: widget.task,
                   onTaskChanged: widget.onTaskChanged,
@@ -347,7 +389,7 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
         SizedBox(
           width: 300.w,
           child: Padding(
-            padding: EdgeInsets.only(top: topInset),
+            padding: EdgeInsets.only(top: topInset, bottom: floatingBottom),
             child: Listener(
               onPointerSignal: _onPanelPointerSignal,
               child: _TaskParametersPanel(
@@ -405,9 +447,8 @@ class _TaskMainContent extends StatelessWidget {
   }
 }
 
-/// Key row and title float on the fade, the same way a kanban column header does.
-/// The fade is opaque from the top of the page through the title, so scrolled
-/// text cannot show under the app bar or in the gap above the header.
+/// Toolbar sits on the solid fade. The title is the last layer of the same
+/// stack and continues a little past the gradient.
 class _PinnedTaskChrome extends StatelessWidget {
   const _PinnedTaskChrome({
     required this.topInset,
@@ -419,7 +460,10 @@ class _PinnedTaskChrome extends StatelessWidget {
   final Task task;
   final VoidCallback onEdit;
 
-  static const double _fadeTail = 48;
+  /// How far the title hangs below the gradient.
+  static const double _titlePastGradient = 12;
+
+  static const double _fadeTail = 28;
 
   @override
   Widget build(BuildContext context) {
@@ -427,13 +471,17 @@ class _PinnedTaskChrome extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned.fill(
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: _titlePastGradient.h,
           child: IgnorePointer(
             child: _TaskHeaderFade(color: background, fadeTail: _fadeTail.h),
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(20.w, topInset + 16.h, 20.w, _fadeTail.h),
+          padding: EdgeInsets.fromLTRB(20.w, topInset + 12.h, 20.w, 0),
           child: _TaskHeader(task: task, onEdit: onEdit, fullscreen: true),
         ),
       ],
@@ -527,15 +575,10 @@ class _TaskHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final editButton = Button(
-      text: 'Редактировать',
-      onPressed: onEdit,
-      borderRadius: DdtTheme.radius,
-    );
     final title = Text(
       task.title,
       style: DdtTheme.style(
-        fontSize: fullscreen ? _taskTitleSize : DdtTypography.entityTitleSize,
+        fontSize: DdtTypography.entityTitleSize,
         fontWeight: FontWeight.w700,
         color: DdtTheme.sidePanelTextPrimary(context),
       ),
@@ -546,35 +589,43 @@ class _TaskHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _FullscreenTaskToolbar(task: task, onEdit: onEdit),
-          SizedBox(height: 12.h),
+          SizedBox(height: 8.h),
           title,
         ],
       );
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Title sits under the toolbar. Beside the edit button it collapsed to a
+    // one-word column on a phone.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TaskBackButton(task: task),
-        SizedBox(width: 4.w),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+        Row(
+          children: [
+            _TaskBackButton(task: task),
+            SizedBox(width: 4.w),
+            Expanded(
+              child: Text(
                 'Задача ${task.displayKey}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: DdtTheme.style(
                   fontSize: DdtTypography.labelSmallSize,
                   color: DdtTheme.sidePanelTextMuted(context),
                 ),
               ),
-              SizedBox(height: 4.h),
-              title,
-            ],
-          ),
+            ),
+            SizedBox(width: 8.w),
+            Button(
+              text: 'Редактировать',
+              size: ButtonSize.small,
+              onPressed: onEdit,
+              borderRadius: DdtTheme.radius,
+            ),
+          ],
         ),
-        SizedBox(width: 8.w),
-        editButton,
+        SizedBox(height: 10.h),
+        title,
       ],
     );
   }
@@ -604,14 +655,12 @@ class _TaskBackButton extends StatelessWidget {
   }
 }
 
-/// Fullscreen task name. Larger than [DdtTypography.entityTitle].
-const double _taskTitleSize = 30;
-
-/// Painted height shared by the fullscreen chevron, task key, and edit icon.
-const double _taskMarkSize = 18;
+/// Painted height of the fullscreen chevron and edit icon.
+/// App-bar glyphs are 16 before [DdtIcon.visualScale], about 14 on screen.
+const double _taskMarkSize = 14;
 
 /// Copy actions sit beside the key and stay smaller than the main marks.
-const double _taskCopyMarkSize = 13;
+const double _taskCopyMarkSize = 11;
 
 class _FullscreenTaskToolbar extends StatefulWidget {
   const _FullscreenTaskToolbar({required this.task, required this.onEdit});
@@ -644,7 +693,7 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
   @override
   Widget build(BuildContext context) {
     final keyStyle = DdtTheme.style(
-      fontSize: _taskMarkSize,
+      fontSize: DdtTypography.labelSize,
       height: 1,
       fontWeight: FontWeight.w500,
       color: DdtTheme.sidePanelTextMuted(context).withValues(alpha: 0.55),
@@ -662,7 +711,7 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
           label: 'Назад к задачам',
           onPressed: () => _leaveTask(context, widget.task),
         ),
-        SizedBox(width: 8.w),
+        SizedBox(width: 6.w),
         Expanded(
           child: MouseRegion(
             onEnter: (_) => setState(() => _keyHovered = true),
@@ -683,7 +732,7 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
                   alignment: Alignment.centerLeft,
                   child: _keyHovered
                       ? Padding(
-                          padding: EdgeInsets.only(left: 16.w),
+                          padding: EdgeInsets.only(left: 10.w),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -696,7 +745,7 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
                                   'Ключ скопирован',
                                 ),
                               ),
-                              SizedBox(width: 14.w),
+                              SizedBox(width: 10.w),
                               _TaskMarkButton(
                                 icon: DdtIcons.link,
                                 label: 'Копировать ссылку',
@@ -715,7 +764,7 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
             ),
           ),
         ),
-        SizedBox(width: 12.w),
+        SizedBox(width: 8.w),
         editButton,
       ],
     );
@@ -762,10 +811,96 @@ class _TaskMarkButton extends StatelessWidget {
   }
 }
 
+void openTaskDetailsPage(
+  BuildContext context,
+  Task task, {
+  VoidCallback? onSheetClosed,
+}) {
+  if (DdtAdaptive.isCompact(context)) {
+    unawaited(_openTaskSheet(context, task, onSheetClosed));
+    return;
+  }
+
+  final taskKey = task.key.isNotEmpty
+      ? task.key
+      : (task.id > 0 ? task.id.toString() : '');
+  if (taskKey.isEmpty) return;
+
+  final taskSpace = task.spaceKey;
+  final spaceKey = taskSpace != null && taskSpace.isNotEmpty
+      ? taskSpace
+      : context.read<TasksBloc>().spaceKey;
+  context.push(
+    RoutePaths.forTask(
+      taskKey: taskKey,
+      spaceId: task.spaceId,
+      spaceKey: spaceKey,
+    ),
+    extra: task,
+  );
+}
+
+Future<void> _openTaskSheet(
+  BuildContext context,
+  Task task,
+  VoidCallback? onSheetClosed,
+) async {
+  final chrome = DdtFloatingChrome.read(context);
+  chrome?.hold();
+  final tasksBloc = context.read<TasksBloc>();
+  final surface = Theme.of(context).brightness == Brightness.dark
+      ? DdtTheme.darkSurface
+      : DdtTheme.lightSurface;
+
+  final updated = await showModalBottomSheet<Task>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    backgroundColor: surface,
+    builder: (sheetContext) {
+      final keyboard = MediaQuery.viewInsetsOf(sheetContext).bottom;
+      return Padding(
+        padding: EdgeInsets.only(bottom: keyboard),
+        child: BlocProvider.value(
+          value: tasksBloc,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SizedBox(
+                height: constraints.maxHeight * 0.94,
+                child: TaskSidePanel(
+                  mode: TaskSidePanelMode.view,
+                  task: task,
+                  taskTypes: tasksBloc.state.taskTypes,
+                  personal: tasksBloc.spaceKey == null,
+                  relatedTasks: tasksBloc.state.allTasks,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    },
+  ).whenComplete(() => chrome?.release());
+  if (!context.mounted) return;
+  if (updated != null) {
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: task, updated: updated),
+    );
+  }
+  onSheetClosed?.call();
+}
+
 void _leaveTask(BuildContext context, Task task) {
+  if (context.canPop()) {
+    context.pop();
+    return;
+  }
+  final spaceKey = task.spaceKey;
   context.go(
-    task.spaceKey != null && task.spaceKey!.isNotEmpty
-        ? RoutePaths.spaceListFor(task.spaceKey!)
+    spaceKey != null && spaceKey.isNotEmpty
+        ? RoutePaths.spaceListFor(spaceKey)
         : RoutePaths.tasksList,
   );
 }

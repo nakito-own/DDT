@@ -203,7 +203,7 @@ class _DdtAppState extends State<DdtApp> {
               ),
               child: MaterialApp.router(
                 routerConfig: _appRouter.router,
-                title: 'DDT',
+                title: 'Ctatyc',
                 locale: ddtPickerLocale,
                 supportedLocales: const [ddtPickerLocale],
                 localizationsDelegates: const [
