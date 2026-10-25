@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-
-import 'package:web/web.dart' as web;
 
 import '../models/calendar_event.dart';
 import '../models/colleague_calendar.dart';
@@ -14,6 +11,7 @@ import '../models/mail_inbox_options.dart';
 import '../models/mail_message.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
+import 'attachment_download.dart';
 import 'owa_client.dart';
 
 class EwsSession {
@@ -244,7 +242,7 @@ class EwsApi {
     String? folderId,
   }) async {
     final bytes = await _owa.fetchAttachmentBytes(attachmentId);
-    _triggerBrowserDownload(
+    await downloadBytes(
       bytes: Uint8List.fromList(bytes),
       filename: filename,
       mimeType: contentType,
@@ -343,25 +341,6 @@ class EwsApi {
     }
     return null;
   }
-}
-
-void _triggerBrowserDownload({
-  required Uint8List bytes,
-  required String filename,
-  required String mimeType,
-}) {
-  final blob = web.Blob(
-    <JSAny>[bytes.buffer.toJS].toJS,
-    web.BlobPropertyBag(type: mimeType),
-  );
-  final url = web.URL.createObjectURL(blob);
-  final anchor = web.document.createElement('a') as web.HTMLAnchorElement
-    ..href = url
-    ..download = filename;
-  web.document.body!.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  web.URL.revokeObjectURL(url);
 }
 
 final ewsApi = EwsApi();

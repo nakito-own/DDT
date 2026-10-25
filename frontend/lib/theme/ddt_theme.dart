@@ -23,8 +23,14 @@ class DdtTheme {
   static const double scrollbarCrossAxisMargin = 2;
   static const double scrollbarMainAxisMargin = 4;
 
+  /// Clear space between content and the scrollbar thumb.
+  static const double scrollbarGap = 8;
+
   /// Reserved space between scrollable content and the scrollbar track.
-  static const double scrollbarGutter = 12;
+  /// Thumb thickness, its margin, and [scrollbarGap] so the bar sits
+  /// to the right of cards instead of on top of them.
+  static const double scrollbarGutter =
+      scrollbarThickness + scrollbarCrossAxisMargin + scrollbarGap;
 
   /// Viewport width below which the shell switches to the phone layout.
   static const double compactLayoutWidth = 1040;
@@ -55,14 +61,14 @@ class DdtTheme {
   static const double lightGlassBackgroundOpacity = 0.78;
   static const double lightGlassBackgroundOpacityActive = 0.92;
 
-  // Dark Mode Surfaces (Elevated Slate-Graphite with Clear Contrast)
-  static const Color darkBackground = Color(0xFF141923);
-  static const Color darkSurface = Color(0xFF1C2331);
-  static const Color darkWidget = Color(0xFF222A3A);
-  static const Color darkSurfaceSubtle = Color(0xFF181E2B);
-  static const Color darkInputFill = Color(0xB81E2636);
-  static const Color darkBorderSubtle = Color(0xFF2D374D);
-  static const Color darkBorderStrong = Color(0xFF3E4B66);
+  // Dark Mode Surfaces (near-black with a cool slate tint)
+  static const Color darkBackground = Color(0xFF080A10);
+  static const Color darkSurface = Color(0xFF10131A);
+  static const Color darkWidget = Color(0xFF171B24);
+  static const Color darkSurfaceSubtle = Color(0xFF0C0E14);
+  static const Color darkInputFill = Color(0xB812151E);
+  static const Color darkBorderSubtle = Color(0xFF262B38);
+  static const Color darkBorderStrong = Color(0xFF363D4E);
 
   static const Color lightTextPrimary = Color(0xFF182232);
   static const Color lightTextSecondary = Color(0xFF475569);
@@ -107,8 +113,8 @@ class DdtTheme {
   static BorderRadius get badgeBorderRadius =>
       BorderRadius.circular(badgeRadius.r);
 
-  static const Color darkPickerSurface = Color(0xFF202838);
-  static const Color darkPickerInputFill = Color(0xFF19202E);
+  static const Color darkPickerSurface = Color(0xFF141822);
+  static const Color darkPickerInputFill = Color(0xFF0E1118);
 
   static Color inputFillColor(BuildContext context) =>
       _isDark(context) ? darkInputFill : lightInputFill;
@@ -118,7 +124,7 @@ class DdtTheme {
 
   /// High-contrast tooltip surface for charts and desktop hover hints.
   static Color chartTooltipBackground(BuildContext context) =>
-      _isDark(context) ? const Color(0xFF242D40) : const Color(0xFF1E293B);
+      _isDark(context) ? const Color(0xFF1A1F2B) : const Color(0xFF1E293B);
 
   static Color chartTooltipForeground(BuildContext context) =>
       const Color(0xFFF8FAFC);
@@ -135,7 +141,7 @@ class DdtTheme {
     return TooltipThemeData(
       decoration: BoxDecoration(
         color: isDark
-            ? const Color(0xFF1E2433).withValues(alpha: 0.96)
+            ? const Color(0xFF141822).withValues(alpha: 0.96)
             : const Color(0xFF0F172A).withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
@@ -179,10 +185,10 @@ class DdtTheme {
       _isDark(context) ? darkBorderStrong : lightBorderStrong;
 
   static Color inputFillColorHover(BuildContext context) =>
-      _isDark(context) ? const Color(0xD6232B3D) : const Color(0xD9FFFFFF);
+      _isDark(context) ? const Color(0xD6181C28) : const Color(0xD9FFFFFF);
 
   static Color inputFillColorFocused(BuildContext context) =>
-      _isDark(context) ? const Color(0xEB252E42) : const Color(0xF5FFFFFF);
+      _isDark(context) ? const Color(0xEB1A1F2C) : const Color(0xF5FFFFFF);
 
   static List<BoxShadow> inputFocusShadow(BuildContext context) {
     final isDark = _isDark(context);
@@ -283,7 +289,7 @@ class DdtTheme {
   }
 
   static Color shellSurfaceColor(BuildContext context) => _isDark(context)
-      ? darkSurface.withValues(alpha: 0.72)
+      ? darkSurface.withValues(alpha: 0.88)
       : lightSurface.withValues(alpha: 0.74);
 
   static Color shellSurfaceBorderColor(BuildContext context) {
@@ -341,7 +347,7 @@ class DdtTheme {
     final isDark = _isDark(context);
     final resolvedRadius = BorderRadius.circular(borderRadius.r);
     final fill = isDark
-        ? darkSurface.withValues(alpha: 0.68)
+        ? darkSurface.withValues(alpha: 0.86)
         : lightSurface.withValues(alpha: 0.74);
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.11)
@@ -397,7 +403,7 @@ class DdtTheme {
     final isDark = _isDark(context);
     final borderRadiusGeometry = radius;
     final frostTint = isDark
-        ? darkSurface.withValues(alpha: 0.66)
+        ? darkSurface.withValues(alpha: 0.84)
         : lightSurface.withValues(alpha: 0.72);
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.12)
@@ -456,7 +462,7 @@ class DdtTheme {
     );
     final effectivePadding = padding ?? EdgeInsets.all(6.w);
     final bgColor = isDark
-        ? darkPickerSurface.withValues(alpha: 0.78)
+        ? darkPickerSurface.withValues(alpha: 0.92)
         : lightSurface.withValues(alpha: 0.84);
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.14)
@@ -989,12 +995,20 @@ class DdtTheme {
           secondary: accentColor,
           error: dangerColor,
           surface: darkSurface,
+          surfaceDim: darkBackground,
+          surfaceBright: const Color(0xFF1E2430),
+          surfaceContainerLowest: darkBackground,
+          surfaceContainerLow: darkSurfaceSubtle,
+          surfaceContainer: darkSurface,
+          surfaceContainerHigh: darkWidget,
+          surfaceContainerHighest: const Color(0xFF1E2430),
           onSurface: darkTextPrimary,
           onSurfaceVariant: darkTextSecondary,
           outline: darkBorderStrong,
           outlineVariant: darkBorderSubtle,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
+          backgroundColor: darkSurface,
           titleTextStyle: GoogleFonts.golosText(
             textStyle: typography.titleLarge,
             color: darkTextPrimary,
@@ -1190,10 +1204,10 @@ class _DdtInteractiveCardSurfaceState
 
     final backgroundColor = isDark
         ? (widget.isDragging
-              ? const Color(0xE6283146)
+              ? const Color(0xE6202636)
               : activeHover
-              ? const Color(0xCC262F43)
-              : DdtTheme.darkWidget.withValues(alpha: 0.72))
+              ? const Color(0xCC1C2230)
+              : DdtTheme.darkWidget.withValues(alpha: 0.88))
         : (widget.isDragging
               ? DdtTheme.lightSurface.withValues(alpha: 0.94)
               : activeHover

@@ -1,5 +1,5 @@
 name: ddt_frontend
-description: "DDT Flutter web frontend"
+description: "Ctatyc Flutter frontend"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -36,6 +36,8 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   markdown: ^7.3.1
   markdown_live: ^0.1.0
+  share_plus: ^12.0.2
+  liquid_glass_native: ^0.3.1
 
 dependency_overrides:
   get_storage:
@@ -51,12 +53,14 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
-  image_path: assets/echo-logo.png
+  image_path: assets/status-logo.png
   android: true
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: assets/echo-logo.png
+  adaptive_icon_foreground: assets/status-logo.png
+  adaptive_icon_foreground_inset: 0
   ios: true
   remove_alpha_ios: true
+  background_color_ios: "#000000"
   web:
     generate: true
     background_color: "#000000"
@@ -65,6 +69,8 @@ flutter_launcher_icons:
     generate: true
     icon_size: 256
   macos:
+    generate: true
+  linux:
     generate: true
 
 flutter:

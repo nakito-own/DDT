@@ -110,32 +110,25 @@ class _DdtSegmentedControlItemState<T>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = widget.isSelected;
+    final hovered = _hovered;
 
     final foregroundColor = isSelected
-        ? DdtTheme.textPrimary(context)
-        : (_hovered
-              ? DdtTheme.textSecondary(context)
+        ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
+        : (hovered
+              ? DdtTheme.textPrimary(context)
               : DdtTheme.textMuted(context));
 
-    final iconColor = isSelected
-        ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
-        : foregroundColor;
-
     final backgroundColor = isSelected
-        ? (isDark
-              ? const Color(0xD9283248)
-              : Colors.white.withValues(alpha: 0.92))
-        : (_hovered
-              ? (isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.white.withValues(alpha: 0.58))
-              : Colors.transparent);
+        ? DdtTheme.primaryColor.withValues(
+            alpha: isDark ? (hovered ? 0.24 : 0.18) : (hovered ? 0.15 : 0.10),
+          )
+        : (isDark
+              ? Colors.white.withValues(alpha: hovered ? 0.07 : 0.0)
+              : DdtTheme.primaryColor.withValues(alpha: hovered ? 0.09 : 0.0));
 
     final borderColor = isSelected
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.14)
-              : DdtTheme.lightBorderSubtle)
-        : Colors.transparent;
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.32 : 0.20)
+        : DdtTheme.primaryColor.withValues(alpha: 0.0);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -148,14 +141,16 @@ class _DdtSegmentedControlItemState<T>
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
           padding: EdgeInsets.symmetric(
-            horizontal: (widget.compact
-                    ? DdtSegmentedControl._segmentPaddingHorizontalCompact
-                    : DdtSegmentedControl._segmentPaddingHorizontal)
-                .w,
-            vertical: (widget.compact
-                    ? DdtSegmentedControl._segmentPaddingVerticalCompact
-                    : DdtSegmentedControl._segmentPaddingVertical)
-                .h,
+            horizontal:
+                (widget.compact
+                        ? DdtSegmentedControl._segmentPaddingHorizontalCompact
+                        : DdtSegmentedControl._segmentPaddingHorizontal)
+                    .w,
+            vertical:
+                (widget.compact
+                        ? DdtSegmentedControl._segmentPaddingVerticalCompact
+                        : DdtSegmentedControl._segmentPaddingVertical)
+                    .h,
           ),
           decoration: BoxDecoration(
             color: backgroundColor,
@@ -163,17 +158,6 @@ class _DdtSegmentedControlItemState<T>
               DdtSegmentedControl._segmentRadius.r,
             ),
             border: Border.all(color: borderColor),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.26 : 0.05,
-                      ),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -182,7 +166,7 @@ class _DdtSegmentedControlItemState<T>
                 DdtIcon(
                   widget.segment.icon!,
                   size: (widget.compact ? 12 : 13).sp,
-                  color: iconColor,
+                  color: foregroundColor,
                 ),
                 SizedBox(width: (widget.compact ? 4 : 6).w),
               ],

@@ -3,15 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
-import '../models/task_status.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
+import 'task_create_page.dart';
+import 'task_details_page.dart';
 import '../widgets/task_card.dart';
-import '../widgets/task_side_panel.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_shell_metrics.dart';
@@ -22,66 +21,12 @@ import '../theme/ddt_typography.dart';
 class TasksListPage extends StatelessWidget {
   const TasksListPage({super.key});
 
-  Future<void> _openTask(BuildContext context, Task task) async {
-    final state = context.read<TasksBloc>().state;
-    final updated = await showTaskSidePanel(
-      context,
-      mode: TaskSidePanelMode.view,
-      task: task,
-      taskTypes: state.taskTypes,
-    );
-
-    if (updated == null || !context.mounted) return;
-
-    context.read<TasksBloc>().add(
-      TaskUpdateRequested(original: task, updated: updated),
-    );
+  void _openTask(BuildContext context, Task task) {
+    openTaskDetailsPage(context, task);
   }
 
-  Future<void> _createTask(BuildContext context) async {
-    final authState = context.read<AuthBloc>().state;
-    final currentUserId = authState is AuthAuthenticated
-        ? authState.user.id
-        : null;
-    final state = context.read<TasksBloc>().state;
-
-    final created = await showTaskSidePanel(
-      context,
-      mode: TaskSidePanelMode.create,
-      taskTypes: state.taskTypes,
-      defaultAuthorId: currentUserId,
-    );
-
-    if (created == null || !context.mounted) return;
-
-    final now = DateTime.now();
-    final draft = Task(
-      id: 0,
-      title: created.title,
-      status: created.status,
-      typeId: created.typeId,
-      type: created.type,
-      description: created.description,
-      authorId: currentUserId ?? created.authorId,
-      executorId: created.executorId,
-      responsibleId: created.responsibleId,
-      timeSet: created.timeSet,
-      timeStart:
-          created.timeStart ??
-          (created.status == TaskStatus.inProgress ? now : null),
-      timeEnd:
-          created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
-      deadline: created.deadline,
-      priority: created.priority,
-      parent: created.parent,
-      parentId: created.parent?.id,
-      children: created.children,
-      links: created.links,
-      comments: created.comments,
-    );
-
-    context.read<TasksBloc>().add(TaskCreateRequested(draft));
-    DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
+  void _createTask(BuildContext context) {
+    openTaskCreatePage(context);
   }
 
   Future<void> _archiveTask(BuildContext context, Task task) async {
@@ -131,7 +76,7 @@ class TasksListPage extends StatelessWidget {
                 )
               : DdtScrollEdgeFade(
                   child: ScrollConfiguration(
-                    behavior: const DdtBalancedScrollBehavior(),
+                    behavior: const DdtScrollBehavior(),
                     child: ListView.separated(
                       padding: DdtShellMetrics.scrollPadding(context).copyWith(
                         bottom:

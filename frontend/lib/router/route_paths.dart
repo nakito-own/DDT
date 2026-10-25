@@ -14,6 +14,7 @@ abstract final class RoutePaths {
   static const tasksList = '/tasks/list';
   static const tasksGantt = '/tasks/gantt';
   static const tasksArchive = '/tasks/archive';
+  static const tasksNew = '/tasks/new';
   static const taskDetails = '/tasks/:taskKey';
 
   static String task(String taskKey) => '/tasks/$taskKey';
@@ -27,6 +28,7 @@ abstract final class RoutePaths {
 
   static const mail = '/mail';
   static const calendar = '/calendar';
+  static const calendarNew = '/calendar/new';
   static const contacts = '/contacts';
   static const analytics = '/analytics';
   static const settings = '/settings';
@@ -43,14 +45,21 @@ abstract final class RoutePaths {
   static String spaceGanttFor(String spaceKey) => '/space/$spaceKey/gantt';
   static String spaceArchiveFor(String spaceKey) => '/space/$spaceKey/archive';
   static String spaceTask(String taskKey) => '/space/$taskKey';
-  static const automations = '/automations';
+  static String spaceTaskNew(String spaceKey) => '/space/$spaceKey/new';
   static const notes = '/notes';
+  static const more = '/more';
 
   /// Legacy path; redirects to [notes].
   static const linkArchive = '/link-archive';
 
   static final taskKeyPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*-\d+$');
-  static const reservedTaskSegments = {'kanban', 'list', 'gantt', 'archive'};
+  static const reservedTaskSegments = {
+    'kanban',
+    'list',
+    'gantt',
+    'archive',
+    'new',
+  };
 
   static bool isTaskKey(String value) => taskKeyPattern.hasMatch(value);
 
@@ -71,8 +80,10 @@ abstract final class RoutePaths {
   static const nameTasksGantt = 'tasks-gantt';
   static const nameTasksArchive = 'tasks-archive';
   static const nameTaskDetails = 'task-details';
+  static const nameTaskCreate = 'task-create';
   static const nameMail = 'mail';
   static const nameCalendar = 'calendar';
+  static const nameCalendarNew = 'calendar-new';
   static const nameContacts = 'contacts';
   static const nameAnalytics = 'analytics';
   static const nameSettings = 'settings';
@@ -82,8 +93,9 @@ abstract final class RoutePaths {
   static const nameSpaceGantt = 'space-gantt';
   static const nameSpaceArchive = 'space-archive';
   static const nameSpaceTaskDetails = 'space-task-details';
-  static const nameAutomations = 'automations';
+  static const nameSpaceTaskCreate = 'space-task-create';
   static const nameNotes = 'notes';
+  static const nameMore = 'more';
 
   /// Legacy route name; redirects to [nameNotes].
   static const nameLinkArchive = 'link-archive';
@@ -91,4 +103,12 @@ abstract final class RoutePaths {
   static bool isKanbanRoute(String location) => location.endsWith('/kanban');
 
   static bool isArchiveRoute(String location) => location.endsWith('/archive');
+
+  /// Kanban, list, gantt, or archive. Task pages are not a board.
+  static bool isTasksBoardRoute(String location) {
+    return location.endsWith('/kanban') ||
+        location.endsWith('/list') ||
+        location.endsWith('/gantt') ||
+        location.endsWith('/archive');
+  }
 }

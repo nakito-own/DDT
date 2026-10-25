@@ -1,11 +1,11 @@
 {
-    "name": "DDT",
-    "short_name": "DDT",
+    "name": "Ctatyc",
+    "short_name": "Ctatyc",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#000000",
     "theme_color": "#00A8FF",
-    "description": "DDT",
+    "description": "Ctatyc",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

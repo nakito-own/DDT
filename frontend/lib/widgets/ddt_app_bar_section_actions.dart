@@ -520,29 +520,7 @@ class _CalendarAppBarActions extends StatelessWidget {
       builder: (context, state) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          DdtSegmentedControl<CalendarViewMode>(
-            segments: const [
-              DdtSegmentedControlSegment(
-                value: CalendarViewMode.day,
-                label: 'День',
-                icon: DdtIcons.clock,
-              ),
-              DdtSegmentedControlSegment(
-                value: CalendarViewMode.week,
-                label: 'Неделя',
-                icon: DdtIcons.calendar,
-              ),
-              DdtSegmentedControlSegment(
-                value: CalendarViewMode.month,
-                label: 'Месяц',
-                icon: DdtIcons.calendarPlus,
-              ),
-            ],
-            selected: state.viewMode,
-            onChanged: (mode) => context.read<CalendarBloc>().add(
-              CalendarViewModeChanged(mode),
-            ),
-          ),
+          const CalendarViewSwitcher(),
           SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
           _AppBarIconAction(
             tooltip: 'Обновить календарь',
@@ -712,6 +690,107 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
             icon: icon,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Day / week / month switch shared by the app bar and the phone dock.
+class CalendarViewSwitcher extends StatelessWidget {
+  const CalendarViewSwitcher({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) => previous.viewMode != current.viewMode,
+      builder: (context, state) {
+        return DdtSegmentedControl<CalendarViewMode>(
+          segments: const [
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.day,
+              label: 'День',
+              icon: DdtIcons.clock,
+            ),
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.week,
+              label: 'Неделя',
+              icon: DdtIcons.calendar,
+            ),
+            DdtSegmentedControlSegment(
+              value: CalendarViewMode.month,
+              label: 'Месяц',
+              icon: DdtIcons.calendarPlus,
+            ),
+          ],
+          selected: state.viewMode,
+          onChanged: (mode) => context.read<CalendarBloc>().add(
+            CalendarViewModeChanged(mode),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Format switcher floating above the phone navigation bar.
+class CalendarMobileViewBar extends StatelessWidget {
+  const CalendarMobileViewBar({super.key});
+
+  static const double reserve = 64;
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CalendarViewSwitcher(),
+          _CalendarRefreshAction(),
+          _CalendarAddAction(),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarRefreshAction extends StatelessWidget {
+  const _CalendarRefreshAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) =>
+          previous.isLoading != current.isLoading ||
+          previous.isRefreshing != current.isRefreshing,
+      builder: (context, state) {
+        return Padding(
+          padding: EdgeInsets.only(left: DdtTheme.shellSizeOf(context, 8)),
+          child: _AppBarIconAction(
+            tooltip: 'Обновить календарь',
+            icon: DdtIcons.refresh,
+            isBusy: state.isRefreshing || state.isLoading,
+            onPressed: () => context.read<CalendarBloc>().add(
+              const CalendarEventsRefreshRequested(showAnimation: true),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CalendarAddAction extends StatelessWidget {
+  const _CalendarAddAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: DdtTheme.shellSizeOf(context, 4)),
+      child: const _AppBarIconAction(
+        tooltip: 'Добавить календарь',
+        icon: DdtIcons.calendarPlus,
+        contextMenuItems: _CalendarAppBarActions._addCalendarMenuItems,
       ),
     );
   }

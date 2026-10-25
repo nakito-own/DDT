@@ -8,11 +8,12 @@ import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_gantt_mapper.dart';
-import '../widgets/task_side_panel.dart';
+import 'task_details_page.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_mobile_navigation_bar.dart';
 import '../widgets/ddt_shell_metrics.dart';
 
 class TasksGanttPage extends StatefulWidget {
@@ -74,21 +75,14 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
         .toList();
   }
 
-  Future<void> _openTask(Task task) async {
-    final state = context.read<TasksBloc>().state;
-    final updated = await showTaskSidePanel(
+  void _openTask(Task task) {
+    openTaskDetailsPage(
       context,
-      mode: TaskSidePanelMode.view,
-      task: task,
-      taskTypes: state.taskTypes,
+      task,
+      onSheetClosed: () {
+        if (mounted) _ganttController.update();
+      },
     );
-
-    if (updated == null || !mounted) return;
-
-    context.read<TasksBloc>().add(
-      TaskUpdateRequested(original: task, updated: updated),
-    );
-    _ganttController.update();
   }
 
   Future<void> _onActivityChanged(
@@ -242,17 +236,20 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
               child: Padding(
                 padding: EdgeInsets.only(
                   bottom: DdtAdaptive.isCompact(context)
-                      ? TasksMobileViewBar.reserve
+                      ? TasksMobileViewBar.reserve +
+                            (DdtAdaptive.floatingBottomBar(context)
+                                ? DdtMobileNavigationBar.clearance(context)
+                                : 0)
                       : 0,
                 ),
                 child: Gantt(
-                controller: _ganttController,
-                theme: _ganttTheme(context),
-                activities: activities,
-                activitiesListFlex: 2,
-                gridAreaFlex: 5,
-                monthToText: ganttMonthLabel,
-                onActivityChanged: _onActivityChanged,
+                  controller: _ganttController,
+                  theme: _ganttTheme(context),
+                  activities: activities,
+                  activitiesListFlex: 2,
+                  gridAreaFlex: 5,
+                  monthToText: ganttMonthLabel,
+                  onActivityChanged: _onActivityChanged,
                 ),
               ),
             ),

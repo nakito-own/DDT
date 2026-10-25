@@ -6,22 +6,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../theme/ddt_icons.dart';
 
-import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_status.dart';
-import '../models/task_type.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../utils/ddt_toast.dart';
+import 'task_create_page.dart';
+import 'task_details_page.dart';
 import '../widgets/task_card.dart';
-import '../widgets/task_side_panel.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 const _kKanbanSlotDuration = Duration(milliseconds: 280);
 const _kKanbanSlotCurve = Curves.easeOutCubic;
@@ -33,7 +33,7 @@ const _kKanbanColumnFadeGap = 4.0;
 const _kKanbanColumnListTopInset = 48.0;
 
 /// Compact header sits in the solid half; the rest dissolves over the cards.
-const _kCompactKanbanTopFadeHeight = 68.0;
+const _kCompactKanbanTopFadeHeight = 96.0;
 const _kCompactKanbanListTopInset = 48.0;
 const _kCompactKanbanSlideDuration = Duration(milliseconds: 320);
 
@@ -50,7 +50,6 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   // Локальная мутируемая копия колонок для drag-drop анимаций.
   // BlocListener синхронизирует её с TasksBloc.state.columns.
   late Map<TaskStatus, List<Task>> _localColumns;
-  late List<TaskType> _taskTypes;
 
   final Map<String, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
@@ -77,14 +76,12 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     _localColumns = {
       for (final e in state.columns.entries) e.key: List.of(e.value),
     };
-    _taskTypes = List.of(state.taskTypes);
   }
 
   void _syncFromBlocState(TasksState state) {
     _localColumns = {
       for (final e in state.columns.entries) e.key: List.of(e.value),
     };
-    _taskTypes = List.of(state.taskTypes);
   }
 
   List<Task> _columnTasks(TaskStatus status) =>
@@ -228,50 +225,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     }
   }
 
-  Future<void> _addTask(TaskStatus status) async {
-    final authState = context.read<AuthBloc>().state;
-    final currentUserId = authState is AuthAuthenticated
-        ? authState.user.id
-        : null;
-    final created = await showTaskSidePanel(
-      context,
-      mode: TaskSidePanelMode.create,
-      initialStatus: status,
-      taskTypes: _taskTypes,
-      defaultAuthorId: currentUserId,
-    );
-
-    if (created == null || !mounted) return;
-
-    final now = DateTime.now();
-    final draft = Task(
-      id: 0,
-      title: created.title,
-      status: created.status,
-      typeId: created.typeId,
-      type: created.type,
-      description: created.description,
-      authorId: currentUserId ?? created.authorId,
-      executorId: created.executorId,
-      responsibleId: created.responsibleId,
-      timeSet: created.timeSet,
-      timeStart:
-          created.timeStart ??
-          (created.status == TaskStatus.inProgress ? now : null),
-      timeEnd:
-          created.timeEnd ?? (created.status == TaskStatus.done ? now : null),
-      deadline: created.deadline,
-      priority: created.priority,
-      parent: created.parent,
-      parentId: created.parent?.id,
-      children: created.children,
-      links: created.links,
-      comments: created.comments,
-    );
-
-    context.read<TasksBloc>().add(TaskCreateRequested(draft));
-    // BlocListener синхронизирует _localColumns после ответа сервера.
-    DdtToast.show(message: 'Задача создаётся...', type: ToastType.info);
+  void _addTask(TaskStatus status) {
+    openTaskCreatePage(context, status: status);
   }
 
   Future<void> _archiveTask(Task task, TaskStatus status) async {
@@ -296,19 +251,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     );
   }
 
-  Future<void> _openTaskDetails(Task task) async {
-    final updated = await showTaskSidePanel(
-      context,
-      mode: TaskSidePanelMode.view,
-      task: task,
-      taskTypes: _taskTypes,
-    );
-
-    if (updated == null || !mounted) return;
-
-    context.read<TasksBloc>().add(
-      TaskUpdateRequested(original: task, updated: updated),
-    );
+  void _openTaskDetails(Task task) {
+    openTaskDetailsPage(context, task);
   }
 
   Widget _plainKanbanList(TaskStatus status) {
@@ -322,7 +266,11 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       taskCardKey: _taskCardKey,
       enableDrag: false,
       padding: EdgeInsets.only(
-        top: _kCompactKanbanListTopInset.h,
+        top: () {
+          final reserved = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+          final compactTop = _kCompactKanbanListTopInset.h;
+          return reserved > compactTop ? reserved : compactTop;
+        }(),
         bottom:
             DdtScrollEdgeFade.listBottomPadding(context) +
             TasksMobileViewBar.reserve,
@@ -700,6 +648,11 @@ class _KanbanColumnState extends State<_KanbanColumn> {
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
+    final scrollbarGutter = DdtTheme.shellSizeOf(
+      context,
+      DdtTheme.scrollbarGutter,
+    );
+    final scrollbarEdge = DdtTheme.shellSizeOf(context, 4);
 
     return RepaintBoundary(
       child: Stack(
@@ -716,9 +669,9 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                   border: Border.all(color: borderColor),
                 ),
                 padding: EdgeInsets.fromLTRB(
-                  DdtTheme.spacing.w,
+                  scrollbarGutter + scrollbarEdge,
                   4.h,
-                  4.w,
+                  scrollbarEdge,
                   DdtTheme.spacing.w,
                 ),
                 child: LayoutBuilder(
@@ -731,7 +684,7 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                     );
 
                     return ScrollConfiguration(
-                      behavior: const _KanbanColumnScrollBehavior(),
+                      behavior: const DdtScrollBehavior(),
                       child: ClipRRect(
                         borderRadius: DdtTheme.radius,
                         child: Stack(
@@ -798,11 +751,16 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                                       atTop: true,
                                     ),
                                   ),
-                                  Center(
-                                    child: _KanbanColumnHeader(
-                                      status: widget.status,
-                                      taskCount: widget.tasks.length,
-                                      onAddTask: widget.onAddTask,
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      right: scrollbarGutter,
+                                    ),
+                                    child: Center(
+                                      child: _KanbanColumnHeader(
+                                        status: widget.status,
+                                        taskCount: widget.tasks.length,
+                                        onAddTask: widget.onAddTask,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -866,38 +824,6 @@ class _KanbanColumnState extends State<_KanbanColumn> {
   }
 }
 
-/// Keeps the column scrollbar close to the task cards.
-class _KanbanColumnScrollBehavior extends DdtScrollBehavior {
-  const _KanbanColumnScrollBehavior();
-
-  @override
-  Widget buildScrollbar(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) {
-    switch (getPlatform(context)) {
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        final isVertical =
-            details.direction == AxisDirection.down ||
-            details.direction == AxisDirection.up;
-        final paddedChild = isVertical
-            ? Padding(
-                padding: EdgeInsets.only(right: 8.w),
-                child: child,
-              )
-            : child;
-        return Scrollbar(controller: details.controller, child: paddedChild);
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.iOS:
-        return child;
-    }
-  }
-}
-
 /// Top fade stays solid through the header, then dissolves like the analytics sidebar.
 class _KanbanColumnFade extends StatelessWidget {
   const _KanbanColumnFade({required this.color, required this.atTop});
@@ -917,7 +843,7 @@ class _KanbanColumnFade extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: atTop ? [solid, solid, clear] : [clear, solid],
-            stops: atTop ? const [0, 0.5, 1] : null,
+            stops: atTop ? const [0, 0.62, 1] : null,
           ),
         ),
       ),
