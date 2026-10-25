@@ -21,7 +21,10 @@ class DdtGlassNavigationRail extends StatelessWidget {
   static const double _railBottomInset = 8;
 
   static final List<AppSection> _primarySections = AppSection.values
-      .where((section) => section != AppSection.settings)
+      .where(
+        (section) =>
+            section != AppSection.settings && section != AppSection.more,
+      )
       .toList();
 
   @override
@@ -111,16 +114,14 @@ class _NavigationRailItemState extends State<_NavigationRailItem>
       duration: _tooltipFadeIn,
       reverseDuration: _tooltipFadeOut,
     );
-    _tooltipSlide = Tween<Offset>(
-      begin: const Offset(-0.05, 0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _tooltipController,
-        curve: Curves.fastOutSlowIn,
-        reverseCurve: Curves.easeIn,
-      ),
-    );
+    _tooltipSlide =
+        Tween<Offset>(begin: const Offset(-0.05, 0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _tooltipController,
+            curve: Curves.fastOutSlowIn,
+            reverseCurve: Curves.easeIn,
+          ),
+        );
   }
 
   @override
@@ -331,24 +332,18 @@ class _MaterialTooltipBox extends StatelessWidget {
     return switch (platform) {
       TargetPlatform.macOS ||
       TargetPlatform.linux ||
-      TargetPlatform.windows =>
-        12.0,
+      TargetPlatform.windows => 12.0,
       TargetPlatform.android ||
       TargetPlatform.fuchsia ||
-      TargetPlatform.iOS =>
-        14.0,
+      TargetPlatform.iOS => 14.0,
     };
   }
 
   static EdgeInsets _padding(TargetPlatform platform) {
     return switch (platform) {
-      TargetPlatform.macOS ||
-      TargetPlatform.linux ||
-      TargetPlatform.windows =>
+      TargetPlatform.macOS || TargetPlatform.linux || TargetPlatform.windows =>
         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      TargetPlatform.android ||
-      TargetPlatform.fuchsia ||
-      TargetPlatform.iOS =>
+      TargetPlatform.android || TargetPlatform.fuchsia || TargetPlatform.iOS =>
         const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     };
   }
@@ -357,12 +352,10 @@ class _MaterialTooltipBox extends StatelessWidget {
     return switch (platform) {
       TargetPlatform.macOS ||
       TargetPlatform.linux ||
-      TargetPlatform.windows =>
-        26.0,
+      TargetPlatform.windows => 26.0,
       TargetPlatform.android ||
       TargetPlatform.fuchsia ||
-      TargetPlatform.iOS =>
-        32.0,
+      TargetPlatform.iOS => 32.0,
     };
   }
 
@@ -372,32 +365,32 @@ class _MaterialTooltipBox extends StatelessWidget {
     final tooltipTheme = TooltipTheme.of(context);
     final platform = theme.platform;
 
-    final (TextStyle defaultTextStyle, BoxDecoration defaultDecoration) =
-        switch (theme.brightness) {
-          Brightness.dark => (
-            theme.textTheme.bodyMedium!.copyWith(
-              color: DdtTheme.darkTextPrimary,
-              fontSize: _fontSize(platform),
-            ),
-            BoxDecoration(
-              color: const Color(0xFF232C3F).withValues(alpha: 0.94),
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
-            ),
-          ),
-          Brightness.light => (
-            theme.textTheme.bodyMedium!.copyWith(
-              color: Colors.white,
-              fontSize: _fontSize(platform),
-            ),
-            BoxDecoration(
-              color: const Color(0xFF1E293B).withValues(alpha: 0.92),
-              borderRadius: const BorderRadius.all(Radius.circular(6)),
-            ),
-          ),
-        };
+    final (
+      TextStyle defaultTextStyle,
+      BoxDecoration defaultDecoration,
+    ) = switch (theme.brightness) {
+      Brightness.dark => (
+        theme.textTheme.bodyMedium!.copyWith(
+          color: DdtTheme.darkTextPrimary,
+          fontSize: _fontSize(platform),
+        ),
+        BoxDecoration(
+          color: const Color(0xFF171B24).withValues(alpha: 0.94),
+          borderRadius: const BorderRadius.all(Radius.circular(6)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+      ),
+      Brightness.light => (
+        theme.textTheme.bodyMedium!.copyWith(
+          color: Colors.white,
+          fontSize: _fontSize(platform),
+        ),
+        BoxDecoration(
+          color: const Color(0xFF1E293B).withValues(alpha: 0.92),
+          borderRadius: const BorderRadius.all(Radius.circular(6)),
+        ),
+      ),
+    };
 
     final textStyle = tooltipTheme.textStyle ?? defaultTextStyle;
     final decoration = tooltipTheme.decoration ?? defaultDecoration;

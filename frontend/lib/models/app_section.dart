@@ -8,9 +8,9 @@ enum AppSection {
   contacts(label: 'Контакты', icon: DdtIcons.contacts),
   analytics(label: 'Аналитика', icon: DdtIcons.analytics),
   space(label: 'Пространство', icon: DdtIcons.grid),
-  automations(label: 'Автоматизации', icon: DdtIcons.automations),
   notes(label: 'Заметки', icon: DdtIcons.penToSquare),
-  settings(label: 'Настройки', icon: DdtIcons.settings);
+  settings(label: 'Настройки', icon: DdtIcons.settings),
+  more(label: 'Дополнения', icon: DdtIcons.additions);
 
   const AppSection({required this.label, required this.icon});
 
@@ -25,9 +25,9 @@ enum AppSection {
     AppSection.contacts => RoutePaths.contacts,
     AppSection.analytics => RoutePaths.analytics,
     AppSection.space => RoutePaths.space,
-    AppSection.automations => RoutePaths.automations,
     AppSection.notes => RoutePaths.notes,
     AppSection.settings => RoutePaths.settings,
+    AppSection.more => RoutePaths.more,
   };
 
   /// Определяет активную секцию по текущему URL-пути.
@@ -41,14 +41,15 @@ enum AppSection {
     if (location.startsWith(RoutePaths.contacts)) return AppSection.contacts;
     if (location.startsWith(RoutePaths.analytics)) return AppSection.analytics;
     if (location.startsWith(RoutePaths.space)) return AppSection.space;
-    if (location.startsWith(RoutePaths.automations)) {
-      return AppSection.automations;
-    }
     if (location.startsWith(RoutePaths.notes) ||
         location.startsWith(RoutePaths.linkArchive)) {
       return AppSection.notes;
     }
     if (location.startsWith(RoutePaths.settings)) return AppSection.settings;
+    if (location == RoutePaths.more ||
+        location.startsWith('${RoutePaths.more}/')) {
+      return AppSection.more;
+    }
     return AppSection.tasks;
   }
 }

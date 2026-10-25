@@ -27,7 +27,7 @@ class DdtSwitch extends StatelessWidget {
     final interactive = enabled && onChanged != null;
 
     final trackOn = DdtTheme.primaryColor;
-    final trackOff = isDark ? const Color(0xFF232838) : const Color(0xFFCBD5E1);
+    final trackOff = isDark ? const Color(0xFF262B38) : const Color(0xFFCBD5E1);
     final borderColor = value
         ? DdtTheme.primaryColor
         : (isDark ? DdtTheme.darkBorderStrong : DdtTheme.lightBorderStrong);

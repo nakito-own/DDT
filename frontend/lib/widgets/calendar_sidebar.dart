@@ -11,7 +11,7 @@ import '../models/colleague_calendar.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
-import 'compose_event_panel.dart';
+import '../screens/event_create_page.dart';
 import 'ddt_app_input.dart';
 import 'ddt_checkbox.dart';
 import 'ddt_icon.dart';
@@ -56,7 +56,7 @@ class CalendarSidebar extends StatelessWidget {
                     child: DdtPanelPrimaryButton(
                       label: 'Событие',
                       icon: DdtIcons.add,
-                      onPressed: () => showComposeEventPanel(context),
+                      onPressed: () => openEventCreatePage(context),
                     ),
                   ),
                   SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),

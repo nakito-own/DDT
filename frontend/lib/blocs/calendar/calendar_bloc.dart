@@ -38,6 +38,10 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
   final EwsApi _api;
   final GetStorage? _storage;
 
+  /// Пользователь уже выбирал формат. Пока ложь, мобильная вёрстка
+  /// один раз ставит «День».
+  bool viewModeChosen = false;
+
   DateTime? _loadedStart;
   DateTime? _loadedEnd;
   int _requestGeneration = 0;
@@ -368,6 +372,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     CalendarViewModeChanged event,
     Emitter<CalendarState> emit,
   ) {
+    viewModeChosen = true;
     if (state.viewMode == event.mode) return;
     emit(state.copyWith(viewMode: event.mode));
     add(const CalendarEventsLoadRequested());

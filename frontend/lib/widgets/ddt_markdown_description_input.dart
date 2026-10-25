@@ -11,15 +11,21 @@ class DdtMarkdownDescriptionInput extends StatefulWidget {
   const DdtMarkdownDescriptionInput({
     super.key,
     required this.controller,
+    this.focusNode,
     this.label = 'Описание',
     this.hint = 'Markdown: заголовки, списки, ссылки…',
     this.minLines = 4,
+    this.plain = false,
   });
 
   final DdtMarkdownLiveController controller;
+  final FocusNode? focusNode;
   final String? label;
   final String? hint;
   final int minLines;
+
+  /// Текст без рамки и заливки: разметка остаётся, поле выглядит как описание.
+  final bool plain;
 
   static MarkdownLiveTheme themeFor(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -86,6 +92,7 @@ class DdtMarkdownDescriptionInput extends StatefulWidget {
 class _DdtMarkdownDescriptionInputState
     extends State<DdtMarkdownDescriptionInput> {
   late final FocusNode _focusNode;
+  late final bool _ownsFocusNode;
   bool _hovering = false;
   bool _focused = false;
   Brightness? _syncedBrightness;
@@ -93,8 +100,10 @@ class _DdtMarkdownDescriptionInputState
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
+    _ownsFocusNode = widget.focusNode == null;
+    _focusNode = widget.focusNode ?? FocusNode();
     _focusNode.addListener(_onFocusChanged);
+    _focused = _focusNode.hasFocus;
   }
 
   @override
@@ -109,7 +118,7 @@ class _DdtMarkdownDescriptionInputState
   @override
   void dispose() {
     _focusNode.removeListener(_onFocusChanged);
-    _focusNode.dispose();
+    if (_ownsFocusNode) _focusNode.dispose();
     super.dispose();
   }
 
@@ -119,6 +128,7 @@ class _DdtMarkdownDescriptionInputState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fill = _focused
         ? DdtTheme.inputFillColorFocused(context)
         : (_hovering
@@ -129,6 +139,23 @@ class _DdtMarkdownDescriptionInputState
         : (_hovering
               ? DdtTheme.borderStrong(context)
               : DdtTheme.borderSubtle(context));
+
+    final toolbar = MarkdownLiveToolbar(
+      controller: widget.controller,
+      backgroundColor: widget.plain
+          ? Colors.transparent
+          : DdtTheme.inputFillColor(context),
+      activeColor: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+      inactiveColor: DdtTheme.sidePanelTextSecondary(context),
+      iconSize: widget.plain ? 14.sp : 16.sp,
+      height: widget.plain ? 28.h : 34.h,
+      padding: EdgeInsets.symmetric(horizontal: widget.plain ? 0 : 4.w),
+      spacing: widget.plain ? 2 : 0,
+      borderRadius: widget.plain
+          ? BorderRadius.zero
+          : DdtTheme.inputControlBorderRadius,
+      showDividers: !widget.plain,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -144,24 +171,16 @@ class _DdtMarkdownDescriptionInputState
           ),
           SizedBox(height: 7.h),
         ],
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: DdtTheme.inputControlBorderRadius,
-            border: Border.all(color: DdtTheme.borderSubtle(context)),
+        if (widget.plain)
+          toolbar
+        else
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: DdtTheme.inputControlBorderRadius,
+              border: Border.all(color: DdtTheme.borderSubtle(context)),
+            ),
+            child: toolbar,
           ),
-          child: MarkdownLiveToolbar(
-            controller: widget.controller,
-            backgroundColor: DdtTheme.inputFillColor(context),
-            activeColor: DdtTheme.primaryColor,
-            inactiveColor: DdtTheme.sidePanelTextSecondary(context),
-            iconSize: 16.sp,
-            height: 34.h,
-            padding: EdgeInsets.symmetric(horizontal: 4.w),
-            spacing: 0,
-            borderRadius: DdtTheme.inputControlBorderRadius,
-            showDividers: true,
-          ),
-        ),
         SizedBox(height: 6.h),
         MouseRegion(
           onEnter: (_) => setState(() => _hovering = true),
@@ -170,15 +189,19 @@ class _DdtMarkdownDescriptionInputState
             duration: DdtTheme.selectionAnimationDuration,
             curve: DdtTheme.selectionAnimationCurve,
             clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: DdtTheme.inputControlBorderRadius,
-              border: Border.all(color: border),
-              boxShadow: _focused ? DdtTheme.inputFocusShadow(context) : null,
-            ),
+            decoration: widget.plain
+                ? const BoxDecoration()
+                : BoxDecoration(
+                    color: fill,
+                    borderRadius: DdtTheme.inputControlBorderRadius,
+                    border: Border.all(color: border),
+                    boxShadow: _focused
+                        ? DdtTheme.inputFocusShadow(context)
+                        : null,
+                  ),
             child: Theme(
               data: Theme.of(context).copyWith(
-                inputDecorationTheme: const InputDecorationTheme(
+                inputDecorationTheme: InputDecorationTheme(
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -186,6 +209,11 @@ class _DdtMarkdownDescriptionInputState
                   errorBorder: InputBorder.none,
                   focusedErrorBorder: InputBorder.none,
                   filled: false,
+                  isCollapsed: widget.plain,
+                  contentPadding: widget.plain ? EdgeInsets.zero : null,
+                  constraints: widget.plain
+                      ? const BoxConstraints(minWidth: 0, minHeight: 0)
+                      : null,
                 ),
               ),
               child: MarkdownLiveEditor(
@@ -195,6 +223,8 @@ class _DdtMarkdownDescriptionInputState
                 maxLines: null,
                 padding: EdgeInsets.zero,
                 decoration: InputDecoration(
+                  isCollapsed: widget.plain,
+                  filled: false,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -205,10 +235,15 @@ class _DdtMarkdownDescriptionInputState
                     height: 1.55,
                     color: DdtTheme.inputHintStyle(context).color,
                   ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10.w,
-                    vertical: 10.h,
-                  ),
+                  contentPadding: widget.plain
+                      ? EdgeInsets.zero
+                      : EdgeInsets.symmetric(
+                          horizontal: 10.w,
+                          vertical: 10.h,
+                        ),
+                  constraints: widget.plain
+                      ? const BoxConstraints(minWidth: 0, minHeight: 0)
+                      : null,
                 ),
               ),
             ),
