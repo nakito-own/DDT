@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../models/user_profile.dart';
 import '../../services/api_client.dart';
+import '../../services/avatar_api.dart';
 import '../../services/ews_api.dart';
 
 part 'auth_event.dart';
@@ -22,6 +23,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthSessionExpired>(_onSessionExpired);
+    on<AuthUserUpdated>(_onUserUpdated);
 
     // Перехват 401 — весь UI переходит в AuthUnauthenticated.
     apiClient.onUnauthorized = () => add(const AuthSessionExpired());
@@ -139,12 +141,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthUnauthenticated());
   }
 
+  void _onUserUpdated(AuthUserUpdated event, Emitter<AuthState> emit) {
+    final current = state;
+    if (current is! AuthAuthenticated) return;
+    emit(
+      AuthAuthenticated(
+        user: event.user,
+        email: current.email,
+        connected: current.connected,
+      ),
+    );
+  }
+
   void _notifyAuthenticated() {
     // Уведомление других Bloc-ов происходит через BlocListener в main.dart.
   }
 
   Future<void> _handleSignOut() async {
-    // Уведомление других Bloc-ов происходит через BlocListener в main.dart.
+    clearAvatarCache();
   }
 
   Future<void> _clearToken() async {

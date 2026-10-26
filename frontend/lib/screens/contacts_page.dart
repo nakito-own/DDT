@@ -8,10 +8,10 @@ import '../blocs/contacts/contacts_bloc.dart';
 import '../models/contact.dart';
 import '../theme/ddt_theme.dart';
 import '../widgets/ddt_app_input.dart';
-import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_user_avatar.dart';
 
 class ContactsPage extends StatefulWidget {
   const ContactsPage({super.key});
@@ -129,34 +129,18 @@ class ContactListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DdtTheme.taskCardGlass(
       context: context,
       padding: EdgeInsets.all(14.w),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38.w,
-            height: 38.w,
-            decoration: BoxDecoration(
-              color: DdtTheme.primaryColor.withValues(
-                alpha: isDark ? 0.18 : 0.10,
-              ),
-              borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(
-                color: DdtTheme.primaryColor.withValues(
-                  alpha: isDark ? 0.32 : 0.20,
-                ),
-              ),
-            ),
-            child: Center(
-              child: DdtIcon(
-                DdtIcons.user,
-                size: 16.sp,
-                color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
-              ),
-            ),
+          DdtUserAvatar(
+            size: 38.w,
+            name: contact.displayName,
+            email: contact.emails.isEmpty ? null : contact.emails.first,
+            borderRadius: BorderRadius.circular(8.r),
+            showBorder: true,
           ),
           SizedBox(width: 12.w),
           Expanded(

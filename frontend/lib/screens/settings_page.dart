@@ -5,19 +5,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/notifications/notifications_bloc.dart';
 import '../blocs/theme/theme_bloc.dart';
+import '../services/avatar_api.dart';
 import '../services/browser_notification_service.dart';
 import '../models/user_profile.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../theme/ddt_icons.dart';
+import '../utils/ddt_toast.dart';
+import '../widgets/avatar_crop_dialog.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_switch.dart';
+import '../widgets/ddt_user_avatar.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -431,7 +436,7 @@ class _SettingsSwitchTile extends StatelessWidget {
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
+class _ProfileHeader extends StatefulWidget {
   const _ProfileHeader({
     required this.profile,
     required this.isLoggingOut,
@@ -442,78 +447,270 @@ class _ProfileHeader extends StatelessWidget {
   final bool isLoggingOut;
   final VoidCallback? onLogout;
 
+  @override
+  State<_ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+class _ProfileHeaderState extends State<_ProfileHeader> {
   static const double _avatarSize = 48;
+
+  bool _busy = false;
+
+  Future<void> _pickPhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
+      );
+      if (picked == null || !mounted) return;
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final cropped = await showAvatarCropDialog(context, bytes);
+      if (cropped == null || !mounted) return;
+      await _run(
+        () => uploadMyAvatar(cropped),
+        success: 'Фотография обновлена',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      DdtToast.show(
+        message: _errorText(error),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
+              ? DdtTheme.darkSurface
+              : DdtTheme.lightSurface,
+          title: Text(
+            'Удалить фотографию?',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodyLargeSize,
+              fontWeight: FontWeight.w600,
+              color: DdtTheme.taskCardTextPrimary(context),
+            ),
+          ),
+          content: Text(
+            'Вместо неё снова будет показана иконка.',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              color: DdtTheme.taskCardTextSecondary(context),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Отмена',
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.bodySize,
+                  color: DdtTheme.taskCardTextSecondary(context),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                'Удалить',
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.bodySize,
+                  fontWeight: FontWeight.w600,
+                  color: DdtTheme.dangerColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(deleteMyAvatar, success: 'Фотография удалена');
+  }
+
+  Future<void> _run(
+    Future<UserProfile> Function() action, {
+    required String success,
+  }) async {
+    setState(() => _busy = true);
+    try {
+      final user = await action();
+      if (!mounted) return;
+      context.read<AuthBloc>().add(AuthUserUpdated(user));
+      DdtToast.show(message: success, type: ToastType.success);
+    } catch (error) {
+      if (!mounted) return;
+      DdtToast.show(message: _errorText(error), type: ToastType.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _errorText(Object error) {
+    return error.toString().replaceFirst('Exception: ', '');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     final nickname = profile.username?.trim();
     final department = profile.department?.trim();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
+    final canEdit = !_busy && !widget.isLoggingOut;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: _avatarSize.w,
-          height: _avatarSize.w,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10.r),
-            color: DdtTheme.primaryColor.withValues(
-              alpha: isDark ? 0.18 : 0.10,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Stack(
+              children: [
+                DdtUserAvatar(
+                  size: _avatarSize.w,
+                  userId: profile.id,
+                  avatarVersion: profile.avatarVersion,
+                  versionIsKnown: true,
+                  borderRadius: BorderRadius.circular(10.r),
+                  showBorder: true,
+                ),
+                if (_busy)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(10.r),
+                      ),
+                      child: Center(
+                        child: SizedBox(
+                          width: 16.sp,
+                          height: 16.sp,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            border: Border.all(
-              color: DdtTheme.primaryColor.withValues(
-                alpha: isDark ? 0.36 : 0.24,
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    profile.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.bodyLargeSize,
+                      fontWeight: FontWeight.w600,
+                      color: DdtTheme.taskCardTextPrimary(context),
+                    ),
+                  ),
+                  if (nickname != null && nickname.isNotEmpty) ...[
+                    SizedBox(height: 3.h),
+                    Text(
+                      nickname.startsWith('@') ? nickname : '@$nickname',
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: DdtTheme.taskCardTextSecondary(context),
+                      ),
+                    ),
+                  ],
+                  if (department != null && department.isNotEmpty) ...[
+                    SizedBox(height: 2.h),
+                    Text(
+                      department,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: accent,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-          child: Center(
-            child: DdtIcon(DdtIcons.user, size: 20.sp, color: accent),
-          ),
+            SizedBox(width: 8.w),
+            _ProfileLogoutIconButton(
+              isLoading: widget.isLoggingOut,
+              onPressed: widget.onLogout,
+            ),
+          ],
         ),
-        SizedBox(width: 14.w),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                profile.label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.bodyLargeSize,
-                  fontWeight: FontWeight.w600,
-                  color: DdtTheme.taskCardTextPrimary(context),
-                ),
+        SizedBox(height: 12.h),
+        Wrap(
+          spacing: 8.w,
+          runSpacing: 8.h,
+          children: [
+            _AvatarActionButton(
+              icon: DdtIcons.camera,
+              label: profile.hasAvatar ? 'Изменить фото' : 'Загрузить фото',
+              onPressed: canEdit ? _pickPhoto : null,
+            ),
+            if (profile.hasAvatar)
+              _AvatarActionButton(
+                icon: DdtIcons.trash,
+                label: 'Удалить',
+                danger: true,
+                onPressed: canEdit ? _removePhoto : null,
               ),
-              if (nickname != null && nickname.isNotEmpty) ...[
-                SizedBox(height: 3.h),
-                Text(
-                  nickname.startsWith('@') ? nickname : '@$nickname',
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSize,
-                    color: DdtTheme.taskCardTextSecondary(context),
-                  ),
-                ),
-              ],
-              if (department != null && department.isNotEmpty) ...[
-                SizedBox(height: 2.h),
-                Text(
-                  department,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSize,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ],
-          ),
+          ],
         ),
-        SizedBox(width: 8.w),
-        _ProfileLogoutIconButton(isLoading: isLoggingOut, onPressed: onLogout),
       ],
+    );
+  }
+}
+
+class _AvatarActionButton extends StatelessWidget {
+  const _AvatarActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.danger = false,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final color = danger ? DdtTheme.dangerColor : DdtTheme.primaryColor;
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        disabledForegroundColor: color.withValues(alpha: 0.4),
+        backgroundColor: color.withValues(alpha: enabled ? 0.08 : 0.04),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8.r),
+          side: BorderSide(color: color.withValues(alpha: enabled ? 0.28 : 0.14)),
+        ),
+      ),
+      icon: DdtIcon(icon, size: 13.sp, color: color.withValues(alpha: enabled ? 1 : 0.4)),
+      label: Text(
+        label,
+        style: DdtTheme.style(
+          fontSize: DdtTypography.labelSize,
+          fontWeight: FontWeight.w600,
+          color: color.withValues(alpha: enabled ? 1 : 0.4),
+        ),
+      ),
     );
   }
 }

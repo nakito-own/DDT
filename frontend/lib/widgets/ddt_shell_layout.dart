@@ -55,9 +55,11 @@ class DdtShellLayout extends StatelessWidget {
     final railLeftInset = DdtTheme.shellSizeOf(context, railAreaLeftInset);
     final barHeight = DdtTheme.shellSizeOf(context, DdtGlassAppBar.barHeight);
     final contentRowTop = railLeftInset + barHeight + contentTopInset;
+    // Kanban already shifts its child below the app bar. A second inset inside
+    // that child is the empty band above a task opened from the board.
     final contentInsetTop = padContent
         ? contentRowTop + contentTopInset
-        : contentRowTop;
+        : 0.0;
 
     return Scaffold(
       backgroundColor: DdtTheme.scaffoldBackground(context),
@@ -216,7 +218,7 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
                 ? headerTop + barHeight + DdtTheme.shellSizeOf(context, 4)
                 : widget.padContent
                 ? layoutTop + contentTopInset
-                : layoutTop;
+                : 0.0;
             final foreground = DdtTheme.textPrimary(context);
             final header = DdtGlassAppBar(
               title: _bar.title ?? widget.title,

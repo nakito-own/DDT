@@ -16,6 +16,7 @@ import '../utils/ddt_toast.dart';
 import 'ddt_side_panel.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_user_avatar.dart';
 
 Future<void> showCalendarEventSidePanel(
   BuildContext context,
@@ -126,7 +127,11 @@ class _CalendarEventSidePanelState extends State<CalendarEventSidePanel> {
                       _DetailRow(icon: DdtIcons.location, text: place),
                     if (_event.organizer != null &&
                         _event.organizer!.isNotEmpty)
-                      _DetailRow(icon: DdtIcons.user, text: _event.organizer!),
+                      _DetailRow(
+                        icon: DdtIcons.user,
+                        text: _event.organizer!,
+                        personName: _event.organizer,
+                      ),
                     if (_event.isColleague &&
                         _event.ownerName != null &&
                         _event.ownerName!.isNotEmpty)
@@ -278,11 +283,17 @@ class _DetailCard extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.icon, required this.text, this.color});
+  const _DetailRow({
+    required this.icon,
+    required this.text,
+    this.color,
+    this.personName,
+  });
 
   final FaIconData icon;
   final String text;
   final Color? color;
+  final String? personName;
 
   @override
   Widget build(BuildContext context) {
@@ -291,8 +302,10 @@ class _DetailRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.only(top: 2.h),
-          child: DdtIcon(icon, size: 14.sp, color: tint),
+          padding: EdgeInsets.only(top: 1.h),
+          child: personName == null
+              ? DdtIcon(icon, size: 14.sp, color: tint)
+              : DdtUserAvatar(size: 16.w, name: personName),
         ),
         SizedBox(width: 8.w),
         Expanded(
@@ -380,7 +393,6 @@ class _AttendeeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = DdtTheme.sidePanelTextSecondary(context);
     final status = attendee.responseLabel;
     return Container(
@@ -392,21 +404,10 @@ class _AttendeeRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 26.w,
-            height: 26.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: DdtTheme.primaryColor.withValues(
-                alpha: isDark ? 0.22 : 0.10,
-              ),
-            ),
-            child: DdtIcon(
-              DdtIcons.user,
-              size: 12.sp,
-              color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
-              fitParent: true,
-            ),
+          DdtUserAvatar(
+            size: 26.w,
+            name: attendee.name,
+            email: attendee.email,
           ),
           SizedBox(width: 8.w),
           Expanded(

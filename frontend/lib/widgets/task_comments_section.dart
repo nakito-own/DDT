@@ -17,6 +17,7 @@ import '../utils/task_formatters.dart';
 import 'ddt_app_input.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_user_avatar.dart';
 
 class TaskCommentsSection extends StatefulWidget {
   const TaskCommentsSection({
@@ -301,7 +302,6 @@ class _CommentBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
-    final primary = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
 
     return Padding(
       padding: EdgeInsets.only(bottom: 8.h),
@@ -329,21 +329,9 @@ class _CommentBubble extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 20.w,
-                      height: 20.w,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: DdtTheme.primaryColor.withValues(
-                          alpha: isDark ? 0.22 : 0.10,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: DdtIcon(
-                        DdtIcons.user,
-                        size: 10.sp,
-                        color: primary,
-                      ),
+                    DdtUserAvatar(
+                      size: 20.w,
+                      userId: comment.authorId,
                     ),
                     SizedBox(width: 7.w),
                     Expanded(

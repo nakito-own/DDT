@@ -87,7 +87,11 @@ class EwsApi {
     await _client.setSessionToken(data['session_token'] as String);
     _accountEmail = data['email'] as String?;
 
-    return _sessionFromAuthPayload(data, rememberMe: rememberMe, connected: true);
+    return _sessionFromAuthPayload(
+      data,
+      rememberMe: rememberMe,
+      connected: true,
+    );
   }
 
   EwsSession _sessionFromAuthPayload(
@@ -214,11 +218,7 @@ class EwsApi {
     bool markRead = true,
     String? folderId,
   }) {
-    return _owa.fetchMessage(
-      messageId,
-      markRead: markRead,
-      folderId: folderId,
-    );
+    return _owa.fetchMessage(messageId, markRead: markRead, folderId: folderId);
   }
 
   Future<void> markMessageRead(String messageId, {String? folderId}) {
@@ -273,6 +273,7 @@ class EwsApi {
     required DateTime end,
     String? location,
     String? body,
+    List<CalendarPerson> attendees = const [],
   }) {
     return _owa.createCalendarEvent(
       subject: subject,
@@ -280,6 +281,7 @@ class EwsApi {
       end: end,
       location: location,
       body: body,
+      attendees: attendees,
     );
   }
 
@@ -325,10 +327,7 @@ class EwsApi {
     );
   }
 
-  Future<List<Contact>> fetchContacts({
-    int limit = 100,
-    String search = '',
-  }) {
+  Future<List<Contact>> fetchContacts({int limit = 100, String search = ''}) {
     return _owa.fetchContacts(limit: limit, search: search);
   }
 

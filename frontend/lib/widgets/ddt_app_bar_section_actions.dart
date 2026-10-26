@@ -58,7 +58,9 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+    // uri.path is the open page. matchedLocation can stay on the shell prefix,
+    // so a task opened from kanban or gantt looked like the list.
+    final location = GoRouterState.of(context).uri.path;
     final selectedSpaceKey = _spaceKeyFromLocation(location);
     final activeMode = TasksViewMode.fromRoute(location);
     final archiveOpen = RoutePaths.isArchiveRoute(location);

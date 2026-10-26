@@ -47,7 +47,11 @@ abstract final class RoutePaths {
   static String spaceTask(String taskKey) => '/space/$taskKey';
   static String spaceTaskNew(String spaceKey) => '/space/$spaceKey/new';
   static const notes = '/notes';
+  static const boards = '/boards';
+  static const board = '/boards/:boardId';
   static const more = '/more';
+
+  static String boardFor(String boardId) => '/boards/$boardId';
 
   /// Legacy path; redirects to [notes].
   static const linkArchive = '/link-archive';
@@ -95,6 +99,8 @@ abstract final class RoutePaths {
   static const nameSpaceTaskDetails = 'space-task-details';
   static const nameSpaceTaskCreate = 'space-task-create';
   static const nameNotes = 'notes';
+  static const nameBoards = 'boards';
+  static const nameBoard = 'board';
   static const nameMore = 'more';
 
   /// Legacy route name; redirects to [nameNotes].

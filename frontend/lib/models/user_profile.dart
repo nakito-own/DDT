@@ -9,6 +9,7 @@ class UserProfile {
     this.phone,
     this.officeLocation,
     this.username,
+    this.avatarVersion,
   });
 
   final int id;
@@ -20,10 +21,31 @@ class UserProfile {
   final String? phone;
   final String? officeLocation;
   final String? username;
+  final int? avatarVersion;
 
   String get label => displayName ?? name;
 
+  bool get hasAvatar => avatarVersion != null;
+
+  UserProfile copyWith({Object? avatarVersion = _unset}) {
+    return UserProfile(
+      id: id,
+      name: name,
+      email: email,
+      displayName: displayName,
+      jobTitle: jobTitle,
+      department: department,
+      phone: phone,
+      officeLocation: officeLocation,
+      username: username,
+      avatarVersion: identical(avatarVersion, _unset)
+          ? this.avatarVersion
+          : avatarVersion as int?,
+    );
+  }
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
+    final version = json['avatar_version'];
     return UserProfile(
       id: json['id'] as int,
       name: json['name'] as String,
@@ -34,6 +56,9 @@ class UserProfile {
       phone: json['phone'] as String?,
       officeLocation: json['office_location'] as String?,
       username: json['username'] as String?,
+      avatarVersion: version is num ? version.toInt() : null,
     );
   }
 }
+
+const _unset = Object();

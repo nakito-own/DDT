@@ -773,7 +773,12 @@ class _CreateToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _MarkButton(icon: DdtIcons.chevronLeft, label: backLabel, onPressed: onClose),
+        _MarkButton(
+          icon: DdtIcons.chevronLeft,
+          label: backLabel,
+          onPressed: onClose,
+          alignStart: true,
+        ),
         SizedBox(width: 8.w),
         Expanded(
           child: Text(
@@ -804,11 +809,15 @@ class _MarkButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.alignStart = false,
   });
 
   final FaIconData icon;
   final String label;
   final VoidCallback onPressed;
+
+  /// Drops the left inset so the glyph lines up with the title and the body.
+  final bool alignStart;
 
   @override
   Widget build(BuildContext context) {
@@ -821,7 +830,7 @@ class _MarkButton extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onPressed,
           child: Padding(
-            padding: EdgeInsets.all(4.w),
+            padding: EdgeInsets.fromLTRB(alignStart ? 0 : 4.w, 4.h, 4.w, 4.h),
             child: DdtIcon(
               icon,
               size: 14 / DdtIcon.visualScale,
@@ -1088,7 +1097,8 @@ class _PersonDropdownRow extends StatelessWidget {
                 key: '${user.id}',
                 label: user.label,
                 searchText: '${user.label} ${user.email}',
-                content: (context) => DdtUserChip(name: user.label),
+                content: (context) =>
+                    DdtUserChip(name: user.label, userId: user.id),
               ),
           ],
           onSelected: (key) =>
