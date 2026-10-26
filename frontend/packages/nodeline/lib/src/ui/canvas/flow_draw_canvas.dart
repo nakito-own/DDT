@@ -167,6 +167,17 @@ class FlowDrawCanvas extends StatelessWidget {
                             .read<CanvasBloc>()
                             .add(ObjectFontReset(allSelected))
                         : null,
+                    currentLineStyle: _selectionLineStyle(
+                      selectionState.selectedDrawingObjectIds,
+                      canvasState,
+                    ),
+                    onLineStyleChanged: (style) {
+                      context.read<ToolBloc>().add(LineStyleSelected(style));
+                      context.read<CanvasBloc>().add(ObjectsLineStyleChanged(
+                            selectionState.selectedDrawingObjectIds,
+                            style,
+                          ));
+                    },
                   );
                 },
               );
@@ -275,6 +286,9 @@ class FlowDrawCanvas extends StatelessWidget {
       } else if (obj is ParallelogramObject) {
         style = obj.textStyle;
         objCustomized = obj.fontCustomized;
+      } else if (obj is TextObject) {
+        style = obj.style;
+        objCustomized = true;
       } else {
         continue;
       }
@@ -302,4 +316,21 @@ class FlowDrawCanvas extends StatelessWidget {
       customized: customized,
     );
   }
+}
+
+LineStyle _selectionLineStyle(Set<String> ids, CanvasState canvasState) {
+  for (final id in ids) {
+    final style = switch (canvasState.drawingObjects[id]) {
+      RectangleObject(:final lineStyle) => lineStyle,
+      CircleObject(:final lineStyle) => lineStyle,
+      DiamondObject(:final lineStyle) => lineStyle,
+      ParallelogramObject(:final lineStyle) => lineStyle,
+      ForkJoinObject(:final lineStyle) => lineStyle,
+      ArrowObject(:final lineStyle) => lineStyle,
+      LineObject(:final lineStyle) => lineStyle,
+      _ => null,
+    };
+    if (style != null) return style;
+  }
+  return LineStyle.solid;
 }

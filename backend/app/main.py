@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.routers import (
     analytics,
+    boards,
     ews_auth,
     ews_notifications,
     health,
@@ -79,3 +80,4 @@ app.include_router(
     tags=["ews-notifications"],
 )
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(boards.router, prefix="/api/boards", tags=["boards"])

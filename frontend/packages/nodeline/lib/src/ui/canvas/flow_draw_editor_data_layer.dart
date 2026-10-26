@@ -82,6 +82,12 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
   late ToolBloc _toolBloc;
   final FocusNode _canvasFocusNode = FocusNode();
 
+  Color get _canvasInk {
+    final background =
+        widget.style.decoration.color ?? const Color(0xFF1C1C1E);
+    return inkForBackground(background);
+  }
+
   bool _isPanning = false;
   bool _isAreaSelecting = false;
   bool _isDraggingSelection = false;
@@ -471,6 +477,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       if (obj.id == _isResizing.objectId) continue;
       if (obj is RectangleObject ||
           obj is CircleObject ||
+          obj is DiamondObject ||
+          obj is ParallelogramObject ||
+          obj is ForkJoinObject ||
           obj is FigureObject ||
           obj is SvgObject) {
         final distance = distanceToRectBorder(worldPos, obj.rect);
@@ -3013,6 +3022,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
 
       if (obj is RectangleObject ||
           obj is CircleObject ||
+          obj is DiamondObject ||
+          obj is ParallelogramObject ||
+          obj is ForkJoinObject ||
           obj is FigureObject ||
           obj is TextObject ||
           obj is SvgObject ||
@@ -3298,6 +3310,7 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
                         focusNode: focusNode,
                         style: object.style.copyWith(
                           fontSize: object.style.fontSize! * zoom,
+                          color: resolvedTextColor(object.style.color, _canvasInk),
                         ),
                         maxLines: null,
                         minLines: 1,
@@ -3608,6 +3621,7 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       customized: customized,
       defaultFamily: canvasState.defaultFontFamily,
       defaultSize: canvasState.defaultFontSize,
+      ink: _canvasInk,
     );
 
     // Seed runs from richText when present, else from the plain text (so legacy
@@ -3666,6 +3680,15 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
     // The plain-text mirror is trimmed; rich runs come from the controller and
     // are nulled out when there's no text (so an empty node serializes lean).
     final newText = controller?.text.trim() ?? '';
+    final storedStyle = _shapeTextStyle.color == null ||
+            followsCanvasInk(_shapeTextStyle.color)
+        ? TextStyle(
+            fontFamily: _shapeTextStyle.fontFamily,
+            fontSize: _shapeTextStyle.fontSize,
+            fontWeight: _shapeTextStyle.fontWeight,
+            fontStyle: _shapeTextStyle.fontStyle,
+          )
+        : _shapeTextStyle;
     List<TextRun>? newRuns = newText.isEmpty ? null : controller?.toRuns();
     // Drop a single inherited run to null — it's indistinguishable from plain
     // text and keeps round-tripping/serialization minimal.
@@ -3683,22 +3706,22 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       if (shapeObject is RectangleObject) {
         shapeObject.isEditing = false;
         shapeObject.text = newText.isEmpty ? null : newText;
-        shapeObject.textStyle = newText.isEmpty ? null : _shapeTextStyle;
+        shapeObject.textStyle = newText.isEmpty ? null : storedStyle;
         shapeObject.richText = newRuns;
       } else if (shapeObject is CircleObject) {
         shapeObject.isEditing = false;
         shapeObject.text = newText.isEmpty ? null : newText;
-        shapeObject.textStyle = newText.isEmpty ? null : _shapeTextStyle;
+        shapeObject.textStyle = newText.isEmpty ? null : storedStyle;
         shapeObject.richText = newRuns;
       } else if (shapeObject is DiamondObject) {
         shapeObject.isEditing = false;
         shapeObject.text = newText.isEmpty ? null : newText;
-        shapeObject.textStyle = newText.isEmpty ? null : _shapeTextStyle;
+        shapeObject.textStyle = newText.isEmpty ? null : storedStyle;
         shapeObject.richText = newRuns;
       } else if (shapeObject is ParallelogramObject) {
         shapeObject.isEditing = false;
         shapeObject.text = newText.isEmpty ? null : newText;
-        shapeObject.textStyle = newText.isEmpty ? null : _shapeTextStyle;
+        shapeObject.textStyle = newText.isEmpty ? null : storedStyle;
         shapeObject.richText = newRuns;
       }
       _editingShapeObject = null;

@@ -626,9 +626,7 @@ class FlowDrawEditorRenderBox extends RenderBox
 
   Color get _ink {
     final background = style.decoration.color ?? const Color(0xFF1A1A1A);
-    return background.computeLuminance() > 0.45
-        ? const Color(0xFF1A2332)
-        : const Color(0xFFE6E8EE);
+    return inkForBackground(background);
   }
 
   void _paintDrawingObjects(Canvas canvas) {
@@ -785,6 +783,9 @@ class FlowDrawEditorRenderBox extends RenderBox
 
       if (obj is RectangleObject ||
           obj is CircleObject ||
+          obj is DiamondObject ||
+          obj is ParallelogramObject ||
+          obj is ForkJoinObject ||
           obj is FigureObject ||
           obj is TextObject ||
           obj is SvgObject) {
@@ -812,7 +813,20 @@ class FlowDrawEditorRenderBox extends RenderBox
               canvas, obj.rect.topLeft - Offset(0, textPainter.height));
         } else if (obj is TextObject) {
           if (!obj.isEditing) {
-            obj.layoutPainter().paint(canvas, obj.rect.topLeft);
+            final painter = TextPainter(
+              text: TextSpan(
+                text: obj.text,
+                style: obj.style.copyWith(
+                  color: resolvedTextColor(obj.style.color, ink),
+                ),
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout(
+                maxWidth: obj.rect.width.isFinite
+                    ? obj.rect.width
+                    : double.infinity,
+              );
+            painter.paint(canvas, obj.rect.topLeft);
           }
         } else if (obj is CircleObject) {
           final circleFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : noFillPaint;

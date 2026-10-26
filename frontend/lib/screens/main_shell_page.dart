@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../models/app_section.dart';
 import '../models/tasks_view_mode.dart';
-import '../router/route_paths.dart';
 import '../widgets/ddt_shell_layout.dart';
 
 /// Оболочка основного приложения: навигационный рейл + аппбар + контент.
@@ -30,13 +29,12 @@ class MainShellPage extends StatelessWidget {
     // kanban shell slot: switching padding here jumps the whole content area.
     final location = GoRouterState.of(context).uri.path;
     final board = TasksViewMode.fromRoute(location);
-    final diagramEditor = location.startsWith('${RoutePaths.boards}/');
 
     return DdtShellLayout(
       title: selectedSection.label,
       selectedSection: selectedSection,
       onSectionSelected: (section) => context.go(section.routePath),
-      padContent: board != TasksViewMode.kanban && !diagramEditor,
+      padContent: board != TasksViewMode.kanban,
       child: child,
     );
   }
