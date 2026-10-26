@@ -6,6 +6,7 @@ dist/
 build/
 .dart_tool/
 .env
+backend/data/
 secrets/*
 !secrets/.gitkeep
 *google-sheets*.json

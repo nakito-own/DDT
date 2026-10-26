@@ -13,6 +13,7 @@ class UserProfileResponse(BaseModel):
     department: str | None = None
     phone: str | None = None
     office_location: str | None = None
+    avatar_version: int | None = None
 
 
 class LoginRequest(BaseModel):

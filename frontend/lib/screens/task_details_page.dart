@@ -1168,6 +1168,7 @@ class _TaskPersonValue extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: DdtUserChip(
             name: person?.label ?? (waiting ? 'Загрузка…' : 'Пользователь'),
+            userId: person?.id ?? userId,
           ),
         );
       },

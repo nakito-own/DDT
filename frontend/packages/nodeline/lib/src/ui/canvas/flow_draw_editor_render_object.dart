@@ -1,0 +1,2362 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+import 'dart:ui';
+
+import 'package:nodeline/nodeline.dart';
+import 'package:nodeline/src/core/utils/json_extensions.dart';
+import 'package:nodeline/src/core/utils/orthogonal_router.dart';
+import 'package:nodeline/src/core/utils/renderbox.dart';
+import 'package:nodeline/src/core/utils/spatial_hash_grid.dart';
+import 'package:nodeline/src/models/drawing_entities.dart';
+import 'package:nodeline/src/ui/canvas/paint_profiler.dart';
+import 'package:nodeline/src/ui/nodes/node_widget.dart';
+import 'package:nodeline/src/ui/shared/snap_guides.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:perfect_freehand/perfect_freehand.dart';
+
+class NodeDiffCheckData {
+  final String id;
+  final Offset offset;
+  final NodeState state;
+
+  NodeDiffCheckData({
+    required this.id,
+    required this.offset,
+    required this.state,
+  });
+}
+
+class _ParentData extends ContainerBoxParentData<RenderBox> {
+  String id = '';
+  Offset nodeOffset = Offset.zero;
+  NodeState state = NodeState();
+  Rect rect = Rect.zero;
+}
+
+/// Cached output of routing one orthogonal arrow: the edge-snapped endpoints
+/// and routed waypoints actually drawn. Reused across paints while the routing
+/// signature is unchanged.
+class _RoutedArrow {
+  final Offset start;
+  final Offset end;
+  final List<Offset>? waypoints;
+  _RoutedArrow(this.start, this.end, this.waypoints);
+}
+
+class FlowDrawEditorRenderObjectWidget extends MultiChildRenderObjectWidget {
+  final CanvasState canvasState;
+  final SelectionState selectionState;
+  final FlowDrawEditorStyle style;
+  final FragmentShader gridShader;
+  final TempDrawingObject? tempDrawingObject;
+  final Rect selectionArea;
+  final FlNodeHeaderBuilder? headerBuilder;
+  final FlNodeBuilder? nodeBuilder;
+  final Offset? snapHandlePosition;
+  final List<SnapGuide> snapGuides;
+
+  /// When true, paints the handle hit-test zones as a translucent overlay so
+  /// you can see exactly which area each handle (especially arrow/line
+  /// endpoints) catches. Used to debug selection/drag-target issues.
+  final bool debugShowHitAreas;
+
+  FlowDrawEditorRenderObjectWidget({
+    super.key,
+    required this.canvasState,
+    required this.selectionState,
+    required this.style,
+    required this.gridShader,
+    this.tempDrawingObject,
+    required this.selectionArea,
+    this.headerBuilder,
+    this.nodeBuilder,
+    this.snapHandlePosition,
+    this.snapGuides = const [],
+    this.debugShowHitAreas = false,
+  }) : super(
+         children: canvasState.nodes.values.map((node) {
+           node.state.isSelected = selectionState.selectedNodeIds.contains(
+             node.id,
+           );
+           return DefaultNodeWidget(
+             node: node,
+             headerBuilder: headerBuilder,
+             nodeBuilder: nodeBuilder,
+           );
+         }).toList(),
+       );
+
+  @override
+  FlowDrawEditorRenderBox createRenderObject(BuildContext context) {
+    return FlowDrawEditorRenderBox(
+      style: style,
+      gridShader: gridShader,
+      canvasState: canvasState,
+      selectionState: selectionState,
+      selectionArea: selectionArea,
+      nodesData: _getNodeDrawData(),
+      tempDrawingObject: tempDrawingObject,
+      snapHandlePosition: snapHandlePosition,
+      snapGuides: snapGuides,
+      debugShowHitAreas: debugShowHitAreas,
+    );
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    FlowDrawEditorRenderBox renderObject,
+  ) {
+    renderObject
+      ..style = style
+      ..canvasState = canvasState
+      ..selectionState = selectionState
+      ..selectionArea = selectionArea
+      ..tempDrawingObject = tempDrawingObject
+      ..snapHandlePosition = snapHandlePosition
+      ..snapGuides = snapGuides
+      ..debugShowHitAreas = debugShowHitAreas
+      ..updateNodes(_getNodeDrawData());
+  }
+
+  List<NodeDiffCheckData> _getNodeDrawData() {
+    return canvasState.nodes.values
+        .map(
+          (node) => NodeDiffCheckData(
+            id: node.id,
+            offset: node.offset,
+            state: node.state,
+          ),
+        )
+        .toList();
+  }
+}
+
+class FlowDrawEditorRenderBox extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _ParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _ParentData> {
+  FlowDrawEditorRenderBox({
+    required FlowDrawEditorStyle style,
+    required FragmentShader gridShader,
+    required CanvasState canvasState,
+    required SelectionState selectionState,
+    required Rect selectionArea,
+    required List<NodeDiffCheckData> nodesData,
+    required this.tempDrawingObject,
+    this.snapHandlePosition,
+    List<SnapGuide> snapGuides = const [],
+    bool debugShowHitAreas = false,
+  }) : _style = style,
+       _debugShowHitAreas = debugShowHitAreas,
+       _gridShader = gridShader,
+       _canvasState = canvasState,
+       _selectionState = selectionState,
+       _selectionArea = selectionArea,
+       _snapGuides = snapGuides {
+    _loadGridShader();
+    updateNodes(nodesData);
+  }
+
+  final SpatialHashGrid _spatialHashGrid = SpatialHashGrid();
+
+  CanvasState _canvasState;
+
+  CanvasState get canvasState => _canvasState;
+
+  set canvasState(CanvasState value) {
+    if (_canvasState == value) return;
+    _canvasState = value;
+    _transformMatrixDirty = true;
+    markNeedsLayout();
+  }
+
+  SelectionState _selectionState;
+
+  SelectionState get selectionState => _selectionState;
+
+  set selectionState(SelectionState value) {
+    if (_selectionState == value) return;
+    _selectionState = value;
+    markNeedsPaint();
+  }
+
+  Offset? snapHandlePosition;
+
+  bool _debugShowHitAreas;
+
+  bool get debugShowHitAreas => _debugShowHitAreas;
+
+  set debugShowHitAreas(bool value) {
+    if (_debugShowHitAreas == value) return;
+    _debugShowHitAreas = value;
+    markNeedsPaint();
+  }
+
+  List<SnapGuide> _snapGuides;
+
+  List<SnapGuide> get snapGuides => _snapGuides;
+
+  set snapGuides(List<SnapGuide> value) {
+    if (identical(_snapGuides, value)) return;
+    _snapGuides = value;
+    markNeedsPaint();
+  }
+
+  FlowDrawEditorStyle _style;
+
+  FlowDrawEditorStyle get style => _style;
+
+  set style(FlowDrawEditorStyle value) {
+    if (_style == value) return;
+    _style = value;
+    markNeedsPaint();
+  }
+
+  FragmentShader _gridShader;
+
+  FragmentShader get gridShader => _gridShader;
+
+  set gridShader(FragmentShader value) {
+    if (_gridShader == value) return;
+    _gridShader = value;
+    markNeedsPaint();
+  }
+
+  Matrix4? _transformMatrix;
+  bool _transformMatrixDirty = true;
+
+  Rect _selectionArea;
+
+  Rect get selectionArea => _selectionArea;
+
+  set selectionArea(Rect value) {
+    if (_selectionArea == value) return;
+    _selectionArea = value;
+    markNeedsPaint();
+  }
+
+  TempDrawingObject? tempDrawingObject;
+  List<NodeDiffCheckData> _nodesDiffCheckData = [];
+
+  void _loadGridShader() {
+    final gridStyle = style.gridStyle;
+    gridShader.setFloat(0, gridStyle.gridSpacingX);
+    gridShader.setFloat(1, gridStyle.gridSpacingY);
+    final lineColor = gridStyle.lineColor;
+    gridShader.setFloat(4, gridStyle.lineWidth);
+    gridShader.setFloat(5, lineColor.red / 255.0);
+    gridShader.setFloat(6, lineColor.green / 255.0);
+    gridShader.setFloat(7, lineColor.blue / 255.0);
+    gridShader.setFloat(8, lineColor.opacity);
+    final intersectionColor = gridStyle.intersectionColor;
+    gridShader.setFloat(9, gridStyle.intersectionRadius);
+    gridShader.setFloat(10, intersectionColor.red / 255.0);
+    gridShader.setFloat(11, intersectionColor.green / 255.0);
+    gridShader.setFloat(12, intersectionColor.blue / 255.0);
+    gridShader.setFloat(13, intersectionColor.opacity);
+  }
+
+  void updateNodes(List<NodeDiffCheckData> nodesData) {
+    _nodesDiffCheckData = nodesData;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _ParentData) {
+      child.parentData = _ParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    size = constraints.biggest;
+    RenderBox? child = firstChild;
+    _spatialHashGrid.clear();
+
+    int i = 0;
+    while (child != null && i < _nodesDiffCheckData.length) {
+      final nodeData = _nodesDiffCheckData[i];
+      final childParentData = child.parentData as _ParentData;
+
+      childParentData.id = nodeData.id;
+
+      child.layout(
+        BoxConstraints.loose(constraints.biggest),
+        parentUsesSize: true,
+      );
+
+      final rect = Rect.fromLTWH(
+        nodeData.offset.dx,
+        nodeData.offset.dy,
+        child.size.width,
+        child.size.height,
+      );
+      childParentData.rect = rect;
+
+      _spatialHashGrid.insert((id: nodeData.id, rect: rect));
+
+      child = childParentData.nextSibling;
+      i++;
+    }
+  }
+
+  Rect _calculateViewport() {
+    return Rect.fromLTWH(
+      -size.width / 2 / canvasState.viewportZoom -
+          canvasState.viewportOffset.dx,
+      -size.height / 2 / canvasState.viewportZoom -
+          canvasState.viewportOffset.dy,
+      size.width / canvasState.viewportZoom,
+      size.height / canvasState.viewportZoom,
+    );
+  }
+
+  @override
+  // ── Routing cache ──
+  // Routing is the dominant paint cost (A* per arrow). Its inputs are all
+  // world-space and zoom/DPR-independent (see OrthogonalRouter), so the routed
+  // geometry only changes when an arrow's endpoints, attachments, obstacle
+  // rects, port overrides, or angles change — NOT on pan or zoom. We hash all
+  // those inputs into a signature; when it is unchanged we reuse the cached
+  // routed polylines and skip every route() call.
+  //
+  // Routing is order-coupled (each arrow routes around earlier arrows'
+  // segments), so a re-routed arrow still feeds its result into routedSegments
+  // for later arrows; arrows reused from cache also contribute their cached
+  // segments. We track each arrow's input signature and re-route only the ones
+  // whose signature changed — so dragging a node re-routes just the arrows
+  // attached to it, while all others reuse their cached routes.
+  final Map<String, _RoutedArrow> _routeCache = {};
+  final Map<String, String> _arrowSignatures = {};
+
+  // Profiling accumulators, reset each paint and read back at the end.
+  final Stopwatch _profStopwatch = Stopwatch();
+  int _profRoutingUs = 0;
+  int _profObstaclesUs = 0;
+  int _profArrowCount = 0;
+  int _profRouteCalls = 0;
+  int _profGridUs = 0;
+  int _profChildrenUs = 0;
+  int _profDrawObjUs = 0;
+
+  void paint(PaintingContext context, Offset offset) {
+    final Stopwatch? sw = PaintProfiler.enabled ? (Stopwatch()..start()) : null;
+    if (PaintProfiler.enabled) _profStopwatch
+      ..reset()
+      ..start();
+    _profRoutingUs = 0;
+    _profObstaclesUs = 0;
+    _profArrowCount = 0;
+    _profRouteCalls = 0;
+
+    final viewport = _prepareCanvas(context.canvas, size);
+    _paintGrid(context.canvas, viewport);
+    final int _gridUs = sw?.elapsedMicroseconds ?? 0;
+
+    final visibleNodes = _spatialHashGrid.queryArea(viewport.inflate(300));
+
+    RenderBox? child = firstChild;
+    while (child != null) {
+      final childParentData = child.parentData as _ParentData;
+      final nodeInstance = canvasState.nodes[childParentData.id];
+      if (nodeInstance != null && visibleNodes.contains(childParentData.id)) {
+        context.paintChild(child, nodeInstance.offset);
+      }
+      child = childParentData.nextSibling;
+    }
+    final int _childrenUs = sw?.elapsedMicroseconds ?? 0;
+
+    _paintDrawingObjects(context.canvas);
+    final int _drawObjUs = sw?.elapsedMicroseconds ?? 0;
+    if (sw != null) {
+      _profGridUs = _gridUs;
+      _profChildrenUs = _childrenUs - _gridUs;
+      _profDrawObjUs = _drawObjUs - _childrenUs;
+    }
+    _paintSnapHandle(context.canvas);
+    _paintTempDrawingObject(context.canvas);
+    _paintSnapGuides(context.canvas, viewport);
+    _paintSelectionArea(context.canvas, viewport);
+    _paintCommentPins(context.canvas);
+
+    _transformMatrixDirty = false;
+
+    if (sw != null) {
+      PaintProfiler.instance.recordPaint(
+        totalUs: sw.elapsedMicroseconds,
+        routingUs: _profRoutingUs,
+        obstaclesUs: _profObstaclesUs,
+        arrowCount: _profArrowCount,
+        routeCalls: _profRouteCalls,
+        gridUs: _profGridUs,
+        childrenUs: _profChildrenUs,
+        drawObjUs: _profDrawObjUs,
+      );
+    }
+  }
+
+  Matrix4 _getTransformMatrix() {
+    if (_transformMatrix != null && !_transformMatrixDirty)
+      return _transformMatrix!;
+    return _transformMatrix = Matrix4.identity()
+      ..translate(size.width / 2, size.height / 2)
+      ..scale(canvasState.viewportZoom, canvasState.viewportZoom)
+      ..translate(canvasState.viewportOffset.dx, canvasState.viewportOffset.dy);
+  }
+
+  Rect _prepareCanvas(Canvas canvas, Size size) {
+    canvas.transform(_getTransformMatrix().storage);
+    final viewport = _calculateViewport();
+    canvas.clipRect(viewport, clipOp: ui.ClipOp.intersect, doAntiAlias: false);
+    return viewport;
+  }
+
+  final _pencilOptions = StrokeOptions(
+    size: 8.0,
+    thinning: 0.7,
+    smoothing: 0.5,
+    streamline: 0.5,
+    simulatePressure: true,
+  );
+
+  get zoom => canvasState.viewportZoom;
+
+  /// Inverse zoom factor. Since zoom can be arbitrarily large or small,
+  /// using 1/zoom directly ensures strokes always render at a constant
+  /// screen-pixel size (e.g. strokeWidth * iz * zoom = strokeWidth screen px).
+  double get clampedInverseZoom => 1.0 / zoom;
+
+  get drawingObjects => canvasState.drawingObjects;
+
+  void _paintGrid(Canvas canvas, Rect viewport) {
+    final double z = canvasState.viewportZoom;
+    final gridStyle = style.gridStyle;
+    final bool showDots = canvasState.showGrid;
+
+    // Clamp screen-space dot spacing to a narrow range (12–32 px).
+    // When the base spacing * zoom falls outside this range, double or halve
+    // the world-space spacing to keep dots comfortable on screen.
+    const double minScreenSpacing = 12.0;
+    const double maxScreenSpacing = 32.0;
+    double spacingX = gridStyle.gridSpacingX;
+    double spacingY = gridStyle.gridSpacingY;
+    while (spacingX * z < minScreenSpacing) { spacingX *= 2; }
+    while (spacingX * z > maxScreenSpacing) { spacingX /= 2; }
+    while (spacingY * z < minScreenSpacing) { spacingY *= 2; }
+    while (spacingY * z > maxScreenSpacing) { spacingY /= 2; }
+
+    // Re-align start to the adjusted spacing
+    final adjustedStartX = (viewport.left / spacingX).floor() * spacingX;
+    final adjustedStartY = (viewport.top / spacingY).floor() * spacingY;
+
+    gridShader.setFloat(0, spacingX);
+    gridShader.setFloat(1, spacingY);
+    gridShader.setFloat(2, adjustedStartX.toDouble());
+    gridShader.setFloat(3, adjustedStartY.toDouble());
+    gridShader.setFloat(4, showDots ? gridStyle.lineWidth : 0);
+    final intersectionColor = gridStyle.intersectionColor;
+    gridShader.setFloat(9, showDots ? gridStyle.intersectionRadius : 0);
+    gridShader.setFloat(10, intersectionColor.red / 255.0);
+    gridShader.setFloat(11, intersectionColor.green / 255.0);
+    gridShader.setFloat(12, intersectionColor.blue / 255.0);
+    gridShader.setFloat(13, intersectionColor.opacity);
+    gridShader.setFloat(14, viewport.left);
+    gridShader.setFloat(15, viewport.top);
+    gridShader.setFloat(16, viewport.right);
+    gridShader.setFloat(17, viewport.bottom);
+    gridShader.setFloat(18, z);
+    // Background color for paper texture
+    final bgColor = style.decoration.color ?? const Color(0xFF1A1A1A);
+    gridShader.setFloat(19, bgColor.red / 255.0);
+    gridShader.setFloat(20, bgColor.green / 255.0);
+    gridShader.setFloat(21, bgColor.blue / 255.0);
+    gridShader.setFloat(22, bgColor.opacity);
+    canvas.drawRect(viewport, Paint()..shader = gridShader);
+  }
+
+  void _paintSnapHandle(Canvas canvas) {
+    if (snapHandlePosition == null) return;
+    final paint = Paint()..color = Colors.cyan.withOpacity(0.8);
+    canvas.drawCircle(snapHandlePosition!, 6.0 / zoom, paint);
+  }
+
+  /// Paints a small marker pin at each review comment's anchor. Pins are sized
+  /// in screen pixels (divided by zoom) so they stay constant on screen, and
+  /// numbered in creation order so the human and an agent can refer to them
+  /// ("comment 2 is on the connector I can't drag").
+  void _paintCommentPins(Canvas canvas) {
+    final comments = canvasState.comments;
+    if (comments.isEmpty) return;
+
+    final iz = 1.0 / zoom;
+    final radius = 9.0 * iz;
+    // Stable ordering so badge numbers don't jump around frame to frame.
+    final ordered = comments.values.toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    for (var i = 0; i < ordered.length; i++) {
+      final c = ordered[i];
+      final center = c.anchorWorld;
+
+      final fill = Paint()
+        ..color = c.resolved
+            ? const Color(0xFF4CAF50)
+            : const Color(0xFFFFB300);
+      final border = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5 * iz
+        ..color = const Color(0xFF5D4037);
+
+      // Teardrop-ish pin: a circle with a small pointer to the anchor.
+      final pinCenter = center.translate(0, -radius * 1.4);
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..lineTo(pinCenter.dx - radius * 0.5, pinCenter.dy + radius * 0.5)
+        ..lineTo(pinCenter.dx + radius * 0.5, pinCenter.dy + radius * 0.5)
+        ..close();
+      canvas.drawPath(path, fill);
+      canvas.drawCircle(pinCenter, radius, fill);
+      canvas.drawCircle(pinCenter, radius, border);
+
+      // Badge number.
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${i + 1}',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 11 * iz,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+      )..layout();
+      tp.paint(
+        canvas,
+        Offset(pinCenter.dx - tp.width / 2, pinCenter.dy - tp.height / 2),
+      );
+    }
+  }
+
+  void _paintSnapGuides(Canvas canvas, Rect viewport) {
+    AlignmentGuide.paintGuides(canvas, _snapGuides, viewport);
+  }
+
+  double get dpr => WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
+  static String _q(double v) => (v * 10).roundToDouble().toString();
+
+  /// Identity hash of the obstacle SET — every non-arrow object/node id (sorted
+  /// implicitly by iteration is fine since maps preserve insertion order here we
+  /// just need set membership to change the string). Changing which obstacles
+  /// exist (add/remove) busts every arrow's signature; moving an obstacle does
+  /// NOT (positions live per-arrow only for attached objects). This is what
+  /// makes a drag re-route only the arrows touching the moved object, while a
+  /// distant obstacle move is deferred to the drag-release settle.
+  String _buildObstacleSetKey(Map<String, DrawingObject> drawingObjects) {
+    final ids = <String>[];
+    for (final o in drawingObjects.values) {
+      if (o is ArrowObject || o is LineObject || o is PencilStrokeObject) {
+        continue;
+      }
+      ids.add(o.id);
+    }
+    for (final node in canvasState.nodes.values) {
+      ids.add(node.id);
+    }
+    ids.sort();
+    return ids.join(',');
+  }
+
+  /// Per-arrow routing signature: the arrow's own endpoints/attachments/port
+  /// overrides PLUS the rects+angles of the objects it attaches to, PLUS the
+  /// obstacle-set identity key. Pan/zoom are excluded (routing is world-space
+  /// and zoom-independent). An arrow re-routes only when one of these changes —
+  /// so dragging a node re-routes just the arrows attached to it, not all 45.
+  String _arrowSignature(
+    ArrowObject o,
+    Map<String, Offset> relOverrides,
+    String obstacleSetKey,
+    Map<String, DrawingObject> drawingObjects,
+  ) {
+    final sb = StringBuffer();
+    String q(double v) => _q(v);
+    void attachedRect(String? id) {
+      if (id == null) {
+        sb.write('-;');
+        return;
+      }
+      final node = canvasState.nodes[id];
+      final r = node != null
+          ? getNodeBoundsInWorld(node)
+          : drawingObjects[id]?.rect;
+      if (r == null) {
+        sb.write('-;');
+      } else {
+        sb..write(q(r.left))..write(',')..write(q(r.top))..write(',')
+          ..write(q(r.width))..write(',')..write(q(r.height));
+        sb..write(',')..write(q(drawingObjects[id]?.angle ?? 0.0))..write(';');
+      }
+    }
+
+    sb..write(q(o.start.dx))..write(',')..write(q(o.start.dy))..write(',')
+      ..write(q(o.end.dx))..write(',')..write(q(o.end.dy))..write(',')
+      ..write(o.pathType.index)..write(':');
+    final sa = o.startAttachment;
+    final ea = o.endAttachment;
+    sb.write(sa == null
+        ? '-'
+        : '${sa.objectId},${q(sa.relativePosition.dx)},${q(sa.relativePosition.dy)}');
+    sb.write('/');
+    sb.write(ea == null
+        ? '-'
+        : '${ea.objectId},${q(ea.relativePosition.dx)},${q(ea.relativePosition.dy)}');
+    sb.write(':');
+    attachedRect(sa?.objectId);
+    attachedRect(ea?.objectId);
+    final so = relOverrides['${o.id}:start'];
+    final eo = relOverrides['${o.id}:end'];
+    if (so != null) sb.write('<s${q(so.dx)},${q(so.dy)}');
+    if (eo != null) sb.write('<e${q(eo.dx)},${q(eo.dy)}');
+    sb..write('#')..write(obstacleSetKey);
+    return sb.toString();
+  }
+
+  Color get _ink {
+    final background = style.decoration.color ?? const Color(0xFF1A1A1A);
+    return background.computeLuminance() > 0.45
+        ? const Color(0xFF1A2332)
+        : const Color(0xFFE6E8EE);
+  }
+
+  void _paintDrawingObjects(Canvas canvas) {
+    final iz = clampedInverseZoom;
+    final ink = _ink;
+    final Paint objectPaint = Paint()
+      ..color = ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * iz;
+    final Paint selectedBorderPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0 * iz;
+    final Paint selectedArrowPaint = Paint()
+      ..color = const Color(0xFF2196F3) // Same blue as connection port indicators
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0 * iz;
+
+    final Paint fillPaint = Paint()
+      ..color = const Color(0xFF1a1a1a)
+      ..style = PaintingStyle.fill;
+
+    // A shape with no fill color renders truly transparent (canvas shows
+    // through), so the "remove fill" action is visible.
+    final Paint noFillPaint = Paint()
+      ..color = const Color(0x00000000)
+      ..style = PaintingStyle.fill;
+
+    final Paint handlePaint = Paint()..color = Colors.blue;
+    final Paint handleHitAreaPaint = Paint()..color = Colors.transparent;
+    final Paint selectedRectBorderPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0 * iz;
+
+    // ── Pre-pass: redistribute attachment points that share the same object+side ──
+    // Groups all arrow endpoints by (objectId, side) and spreads them evenly,
+    // so crowded ports are fixed dynamically regardless of stored relativePosition.
+    final relOverrides = <String, Offset>{}; // key = 'arrowId:start|end'
+
+    Rect? _attachedRect(ObjectAttachment att) {
+      final node = canvasState.nodes[att.objectId];
+      return node != null
+          ? getNodeBoundsInWorld(node)
+          : canvasState.drawingObjects[att.objectId]?.rect;
+    }
+
+    int _sideOf(Offset relPos) {
+      final dx = relPos.dx, dy = relPos.dy;
+      final dists = [dx, 1 - dx, dy, 1 - dy]; // left, right, top, bottom
+      var minI = 0;
+      for (int i = 1; i < 4; i++) if (dists[i] < dists[minI]) minI = i;
+      return minI; // 0=left,1=right,2=top,3=bottom
+    }
+
+    // The free coordinate along a side (0..1): dx for top/bottom, dy for
+    // left/right. This is the position the user dropped at.
+    double _alongSide(int side, Offset rel) =>
+        (side == 2 || side == 3) ? rel.dx : rel.dy;
+
+    // Build a relativePosition on [side] at raw along-side coordinate [t]
+    // (no compression — keeps the endpoint exactly where computed).
+    Offset _sideRelativeRaw(int side, double t) {
+      switch (side) {
+        case 0: return Offset(0.0, t); // left
+        case 1: return Offset(1.0, t); // right
+        case 2: return Offset(t, 0.0); // top
+        case 3: return Offset(t, 1.0); // bottom
+        default: return const Offset(0.5, 0.5);
+      }
+    }
+
+    // Collect endpoints per (objectId, side), keeping each one's stored
+    // along-side position so we can RESPECT where the user placed it.
+    final sideGroups = <String, List<(String end, double t)>>{};
+    void addEndpoint(String arrowId, String which, ObjectAttachment att) {
+      if (_attachedRect(att) == null) return;
+      final side = _sideOf(att.relativePosition);
+      final t = _alongSide(side, att.relativePosition);
+      sideGroups
+          .putIfAbsent('${att.objectId}:$side', () => [])
+          .add(('$arrowId:$which', t));
+    }
+
+    for (final obj in drawingObjects.values) {
+      if (obj is! ArrowObject) continue;
+      if (obj.startAttachment != null) {
+        addEndpoint(obj.id, 'start', obj.startAttachment!);
+      }
+      if (obj.endAttachment != null) {
+        addEndpoint(obj.id, 'end', obj.endAttachment!);
+      }
+    }
+
+    // Respect dropped positions; only nudge endpoints that genuinely OVERLAP.
+    // Sort each side's endpoints by their stored position, then walk left→right
+    // pushing any that are closer than [minGap] just far enough apart. Endpoints
+    // with enough room keep exactly where the user put them.
+    const double minGap = 0.12; // min spacing along a side (fraction)
+    for (final entry in sideGroups.entries) {
+      final side = int.parse(entry.key.split(':').last);
+      final members = [...entry.value]..sort((a, b) => a.$2.compareTo(b.$2));
+      if (members.length < 2) continue;
+
+      final adjusted = <double>[];
+      var prev = double.negativeInfinity;
+      for (final m in members) {
+        var t = m.$2;
+        if (t < prev + minGap) t = prev + minGap; // overlapping → push along
+        adjusted.add(t);
+        prev = t;
+      }
+      // If pushing ran past the end, shift the whole run back to fit in [0,1].
+      final overflow = adjusted.last - 1.0;
+      if (overflow > 0) {
+        for (var i = 0; i < adjusted.length; i++) {
+          adjusted[i] = (adjusted[i] - overflow).clamp(0.0, 1.0);
+        }
+      }
+      // Only emit overrides for endpoints we actually moved.
+      for (var i = 0; i < members.length; i++) {
+        if ((adjusted[i] - members[i].$2).abs() > 1e-4) {
+          relOverrides[members[i].$1] = _sideRelativeRaw(side, adjusted[i]);
+        }
+      }
+    }
+
+    // Accumulate routed segments so later arrows avoid overlapping earlier ones.
+    final List<(Offset, Offset)> routedSegments = [];
+
+    // ── Routing cache (per-arrow) ──
+    // Compute each arrow's input signature up front. An arrow is re-routed only
+    // when its own signature changed (endpoints/attachments/port overrides, the
+    // rects of objects it attaches to, or the obstacle SET). Pan/zoom and
+    // moving an unrelated object leave every arrow's signature intact, so those
+    // frames reuse the cache and run zero route() calls. Dragging a node moves
+    // only the arrows attached to it.
+    final String obstacleSetKey = _buildObstacleSetKey(drawingObjects);
+    final Map<String, String> newArrowSignatures = {};
+    for (final o in drawingObjects.values) {
+      if (o is! ArrowObject) continue;
+      newArrowSignatures[o.id] =
+          _arrowSignature(o, relOverrides, obstacleSetKey, drawingObjects);
+    }
+    // Drop cache entries for arrows that no longer exist.
+    _routeCache.removeWhere((id, _) => !newArrowSignatures.containsKey(id));
+    _arrowSignatures.removeWhere((id, _) => !newArrowSignatures.containsKey(id));
+
+    for (final obj in drawingObjects.values) {
+      final isSelected = selectionState.selectedDrawingObjectIds.contains(
+        obj.id,
+      );
+      obj.isSelected = isSelected;
+
+      if (obj is RectangleObject ||
+          obj is CircleObject ||
+          obj is FigureObject ||
+          obj is TextObject ||
+          obj is SvgObject) {
+        canvas.save();
+        canvas.translate(obj.rect.center.dx, obj.rect.center.dy);
+        canvas.rotate(obj.angle);
+        canvas.translate(-obj.rect.center.dx, -obj.rect.center.dy);
+
+        if (obj is FigureObject) {
+          final paint = Paint()
+            ..color =
+            obj.isSelected ? Colors.blue : ink.withOpacity(0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = obj.isSelected ? 2.0 * clampedInverseZoom : 1.5 * clampedInverseZoom;
+          _paintDashedRect(canvas, obj.rect, paint);
+          final textStyle = TextStyle(
+              color: paint.color,
+              fontSize: 14.0 / zoom,
+              fontWeight: FontWeight.bold);
+          final textSpan = TextSpan(text: obj.label, style: textStyle);
+          final textPainter =
+          TextPainter(text: textSpan, textDirection: TextDirection.ltr)
+            ..layout();
+          textPainter.paint(
+              canvas, obj.rect.topLeft - Offset(0, textPainter.height));
+        } else if (obj is TextObject) {
+          if (!obj.isEditing) {
+            obj.layoutPainter().paint(canvas, obj.rect.topLeft);
+          }
+        } else if (obj is CircleObject) {
+          final circleFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : noFillPaint;
+          final circleStroke = obj.strokeColor != null ? (Paint()..color = obj.strokeColor!..style = PaintingStyle.stroke..strokeWidth = objectPaint.strokeWidth) : objectPaint;
+          canvas.drawOval(obj.rect, circleFill);
+          if (obj.lineStyle == LineStyle.solid) {
+            canvas.drawOval(obj.rect, circleStroke);
+          } else {
+            final ovalPath = Path()..addOval(obj.rect);
+            _paintStyledPath(canvas, ovalPath, circleStroke, obj.lineStyle, seed: obj.id.hashCode);
+          }
+          if (obj.text != null && obj.text!.isNotEmpty && !obj.isEditing) {
+            _paintShapeText(canvas, obj.rect, obj.text!, obj.textStyle, obj.fontCustomized, obj.richText);
+          }
+        } else if (obj is RectangleObject) {
+          // Apple-style rounded superellipse (squircle) corners. Radius is a
+          // fixed world-space value (no devicePixelRatio scaling) so the look is
+          // consistent across displays and zoom levels.
+          final objCornerRadius =
+              obj.borderRadius > 0 ? obj.borderRadius : 12.0 / zoom;
+          final squircle = _squircleFor(obj.rect, objCornerRadius);
+          final rectFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : noFillPaint;
+          final rectStroke = obj.strokeColor != null ? (Paint()..color = obj.strokeColor!..style = PaintingStyle.stroke..strokeWidth = objectPaint.strokeWidth) : objectPaint;
+          canvas.drawRSuperellipse(squircle, rectFill);
+          if (obj.lineStyle == LineStyle.solid) {
+            canvas.drawRSuperellipse(squircle, rectStroke);
+          } else {
+            final squirclePath = Path()..addRSuperellipse(squircle);
+            _paintStyledPath(canvas, squirclePath, rectStroke, obj.lineStyle, seed: obj.id.hashCode);
+          }
+          if (obj.text != null && obj.text!.isNotEmpty && !obj.isEditing) {
+            _paintShapeText(canvas, obj.rect, obj.text!, obj.textStyle, obj.fontCustomized, obj.richText);
+          }
+        } else if (obj is DiamondObject) {
+          final diamondPath = obj.path;
+          final diaFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : noFillPaint;
+          final diaStroke = obj.strokeColor != null ? (Paint()..color = obj.strokeColor!..style = PaintingStyle.stroke..strokeWidth = objectPaint.strokeWidth) : objectPaint;
+          canvas.drawPath(diamondPath, diaFill);
+          if (obj.lineStyle == LineStyle.solid) {
+            canvas.drawPath(diamondPath, diaStroke);
+          } else {
+            _paintStyledPath(canvas, diamondPath, diaStroke, obj.lineStyle, seed: obj.id.hashCode);
+          }
+          if (obj.text != null && obj.text!.isNotEmpty && !obj.isEditing) {
+            _paintShapeText(canvas, obj.rect, obj.text!, obj.textStyle, obj.fontCustomized, obj.richText);
+          }
+        } else if (obj is ParallelogramObject) {
+          final paraPath = obj.path;
+          final paraFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : noFillPaint;
+          final paraStroke = obj.strokeColor != null ? (Paint()..color = obj.strokeColor!..style = PaintingStyle.stroke..strokeWidth = objectPaint.strokeWidth) : objectPaint;
+          canvas.drawPath(paraPath, paraFill);
+          if (obj.lineStyle == LineStyle.solid) {
+            canvas.drawPath(paraPath, paraStroke);
+          } else {
+            _paintStyledPath(canvas, paraPath, paraStroke, obj.lineStyle, seed: obj.id.hashCode);
+          }
+          if (obj.text != null && obj.text!.isNotEmpty && !obj.isEditing) {
+            _paintShapeText(canvas, obj.rect, obj.text!, obj.textStyle, obj.fontCustomized, obj.richText);
+          }
+        } else if (obj is ForkJoinObject) {
+          // Fork/join renders as a thick bar
+          final barFill = obj.fillColor != null ? (Paint()..color = obj.fillColor!..style = PaintingStyle.fill) : (Paint()..color = objectPaint.color..style = PaintingStyle.fill);
+          final barRect = RRect.fromRectAndRadius(
+            obj.rect,
+            const Radius.circular(3),
+          );
+          canvas.drawRRect(barRect, barFill);
+          if (obj.strokeColor != null) {
+            final barStroke = Paint()..color = obj.strokeColor!..style = PaintingStyle.stroke..strokeWidth = objectPaint.strokeWidth;
+            canvas.drawRRect(barRect, barStroke);
+          }
+        } else if (obj is SvgObject) {
+          canvas.save();
+          canvas.translate(obj.rect.left, obj.rect.top);
+          final Size svgSize = obj.pictureInfo.size;
+          final double scaleX = obj.rect.width /
+              (svgSize.width.isFinite && svgSize.width > 0
+                  ? svgSize.width
+                  : 1);
+          final double scaleY = obj.rect.height /
+              (svgSize.height.isFinite && svgSize.height > 0
+                  ? svgSize.height
+                  : 1);
+          canvas.scale(scaleX, scaleY);
+          canvas.drawPicture(obj.pictureInfo.picture);
+          canvas.restore();
+        }
+
+        if (isSelected) {
+          final selectionPadding = 4.0 / zoom;
+          final selectionRect = obj.rect.inflate(selectionPadding);
+          canvas.drawRect(selectionRect, selectedBorderPaint);
+
+          final double visibleHandleRadius = 4.0 / zoom;
+          final double handleHitAreaRadius = 10.0 / zoom;
+          // Resize handles on 3 corners, rotation icon on topRight
+          final resizeCorners = [
+            selectionRect.topLeft,
+            selectionRect.bottomRight,
+            selectionRect.bottomLeft,
+          ];
+          for (final corner in resizeCorners) {
+            canvas.drawCircle(corner, handleHitAreaRadius, handleHitAreaPaint);
+            canvas.drawCircle(corner, visibleHandleRadius, handlePaint);
+          }
+          // Rotation handle at topRight, offset away from the object
+          final rotOffset = 8.0 / zoom;
+          final rotCorner = selectionRect.topRight + Offset(rotOffset, -rotOffset);
+          canvas.drawCircle(rotCorner, handleHitAreaRadius, handleHitAreaPaint);
+          _paintRotationIcon(canvas, rotCorner, handlePaint, visibleHandleRadius);
+          if (_debugShowHitAreas) {
+            for (final corner in resizeCorners) {
+              _paintHitAreaDebug(canvas, corner, isEndpoint: false);
+            }
+            _paintHitAreaDebug(canvas, rotCorner, isEndpoint: false);
+          }
+
+          if (selectionState.selectedDrawingObjectIds.length == 1 && (obj is RectangleObject || obj is CircleObject)) {
+            _paintQuickActionArrows(canvas, obj.rect, obj.id);
+          }
+        }
+
+        // Paint connection port indicators when the shape is selected or hovered
+        final isHovered = selectionState.hoveredDrawingObjectId == obj.id;
+        if ((isSelected || isHovered) &&
+            (obj is RectangleObject || obj is CircleObject || obj is DiamondObject ||
+             obj is ParallelogramObject || obj is ForkJoinObject)) {
+          _paintConnectionPortIndicators(canvas, obj);
+        }
+
+        canvas.restore();
+        continue;
+      }
+
+      if (obj is PencilStrokeObject) {
+        final paint =
+        Paint()..color = obj.isSelected ? Colors.blue : ink;
+        _paintPencilStroke(canvas, obj, paint);
+
+        if (obj.isSelected) {
+          final selectionPadding = 4.0 / zoom;
+          final selectionRect = obj.rect.inflate(selectionPadding);
+          final selectionRRect = RRect.fromRectAndRadius(
+            selectionRect,
+            const Radius.circular(6.0),
+          );
+          canvas.drawRRect(selectionRRect, selectedRectBorderPaint);
+
+          final double visibleHandleRadius = 4.0 / zoom;
+          final double handleHitAreaRadius = 10.0 / zoom;
+          final corners = [
+            selectionRect.topLeft,
+            selectionRect.topRight,
+            selectionRect.bottomRight,
+            selectionRect.bottomLeft,
+          ];
+          for (final corner in corners) {
+            canvas.drawCircle(corner, handleHitAreaRadius, handleHitAreaPaint);
+            canvas.drawCircle(corner, visibleHandleRadius, handlePaint);
+          }
+        }
+        continue;
+      } else if (obj is ArrowObject) {
+        final paint = obj.isSelected
+            ? selectedArrowPaint
+            : (obj.strokeColor != null
+                ? (Paint()
+                  ..color = obj.strokeColor!
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = objectPaint.strokeWidth
+                  ..strokeCap = objectPaint.strokeCap
+                  ..strokeJoin = objectPaint.strokeJoin)
+                : objectPaint);
+        final pathType = obj.pathType;
+        // Resolve attached object rects
+        Rect? startObjRect;
+        Rect? endObjRect;
+        final startAttachment = obj.startAttachment;
+        final endAttachment = obj.endAttachment;
+
+        if (startAttachment != null) {
+          final targetNode = canvasState.nodes[startAttachment.objectId];
+          final targetObject =
+          canvasState.drawingObjects[startAttachment.objectId];
+          startObjRect = targetNode != null
+              ? getNodeBoundsInWorld(targetNode)
+              : targetObject?.rect;
+        }
+
+        if (endAttachment != null) {
+          final targetNode = canvasState.nodes[endAttachment.objectId];
+          final targetObject =
+          canvasState.drawingObjects[endAttachment.objectId];
+          endObjRect = targetNode != null
+              ? getNodeBoundsInWorld(targetNode)
+              : targetObject?.rect;
+        }
+
+        var start = obj.start;
+        var end = obj.end;
+        List<Offset>? waypoints = obj.waypoints;
+
+        // Resolve endpoints from relativePosition (always respect stored attachments)
+        if (startObjRect != null && startAttachment != null) {
+          final relPos = relOverrides['${obj.id}:start'] ?? startAttachment.relativePosition;
+          start = startObjRect.topLeft +
+              Offset(startObjRect.width * relPos.dx, startObjRect.height * relPos.dy);
+          // Snap to rotated edge if the attached object is meaningfully rotated
+          final startObj = canvasState.drawingObjects[startAttachment.objectId];
+          if (startObj != null && startObj.angle.abs() > 0.05) {
+            start = _snapToRotatedEdge(
+                _rotatePoint(start, startObjRect.center, startObj.angle),
+                startObjRect, startObj.angle);
+          }
+        }
+        if (endObjRect != null && endAttachment != null) {
+          final relPos = relOverrides['${obj.id}:end'] ?? endAttachment.relativePosition;
+          end = endObjRect.topLeft +
+              Offset(endObjRect.width * relPos.dx, endObjRect.height * relPos.dy);
+          // Snap to rotated edge if the attached object is meaningfully rotated
+          final endObj = canvasState.drawingObjects[endAttachment.objectId];
+          if (endObj != null && endObj.angle.abs() > 0.05) {
+            end = _snapToRotatedEdge(
+                _rotatePoint(end, endObjRect.center, endObj.angle),
+                endObjRect, endObj.angle);
+          }
+        }
+
+        // Check if attached objects are meaningfully rotated (> ~1 degree)
+        const rotationThreshold = 0.05; // ~2.9 degrees
+        final startObjAngle = startAttachment != null
+            ? (canvasState.drawingObjects[startAttachment.objectId]?.angle ?? 0.0)
+            : 0.0;
+        final endObjAngle = endAttachment != null
+            ? (canvasState.drawingObjects[endAttachment.objectId]?.angle ?? 0.0)
+            : 0.0;
+        final startIsRotated = startObjAngle.abs() > rotationThreshold;
+        final endIsRotated = endObjAngle.abs() > rotationThreshold;
+
+        if (pathType == LinkPathType.orthogonal) {
+          // Fast path: reuse the previously routed geometry when THIS arrow's
+          // signature is unchanged (pure pan/zoom, selection, or an unrelated
+          // object moving). Skips edge-snapping, obstacle collection, route().
+          final bool sigUnchanged =
+              _arrowSignatures[obj.id] == newArrowSignatures[obj.id];
+          final cached = sigUnchanged ? _routeCache[obj.id] : null;
+          if (cached != null) {
+            start = cached.start;
+            end = cached.end;
+            waypoints = cached.waypoints;
+            final pts = <Offset>[start, ...?waypoints, end];
+            for (int i = 0; i < pts.length - 1; i++) {
+              routedSegments.add((pts[i], pts[i + 1]));
+            }
+            obj.renderedPath = pts;
+          } else {
+          // Snap start/end to nearest object edge, but skip for rotated
+          // objects — the rotated point is already on the correct visual edge.
+          if (startObjRect != null && !startIsRotated) {
+            start = _snapToNearestEdge(start, startObjRect);
+          }
+          if (endObjRect != null && !endIsRotated) {
+            end = _snapToNearestEdge(end, endObjRect);
+          }
+
+          // Collect obstacles, excluding source/target objects — the router
+          // handles them separately via startObjectRect/endObjectRect
+          final int _obstStart =
+              PaintProfiler.enabled ? _profStopwatch.elapsedMicroseconds : 0;
+          final startAttachId = obj.startAttachment?.objectId;
+          final endAttachId = obj.endAttachment?.objectId;
+          final obstacles = <Rect>[];
+          for (final o in canvasState.drawingObjects.values) {
+            if (o.id == obj.id) continue;
+            if (o.id == startAttachId || o.id == endAttachId) continue;
+            if (o is ArrowObject || o is LineObject || o is PencilStrokeObject) continue;
+            obstacles.add(o.rect);
+          }
+          for (final node in canvasState.nodes.values) {
+            if (node.id == startAttachId || node.id == endAttachId) continue;
+            final bounds = getNodeBoundsInWorld(node);
+            if (bounds != null) obstacles.add(bounds);
+          }
+          if (PaintProfiler.enabled) {
+            _profObstaclesUs +=
+                _profStopwatch.elapsedMicroseconds - _obstStart;
+          }
+
+          final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+          // For rotated objects, pass the rotated bounding box so the router
+          // still provides proper padding and curved entry stubs.
+          final routerStartRect = startIsRotated && startObjRect != null
+              ? _rotatedBoundingBox(startObjRect, startObjAngle)
+              : startObjRect;
+          final routerEndRect = endIsRotated && endObjRect != null
+              ? _rotatedBoundingBox(endObjRect, endObjAngle)
+              : endObjRect;
+          final int _routeStart =
+              PaintProfiler.enabled ? _profStopwatch.elapsedMicroseconds : 0;
+          waypoints = OrthogonalRouter.route(
+            start: start,
+            end: end,
+            obstacles: obstacles,
+            startObjectRect: routerStartRect,
+            endObjectRect: routerEndRect,
+            devicePixelRatio: dpr,
+            zoom: canvasState.viewportZoom,
+            existingSegments: routedSegments,
+          );
+          if (PaintProfiler.enabled) {
+            _profRoutingUs +=
+                _profStopwatch.elapsedMicroseconds - _routeStart;
+            _profRouteCalls++;
+            _profArrowCount++;
+          }
+
+          // Record this path's segments so subsequent arrows route around it.
+          final pts = <Offset>[start, ...?waypoints, end];
+          for (int i = 0; i < pts.length - 1; i++) {
+            routedSegments.add((pts[i], pts[i + 1]));
+          }
+          // Cache the exact polyline being drawn so hit-testing measures
+          // against the visible line (the router result here differs from a
+          // naive re-route, which previously caused taps to select the wrong
+          // edge).
+          obj.renderedPath = pts;
+          // Store the routed geometry + signature so subsequent frames that
+          // don't change THIS arrow's inputs reuse it.
+          _routeCache[obj.id] = _RoutedArrow(start, end, waypoints);
+          _arrowSignatures[obj.id] = newArrowSignatures[obj.id]!;
+          } // end route-cache miss branch
+        } else {
+          obj.renderedPath = null;
+        }
+
+        var controlPoint = obj.midPoint ?? (start + end) / 2;
+
+        final dx = end.dx - start.dx;
+        final dy = end.dy - start.dy;
+        final Offset cornerPoint;
+        if (dx.abs() > dy.abs()) {
+          cornerPoint = Offset(end.dx, start.dy);
+        } else {
+          cornerPoint = Offset(start.dx, end.dy);
+        }
+
+        // Connection dot radius and arrowhead pullback
+        final dotRadius = 2.0 * clampedInverseZoom;
+        final pullback = dotRadius * 3;
+
+        // Compute the shortened end point for the line so it stops at the
+        // arrowhead tip rather than extending past it to the connection dot.
+        Offset lineEnd = end;
+        Offset? arrowControl;
+
+        if (pathType == LinkPathType.orthogonal) {
+          // Find a control point distinct from `end` for arrowhead direction
+          if (waypoints != null && waypoints.isNotEmpty) {
+            for (int i = waypoints.length - 1; i >= 0; i--) {
+              if ((waypoints[i] - end).distanceSquared > 1e-6) {
+                arrowControl = waypoints[i];
+                break;
+              }
+            }
+          }
+          arrowControl ??= ((end - start).distanceSquared > 1e-6) ? start : null;
+          if (arrowControl != null && obj.endAttachment != null) {
+            final dir = (end - arrowControl);
+            final len = dir.distance;
+            if (len > pullback) {
+              lineEnd = end - dir * (pullback / len);
+            }
+          }
+        } else {
+          if (obj.endAttachment != null) {
+            final dir = (end - controlPoint);
+            final len = dir.distance;
+            if (len > pullback) {
+              lineEnd = end - dir * (pullback / len);
+            }
+          }
+        }
+
+        // Draw the line/path with shortened end
+        if (pathType == LinkPathType.orthogonal) {
+          if (obj.lineStyle == LineStyle.solid) {
+            _paintOrthogonalPath(canvas, start, lineEnd, paint, waypoints: waypoints);
+          } else {
+            final orthoPath = _buildOrthogonalPath(start, lineEnd, waypoints: waypoints);
+            _paintStyledPath(canvas, orthoPath, paint, obj.lineStyle, seed: obj.id.hashCode);
+          }
+        } else {
+          final path = Path()
+            ..moveTo(start.dx, start.dy)
+            ..quadraticBezierTo(
+              controlPoint.dx,
+              controlPoint.dy,
+              lineEnd.dx,
+              lineEnd.dy,
+            );
+          _paintStyledPath(canvas, path, paint, obj.lineStyle, seed: obj.id.hashCode);
+        }
+
+        // Draw the arrowhead at the shortened end — unless this is an
+        // undirected edge (arrowHead == none), which renders as a plain line.
+        if (obj.arrowHead != ArrowHeadType.none) {
+          if (pathType == LinkPathType.orthogonal) {
+            if (arrowControl != null) {
+              _paintArrowHead(canvas, arrowControl, lineEnd, paint, lineStyle: obj.lineStyle);
+            }
+          } else {
+            _paintArrowHead(canvas, controlPoint, lineEnd, paint, lineStyle: obj.lineStyle);
+          }
+        }
+
+        // Draw connection point dots at attached endpoints
+        {
+          final dotPaint = Paint()
+            ..color = paint.color
+            ..style = PaintingStyle.fill;
+          if (obj.startAttachment != null) {
+            canvas.drawCircle(start, dotRadius, dotPaint);
+          }
+          if (obj.endAttachment != null) {
+            canvas.drawCircle(end, dotRadius, dotPaint);
+          }
+        }
+
+        // Draw arrow label at the midpoint of the arrow
+        if (obj.arrowLabel != null && obj.arrowLabel!.isNotEmpty) {
+          final labelText = obj.arrowLabel!;
+          final labelFontSize = 12.0 / zoom;
+          final labelParagraphBuilder = ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: labelFontSize,
+              fontFamily: 'sans-serif',
+            ),
+          )
+            ..pushStyle(ui.TextStyle(color: ink))
+            ..addText(labelText);
+          final labelParagraph = labelParagraphBuilder.build();
+          labelParagraph.layout(ui.ParagraphConstraints(width: 200.0 / zoom));
+
+          // Compute midpoint: for orthogonal paths use the path midpoint,
+          // otherwise use the quadratic bezier midpoint at t=0.5.
+          Offset labelCenter;
+          if (pathType == LinkPathType.orthogonal &&
+              waypoints != null &&
+              waypoints.isNotEmpty) {
+            final fullPath = [start, ...waypoints, end];
+            // Walk along segments to find the geometric midpoint
+            double totalLen = 0;
+            for (int i = 0; i < fullPath.length - 1; i++) {
+              totalLen += (fullPath[i + 1] - fullPath[i]).distance;
+            }
+            double halfLen = totalLen / 2;
+            labelCenter = fullPath.last;
+            for (int i = 0; i < fullPath.length - 1; i++) {
+              final segLen = (fullPath[i + 1] - fullPath[i]).distance;
+              if (halfLen <= segLen) {
+                final t = segLen > 0 ? halfLen / segLen : 0.0;
+                labelCenter = Offset.lerp(fullPath[i], fullPath[i + 1], t)!;
+                break;
+              }
+              halfLen -= segLen;
+            }
+          } else {
+            final cp = controlPoint;
+            labelCenter = Offset(
+              0.25 * start.dx + 0.5 * cp.dx + 0.25 * end.dx,
+              0.25 * start.dy + 0.5 * cp.dy + 0.25 * end.dy,
+            );
+          }
+
+          final textWidth = labelParagraph.longestLine;
+          final textHeight = labelParagraph.height;
+          // Re-layout to the text's natural width so the paragraph box and the
+          // background rect share the same left edge. Laying out at the 200px
+          // constraint above leaves a centered glyph run inside a 200px-wide box,
+          // which shifts the text relative to `textWidth` and leaves the bg rect
+          // floating to the side of the label.
+          labelParagraph.layout(ui.ParagraphConstraints(width: textWidth));
+          final padding = 4.0 / zoom;
+          final bgRect = Rect.fromCenter(
+            center: labelCenter,
+            width: textWidth + padding * 2,
+            height: textHeight + padding * 2,
+          );
+          final bgPaint = Paint()
+            ..color = const Color(0xE0202020)
+            ..style = PaintingStyle.fill;
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(bgRect, Radius.circular(3.0 / zoom)),
+            bgPaint,
+          );
+          canvas.drawParagraph(
+            labelParagraph,
+            Offset(
+              labelCenter.dx - textWidth / 2,
+              labelCenter.dy - textHeight / 2,
+            ),
+          );
+        }
+
+        if (obj.isSelected) {
+          final double visibleHandleRadius = 4.0 / zoom;
+          final double handleHitAreaRadius = 10.0 / zoom;
+          final onCurveMidPoint =
+              (start * 0.25) + (controlPoint * 0.5) + (end * 0.25);
+
+          // For orthogonal arrows with waypoints, only show start/end handles
+          final List<Offset> handles;
+          if (pathType == LinkPathType.orthogonal && waypoints != null && waypoints.isNotEmpty) {
+            handles = [start, end];
+          } else {
+            handles = [
+              start,
+              end,
+              pathType == LinkPathType.orthogonal ? cornerPoint : onCurveMidPoint,
+            ];
+          }
+          for (final handlePos in handles) {
+            canvas.drawCircle(
+              handlePos,
+              handleHitAreaRadius,
+              handleHitAreaPaint,
+            );
+            canvas.drawCircle(handlePos, visibleHandleRadius, handlePaint);
+          }
+          if (_debugShowHitAreas) {
+            // start and end are the connection-point endpoints; any remaining
+            // handle is the midpoint/corner.
+            _paintHitAreaDebug(canvas, start, isEndpoint: true);
+            _paintHitAreaDebug(canvas, end, isEndpoint: true);
+            for (final handlePos in handles) {
+              if (handlePos != start && handlePos != end) {
+                _paintHitAreaDebug(canvas, handlePos, isEndpoint: false);
+              }
+            }
+          }
+        }
+        continue;
+      } else if (obj is LineObject) {
+        final paint = obj.isSelected
+            ? selectedArrowPaint
+            : (obj.strokeColor != null
+                ? (Paint()
+                  ..color = obj.strokeColor!
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = objectPaint.strokeWidth
+                  ..strokeCap = objectPaint.strokeCap
+                  ..strokeJoin = objectPaint.strokeJoin)
+                : objectPaint);
+
+        var start = obj.start;
+        final startAttachment = obj.startAttachment;
+        if (startAttachment != null) {
+          final targetNode = canvasState.nodes[startAttachment.objectId];
+          final targetObject =
+          canvasState.drawingObjects[startAttachment.objectId];
+          final Rect? targetRect = targetNode != null
+              ? getNodeBoundsInWorld(targetNode)
+              : targetObject?.rect;
+
+          if (targetRect != null) {
+            final relPos = startAttachment.relativePosition;
+            start = targetRect.topLeft +
+                Offset(
+                  targetRect.width * relPos.dx,
+                  targetRect.height * relPos.dy,
+                );
+            final startObj = canvasState.drawingObjects[startAttachment.objectId];
+            if (startObj != null && startObj.angle.abs() > 0.05) {
+              start = _snapToRotatedEdge(
+                  _rotatePoint(start, targetRect.center, startObj.angle),
+                  targetRect, startObj.angle);
+            }
+          }
+        }
+
+        var end = obj.end;
+        final endAttachment = obj.endAttachment;
+        if (endAttachment != null) {
+          final targetNode = canvasState.nodes[endAttachment.objectId];
+          final targetObject =
+          canvasState.drawingObjects[endAttachment.objectId];
+          final Rect? targetRect = targetNode != null
+              ? getNodeBoundsInWorld(targetNode)
+              : targetObject?.rect;
+
+          if (targetRect != null) {
+            final relPos = endAttachment.relativePosition;
+            end = targetRect.topLeft +
+                Offset(
+                  targetRect.width * relPos.dx,
+                  targetRect.height * relPos.dy,
+                );
+            final endObj = canvasState.drawingObjects[endAttachment.objectId];
+            if (endObj != null && endObj.angle.abs() > 0.05) {
+              end = _snapToRotatedEdge(
+                  _rotatePoint(end, targetRect.center, endObj.angle),
+                  targetRect, endObj.angle);
+            }
+          }
+        }
+
+        final controlPoint = obj.midPoint ?? (start + end) / 2;
+
+        final path = Path();
+        path.moveTo(start.dx, start.dy);
+        final mid = obj.midPoint ?? (start + end) / 2;
+        path.quadraticBezierTo(mid.dx, mid.dy, end.dx, end.dy);
+
+        _paintStyledPath(canvas, path, paint, obj.lineStyle, seed: obj.id.hashCode);
+
+        // Draw connection point dots at attached endpoints
+        {
+          final dotRadius = 2.0 * clampedInverseZoom;
+          final dotPaint = Paint()
+            ..color = paint.color
+            ..style = PaintingStyle.fill;
+          if (obj.startAttachment != null) {
+            canvas.drawCircle(start, dotRadius, dotPaint);
+          }
+          if (obj.endAttachment != null) {
+            canvas.drawCircle(end, dotRadius, dotPaint);
+          }
+        }
+
+        if (obj.isSelected) {
+          final double visibleHandleRadius = 4.0 / zoom;
+          final double handleHitAreaRadius = 10.0 / zoom;
+          final onCurveMidPoint =
+              (start * 0.25) + (controlPoint * 0.5) + (end * 0.25);
+
+          final handles = [start, end, onCurveMidPoint];
+          for (final handlePos in handles) {
+            canvas.drawCircle(
+              handlePos,
+              handleHitAreaRadius,
+              handleHitAreaPaint,
+            );
+            canvas.drawCircle(handlePos, visibleHandleRadius, handlePaint);
+          }
+          if (_debugShowHitAreas) {
+            _paintHitAreaDebug(canvas, start, isEndpoint: true);
+            _paintHitAreaDebug(canvas, end, isEndpoint: true);
+            _paintHitAreaDebug(canvas, onCurveMidPoint, isEndpoint: false);
+          }
+        }
+        continue;
+      }
+    }
+  }
+
+  /// Debug overlay: draws a handle's hit-test zone as a translucent filled
+  /// disc plus an outline ring, mirroring the priority-weighted radii used by
+  /// `_updateHoveredHandle` in the data layer. Endpoints (connection points)
+  /// get the expanded radius and a distinct colour so it's obvious why they win
+  /// contested clicks. Only painted when [debugShowHitAreas] is on.
+  void _paintHitAreaDebug(
+    Canvas canvas,
+    Offset center, {
+    required bool isEndpoint,
+  }) {
+    // Keep these in sync with _updateHoveredHandle in the data layer.
+    const double baseHitRadius = 10.0;
+    const double endpointRadiusFactor = 1.6;
+    final double radius =
+        (isEndpoint ? baseHitRadius * endpointRadiusFactor : baseHitRadius) /
+            zoom;
+    final Color color =
+        isEndpoint ? const Color(0xFF2196F3) : const Color(0xFFFF9800);
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color.withOpacity(0.15)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = color.withOpacity(0.9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0 / zoom,
+    );
+    // Crosshair at the exact handle point for precise reference.
+    final double tick = 3.0 / zoom;
+    final Paint tickPaint = Paint()
+      ..color = color.withOpacity(0.9)
+      ..strokeWidth = 1.0 / zoom;
+    canvas.drawLine(
+      center - Offset(tick, 0),
+      center + Offset(tick, 0),
+      tickPaint,
+    );
+    canvas.drawLine(
+      center - Offset(0, tick),
+      center + Offset(0, tick),
+      tickPaint,
+    );
+  }
+
+  /// Paints small port indicator circles at each cardinal anchor point of a
+  /// shape. These visually communicate where arrows can connect.
+  void _paintConnectionPortIndicators(Canvas canvas, DrawingObject obj) {
+    final ports = obj.getConnectionPorts();
+    final double portRadius = 5.0 / zoom;
+    final double borderWidth = 1.5 / zoom;
+
+    final Paint portFillPaint = Paint()
+      ..color = _ink
+      ..style = PaintingStyle.fill;
+    final Paint portBorderPaint = Paint()
+      ..color = const Color(0xFF2196F3) // Blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    for (final port in ports) {
+      // Draw filled circle with blue border at each anchorPoint position
+      canvas.drawCircle(port.portPosition, portRadius, portFillPaint);
+      canvas.drawCircle(port.portPosition, portRadius, portBorderPaint);
+    }
+  }
+
+  void _paintQuickActionArrows(Canvas canvas, Rect rect, String objectId) {
+    final iz = clampedInverseZoom;
+    final double handleSize = 20.0 * iz;
+    final double halfHandle = handleSize / 2;
+    final double spacing = 10.0 * iz;
+
+    final Paint handlePaint = Paint()..color = Colors.blue.withOpacity(0.8);
+    final Paint arrowPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * clampedInverseZoom
+      ..strokeCap = StrokeCap.round;
+
+    // Find where connectors approach each edge from, using the other endpoint
+    // For horizontal edges (top/bottom): track x of the other end relative to this object's center
+    // For vertical edges (left/right): track y of the other end relative to this object's center
+    final edgeApproachFromLeft = <String, List<bool>>{};
+    for (final obj in canvasState.drawingObjects.values) {
+      if (obj is ArrowObject || obj is LineObject) {
+        final startAtt = obj is ArrowObject ? obj.startAttachment : (obj as LineObject).startAttachment;
+        final endAtt = obj is ArrowObject ? obj.endAttachment : (obj as LineObject).endAttachment;
+        final otherEnd = obj is ArrowObject ? obj.end : (obj as LineObject).end;
+        final otherStart = obj is ArrowObject ? obj.start : (obj as LineObject).start;
+        for (final (att, otherPoint) in [(startAtt, otherEnd), (endAtt, otherStart)]) {
+          if (att != null && att.objectId == objectId) {
+            final rp = att.relativePosition;
+            if (rp.dy < 0.25) {
+              // Top edge: does the connector go left or right?
+              (edgeApproachFromLeft['top'] ??= []).add(otherPoint.dx < rect.center.dx);
+            }
+            if (rp.dy > 0.75) {
+              (edgeApproachFromLeft['bottom'] ??= []).add(otherPoint.dx < rect.center.dx);
+            }
+            if (rp.dx < 0.25) {
+              (edgeApproachFromLeft['left'] ??= []).add(otherPoint.dy < rect.center.dy);
+            }
+            if (rp.dx > 0.75) {
+              (edgeApproachFromLeft['right'] ??= []).add(otherPoint.dy < rect.center.dy);
+            }
+          }
+        }
+      }
+    }
+
+    // Offset perpendicular to the edge to avoid overlapping connection lines
+    final double connOffset = handleSize * 2.0;
+
+    Offset _edgeOffset(String edge) {
+      final approaches = edgeApproachFromLeft[edge];
+      if (approaches == null) return Offset.zero;
+      // If connector approaches from the left/top, move icon to the right/bottom
+      final mostlyFromLeft = approaches.where((b) => b).length >= approaches.length / 2;
+      switch (edge) {
+        case 'top':
+        case 'bottom':
+          // Connector comes from left → move icon right, and vice versa
+          return Offset(mostlyFromLeft ? connOffset : -connOffset, 0);
+        case 'left':
+        case 'right':
+          // Connector comes from above → move icon down, and vice versa
+          return Offset(0, mostlyFromLeft ? connOffset : -connOffset);
+        default:
+          return Offset.zero;
+      }
+    }
+
+    final positions = {
+      'top': rect.topCenter - Offset(0, spacing + halfHandle) + _edgeOffset('top'),
+      'right': rect.centerRight + Offset(spacing + halfHandle, 0) + _edgeOffset('right'),
+      'bottom': rect.bottomCenter + Offset(0, spacing + halfHandle) + _edgeOffset('bottom'),
+      'left': rect.centerLeft - Offset(spacing + halfHandle, 0) + _edgeOffset('left'),
+    };
+
+    for (var entry in positions.entries) {
+      final center = entry.value;
+      final handleRect =
+      Rect.fromCenter(center: center, width: handleSize, height: handleSize);
+      canvas.drawOval(handleRect, handlePaint);
+
+      final Path arrowPath = Path();
+      final arrowSize = handleSize * 0.3;
+      switch (entry.key) {
+        case 'top':
+          arrowPath.moveTo(center.dx, center.dy - arrowSize);
+          arrowPath.lineTo(center.dx, center.dy + arrowSize);
+          arrowPath.moveTo(center.dx - arrowSize, center.dy);
+          arrowPath.lineTo(center.dx, center.dy - arrowSize);
+          arrowPath.lineTo(center.dx + arrowSize, center.dy);
+          break;
+        case 'right':
+          arrowPath.moveTo(center.dx - arrowSize, center.dy);
+          arrowPath.lineTo(center.dx + arrowSize, center.dy);
+          arrowPath.moveTo(center.dx, center.dy - arrowSize);
+          arrowPath.lineTo(center.dx + arrowSize, center.dy);
+          arrowPath.lineTo(center.dx, center.dy + arrowSize);
+          break;
+        case 'bottom':
+          arrowPath.moveTo(center.dx, center.dy - arrowSize);
+          arrowPath.lineTo(center.dx, center.dy + arrowSize);
+          arrowPath.moveTo(center.dx - arrowSize, center.dy);
+          arrowPath.lineTo(center.dx, center.dy + arrowSize);
+          arrowPath.lineTo(center.dx + arrowSize, center.dy);
+          break;
+        case 'left':
+          arrowPath.moveTo(center.dx - arrowSize, center.dy);
+          arrowPath.lineTo(center.dx + arrowSize, center.dy);
+          arrowPath.moveTo(center.dx, center.dy - arrowSize);
+          arrowPath.lineTo(center.dx - arrowSize, center.dy);
+          arrowPath.lineTo(center.dx, center.dy + arrowSize);
+          break;
+      }
+      canvas.drawPath(arrowPath, arrowPaint);
+    }
+  }
+
+  void _paintDashedRect(Canvas canvas, Rect rect, Paint paint) {
+    const double dashWidth = 5.0;
+    const double dashSpace = 3.0;
+
+    double startX = rect.left;
+    while (startX < rect.right) {
+      canvas.drawLine(
+        Offset(startX, rect.top),
+        Offset(min(startX + dashWidth, rect.right), rect.top),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+    startX = rect.left;
+    while (startX < rect.right) {
+      canvas.drawLine(
+        Offset(startX, rect.bottom),
+        Offset(min(startX + dashWidth, rect.right), rect.bottom),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+    double startY = rect.top;
+    while (startY < rect.bottom) {
+      canvas.drawLine(
+        Offset(rect.left, startY),
+        Offset(rect.left, min(startY + dashWidth, rect.bottom)),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+    startY = rect.top;
+    while (startY < rect.bottom) {
+      canvas.drawLine(
+        Offset(rect.right, startY),
+        Offset(rect.right, min(startY + dashWidth, rect.bottom)),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+  }
+
+  /// Paints a quick-action style icon (blue oval + white arrow) for rotation.
+  void _paintRotationIcon(Canvas canvas, Offset center, Paint paint, double radius) {
+    final double handleSize = 20.0 * clampedInverseZoom;
+
+    final handleRect = Rect.fromCenter(center: center, width: handleSize, height: handleSize);
+    final handlePaint = Paint()..color = Colors.blue.withOpacity(0.8);
+    canvas.drawOval(handleRect, handlePaint);
+
+    final arrowPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * clampedInverseZoom
+      ..strokeCap = StrokeCap.round;
+
+    // Same arrow as quick action icons, slightly smaller, shifted toward edge
+    final arrowSize = handleSize * 0.19;
+    final lineLen = handleSize * 0.43;
+    final shift = handleSize * 0.12; // push arrow toward the edge
+    final arrowPath = Path();
+    arrowPath.moveTo(center.dx, center.dy - arrowSize - shift);
+    arrowPath.lineTo(center.dx, center.dy + lineLen - shift);
+    // Top arrowhead
+    arrowPath.moveTo(center.dx - arrowSize, center.dy - shift);
+    arrowPath.lineTo(center.dx, center.dy - arrowSize - shift);
+    arrowPath.lineTo(center.dx + arrowSize, center.dy - shift);
+    // Bottom arrowhead (mirrored)
+    final bottomTip = center.dy + lineLen - shift;
+    arrowPath.moveTo(center.dx - arrowSize, bottomTip - arrowSize);
+    arrowPath.lineTo(center.dx, bottomTip);
+    arrowPath.lineTo(center.dx + arrowSize, bottomTip - arrowSize);
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-pi / 2 + pi / 6);
+    canvas.translate(-center.dx, -center.dy);
+    canvas.drawPath(arrowPath, arrowPaint);
+    canvas.restore();
+  }
+
+  void _paintPencilStroke(
+    Canvas canvas,
+    PencilStrokeObject object,
+    Paint paint,
+  ) {
+    final options = _pencilOptions.copyWith(size: 8.0 / sqrt(zoom));
+    final outlinePoints = getStroke(object.points, options: options);
+
+    if (outlinePoints.isEmpty) {
+      object.cachedPath = null;
+      return;
+    } else if (outlinePoints.length < 2) {
+      final path = Path()
+        ..addOval(
+          Rect.fromCircle(
+            center: outlinePoints.first,
+            radius: options.size / 2,
+          ),
+        );
+      object.cachedPath = path;
+      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+    } else {
+      final path = Path();
+      path.moveTo(outlinePoints.first.dx, outlinePoints.first.dy);
+      for (int i = 0; i < outlinePoints.length - 1; ++i) {
+        final p0 = outlinePoints[i];
+        final p1 = outlinePoints[i + 1];
+        path.quadraticBezierTo(
+          p0.dx,
+          p0.dy,
+          (p0.dx + p1.dx) / 2,
+          (p0.dy + p1.dy) / 2,
+        );
+      }
+      object.cachedPath = path;
+      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+    }
+  }
+
+  /// Paints centered text inside a shape's rect.
+  void _paintShapeText(Canvas canvas, Rect shapeRect, String text, TextStyle? style, bool fontCustomized, [List<TextRun>? runs]) {
+    final resolvedStyle = effectiveShapeTextStyle(
+      style: style,
+      customized: fontCustomized,
+      defaultFamily: canvasState.defaultFontFamily,
+      defaultSize: canvasState.defaultFontSize,
+      ink: _ink,
+    );
+    final textPainter = TextPainter(
+      text: buildShapeTextSpan(text: text, runs: runs, base: resolvedStyle),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: shapeRect.width - 8);
+    final textOffset = Offset(
+      shapeRect.center.dx - textPainter.width / 2,
+      shapeRect.center.dy - textPainter.height / 2,
+    );
+    textPainter.paint(canvas, textOffset);
+  }
+
+  /// Returns the axis-aligned bounding box that encloses [rect] after
+  /// rotating it by [angle] around its center.
+  static Rect _rotatedBoundingBox(Rect rect, double angle) {
+    final center = rect.center;
+    final corners = [
+      _rotatePoint(rect.topLeft, center, angle),
+      _rotatePoint(rect.topRight, center, angle),
+      _rotatePoint(rect.bottomRight, center, angle),
+      _rotatePoint(rect.bottomLeft, center, angle),
+    ];
+    double minX = corners[0].dx, minY = corners[0].dy;
+    double maxX = corners[0].dx, maxY = corners[0].dy;
+    for (int i = 1; i < 4; i++) {
+      if (corners[i].dx < minX) minX = corners[i].dx;
+      if (corners[i].dy < minY) minY = corners[i].dy;
+      if (corners[i].dx > maxX) maxX = corners[i].dx;
+      if (corners[i].dy > maxY) maxY = corners[i].dy;
+    }
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
+  }
+
+  /// Snaps [point] to the nearest edge of a rotated rectangle.
+  /// Computes the 4 corners of [rect] rotated by [angle] around its center,
+  /// then projects [point] onto the nearest edge.
+  static Offset _snapToRotatedEdge(Offset point, Rect rect, double angle) {
+    final center = rect.center;
+    // Compute rotated corners
+    final corners = [
+      _rotatePoint(rect.topLeft, center, angle),
+      _rotatePoint(rect.topRight, center, angle),
+      _rotatePoint(rect.bottomRight, center, angle),
+      _rotatePoint(rect.bottomLeft, center, angle),
+    ];
+    // Find the nearest point on any edge
+    Offset nearest = point;
+    double minDist = double.infinity;
+    for (int i = 0; i < 4; i++) {
+      final a = corners[i];
+      final b = corners[(i + 1) % 4];
+      final projected = _projectOntoSegment(point, a, b);
+      final dist = (projected - point).distanceSquared;
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = projected;
+      }
+    }
+    return nearest;
+  }
+
+  /// Projects [point] onto the line segment from [a] to [b].
+  static Offset _projectOntoSegment(Offset point, Offset a, Offset b) {
+    final ab = b - a;
+    final ap = point - a;
+    final lenSq = ab.distanceSquared;
+    if (lenSq < 1e-12) return a;
+    final t = (ap.dx * ab.dx + ap.dy * ab.dy) / lenSq;
+    final tc = t.clamp(0.0, 1.0);
+    return a + ab * tc;
+  }
+
+  /// Rotates [point] around [center] by [angle] radians.
+  static Offset _rotatePoint(Offset point, Offset center, double angle) {
+    final cosA = cos(angle);
+    final sinA = sin(angle);
+    final dx = point.dx - center.dx;
+    final dy = point.dy - center.dy;
+    return Offset(
+      center.dx + dx * cosA - dy * sinA,
+      center.dy + dx * sinA + dy * cosA,
+    );
+  }
+
+  static Offset _snapToNearestEdge(Offset point, Rect rect) {
+    final distToLeft = (point.dx - rect.left).abs();
+    final distToRight = (point.dx - rect.right).abs();
+    final distToTop = (point.dy - rect.top).abs();
+    final distToBottom = (point.dy - rect.bottom).abs();
+    final minDist = [distToLeft, distToRight, distToTop, distToBottom].reduce(min);
+    if (minDist == distToLeft) return Offset(rect.left, point.dy);
+    if (minDist == distToRight) return Offset(rect.right, point.dy);
+    if (minDist == distToTop) return Offset(point.dx, rect.top);
+    return Offset(point.dx, rect.bottom);
+  }
+
+  /// Shortens the endpoint by [amount] along the direction from [prev] to [end].
+  static Offset _shortenEndpoint(Offset prev, Offset end, double amount) {
+    final dir = end - prev;
+    final dist = dir.distance;
+    if (dist < amount * 2) return end; // Too short to shorten
+    final unit = dir / dist;
+    return end - unit * amount;
+  }
+
+  /// Draws a dashed line along [path] using [paint].
+  void _paintDashedPath(Canvas canvas, Path path, Paint paint) {
+    final double dashWidth = 8.0 / zoom;
+    final double dashSpace = 5.0 / zoom;
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final end = min(distance + dashWidth, metric.length);
+        final segment = metric.extractPath(distance, end);
+        canvas.drawPath(segment, paint);
+        distance = end + dashSpace;
+      }
+    }
+  }
+
+  /// Draws evenly spaced dots along [path] using [paint].
+  void _paintDottedPath(Canvas canvas, Path path, Paint paint) {
+    final double spacing = 6.0 / zoom;
+    final double radius = 1.5 * clampedInverseZoom;
+    final dotPaint = Paint()
+      ..color = paint.color
+      ..style = PaintingStyle.fill;
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final tangent = metric.getTangentForOffset(distance);
+        if (tangent != null) {
+          canvas.drawCircle(tangent.position, radius, dotPaint);
+        }
+        distance += spacing;
+      }
+    }
+  }
+
+  /// Returns a new path with small random perpendicular offsets applied to
+  /// sample points, producing a hand-drawn/sketchy appearance. Uses
+  /// [Random(seed)] for deterministic wobble across repaints.
+  Path _roughenPath(Path source, double amplitude, int seed) {
+    final rng = Random(seed);
+    final result = Path();
+    for (final metric in source.computeMetrics()) {
+      final step = max(4.0 / zoom, 3.0);
+      final points = <Offset>[];
+      double d = 0.0;
+      while (d < metric.length) {
+        final tangent = metric.getTangentForOffset(d);
+        if (tangent != null) {
+          // Perpendicular direction
+          final normal = Offset(-tangent.vector.dy, tangent.vector.dx);
+          final offset = (rng.nextDouble() - 0.5) * 2.0 * amplitude;
+          points.add(tangent.position + normal * offset);
+        }
+        d += step;
+      }
+      // Always include the very last point
+      final lastTangent = metric.getTangentForOffset(metric.length);
+      if (lastTangent != null) points.add(lastTangent.position);
+
+      if (points.length < 2) continue;
+      result.moveTo(points[0].dx, points[0].dy);
+      for (int i = 0; i < points.length - 1; i++) {
+        final p0 = points[i];
+        final p1 = points[i + 1];
+        final mx = (p0.dx + p1.dx) / 2;
+        final my = (p0.dy + p1.dy) / 2;
+        result.quadraticBezierTo(p0.dx, p0.dy, mx, my);
+      }
+      result.lineTo(points.last.dx, points.last.dy);
+    }
+    return result;
+  }
+
+  /// Draws a [path] on [canvas] according to the given [lineStyle].
+  /// For solid, draws normally. For rough, roughens the path first then draws.
+  /// For dashed/dotted, uses the corresponding utility.
+  void _paintStyledPath(Canvas canvas, Path path, Paint paint, LineStyle lineStyle, {int seed = 0}) {
+    switch (lineStyle) {
+      case LineStyle.solid:
+        canvas.drawPath(path, paint);
+        break;
+      case LineStyle.dashed:
+        _paintDashedPath(canvas, path, paint);
+        break;
+      case LineStyle.dotted:
+        _paintDottedPath(canvas, path, paint);
+        break;
+      case LineStyle.rough:
+        final roughPath = _roughenPath(path, 0.15 / zoom, seed);
+        canvas.drawPath(roughPath, paint);
+        break;
+    }
+  }
+
+  void _paintArrowHead(
+    Canvas canvas,
+    Offset controlPoint,
+    Offset end,
+    Paint paint, {
+    LineStyle lineStyle = LineStyle.solid,
+  }) {
+    final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    // Arrowheads are constant in screen pixels at normal/zoomed-in levels
+    // (factor = 1/zoom). But when zoomed OUT past [headConstantZoom], we cap the
+    // factor so the head size stops growing in world units — i.e. it shrinks on
+    // screen along with the diagram, instead of looking oversized.
+    const double headConstantZoom = 0.6;
+    final double headZoomFactor = 1.0 / max(zoom, headConstantZoom);
+    final double arrowSize = 7.0 * dpr * headZoomFactor;
+    const double arrowAngle = 25 * (pi / 180);
+
+    final lineVector = end - controlPoint;
+    if (lineVector.distanceSquared == 0)
+      return; // Avoid errors if start and end are the same
+    final angle = lineVector.direction;
+
+    final p2 = end - Offset.fromDirection(angle - arrowAngle, arrowSize);
+    final p3 = end - Offset.fromDirection(angle + arrowAngle, arrowSize);
+
+    final headPaint = Paint()
+      ..color = paint.color
+      ..strokeWidth = paint.strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final Path path = Path();
+    if (lineStyle == LineStyle.rough) {
+      // Quadratic bezier only bends toward the control point, doesn't pass
+      // through it. Push the control point beyond `end` so the curve apex
+      // lands at the actual tip.
+      final mid = (p2 + p3) / 2;
+      final cp = end * 2 - mid;
+      path.moveTo(p2.dx, p2.dy);
+      path.quadraticBezierTo(cp.dx, cp.dy, p3.dx, p3.dy);
+    } else {
+      path.moveTo(p2.dx, p2.dy);
+      path.lineTo(end.dx, end.dy);
+      path.lineTo(p3.dx, p3.dy);
+    }
+
+    canvas.drawPath(path, headPaint);
+  }
+
+  /// Builds the orthogonal path without drawing it.
+  /// Builds an Apple-style rounded-superellipse (squircle) for [rect] with the
+  /// given corner [radius], clamped so it never exceeds half the smaller side
+  /// (an over-large radius produces a degenerate/invalid superellipse).
+  static RSuperellipse _squircleFor(Rect rect, double radius) {
+    final r = min(radius, min(rect.width, rect.height) / 2);
+    return RSuperellipse.fromRectAndRadius(rect, Radius.circular(max(0, r)));
+  }
+
+  Path _buildOrthogonalPath(Offset start, Offset end, {List<Offset>? waypoints}) {
+    final allPoints = [start, ...?waypoints, end];
+
+    if (allPoints.length == 2) {
+      final double dx = end.dx - start.dx;
+      final double dy = end.dy - start.dy;
+      final Path path = Path();
+      path.moveTo(start.dx, start.dy);
+      if (dx.abs() > dy.abs()) {
+        path.lineTo(end.dx, start.dy);
+        path.lineTo(end.dx, end.dy);
+      } else {
+        path.lineTo(start.dx, end.dy);
+        path.lineTo(end.dx, end.dy);
+      }
+      return path;
+    }
+
+    // Fixed world-space radius (see _paintOrthogonalPath for why dpr is gone).
+    final double cornerRadius = 12.0 / zoom;
+    final Path path = Path();
+    path.moveTo(allPoints[0].dx, allPoints[0].dy);
+
+    for (int i = 1; i < allPoints.length - 1; i++) {
+      final prev = allPoints[i - 1];
+      final curr = allPoints[i];
+      final next = allPoints[i + 1];
+      final segPrev = (curr - prev).distance;
+      final segNext = (next - curr).distance;
+      final r = min(cornerRadius, min(segPrev / 2, segNext / 2));
+
+      if (r < 1.0) {
+        path.lineTo(curr.dx, curr.dy);
+        continue;
+      }
+
+      final dirIn = Offset((curr.dx - prev.dx) / segPrev, (curr.dy - prev.dy) / segPrev);
+      final dirOut = Offset((next.dx - curr.dx) / segNext, (next.dy - curr.dy) / segNext);
+      final cross = dirIn.dx * dirOut.dy - dirIn.dy * dirOut.dx;
+      if (cross.abs() < 0.01) {
+        path.lineTo(curr.dx, curr.dy);
+        continue;
+      }
+
+      _addSquircleCorner(path, curr, r, dirIn, dirOut);
+    }
+
+    path.lineTo(allPoints.last.dx, allPoints.last.dy);
+    return path;
+  }
+
+  /// Appends a continuous "squircle" corner to [path] at vertex [corner] where
+  /// the line turns from direction [dirIn] to [dirOut]. Instead of a constant-
+  /// radius circular arc, this uses a cubic Bézier whose control points sit at
+  /// the corner vertex, giving the flatter-then-rounder curvature of an Apple
+  /// rounded-superellipse — matching the squircle node corners. [r] is the
+  /// (already-clamped) corner radius; the curve spans 1.1·r out along each
+  /// segment so the smoothing reads as continuous rather than a tight arc.
+  static void _addSquircleCorner(Path path, Offset corner, double r,
+      Offset dirIn, Offset dirOut) {
+    // Tangent points one radius out along each segment. r is already clamped to
+    // half the shorter adjacent segment by the caller, so this never overshoots
+    // into a neighbouring corner. The squircle character comes from the cubic's
+    // control-point bias, not from over-extending the tangents.
+    final ext = r;
+    final start = Offset(corner.dx - dirIn.dx * ext, corner.dy - dirIn.dy * ext);
+    final end = Offset(corner.dx + dirOut.dx * ext, corner.dy + dirOut.dy * ext);
+    path.lineTo(start.dx, start.dy);
+    // Control points biased toward the corner vertex (k≈0.83) approximate the
+    // superellipse profile better than the circular k=0.5523.
+    const k = 0.83;
+    final c1 = Offset(start.dx + (corner.dx - start.dx) * k,
+        start.dy + (corner.dy - start.dy) * k);
+    final c2 = Offset(end.dx + (corner.dx - end.dx) * k,
+        end.dy + (corner.dy - end.dy) * k);
+    path.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, end.dx, end.dy);
+  }
+
+  void _paintOrthogonalPath(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint, {
+    List<Offset>? waypoints,
+  }) {
+    final allPoints = [start, ...?waypoints, end];
+
+    if (allPoints.length == 2) {
+      // Simple L-path fallback
+      final double dx = end.dx - start.dx;
+      final double dy = end.dy - start.dy;
+      final Path path = Path();
+      path.moveTo(start.dx, start.dy);
+      if (dx.abs() > dy.abs()) {
+        path.lineTo(end.dx, start.dy);
+        path.lineTo(end.dx, end.dy);
+      } else {
+        path.lineTo(start.dx, end.dy);
+        path.lineTo(end.dx, end.dy);
+      }
+      canvas.drawPath(path, paint);
+      return;
+    }
+
+    // Multi-segment path with rounded corners. Radius is a fixed world-space
+    // value (NOT scaled by devicePixelRatio — that made corners twice as round
+    // on Retina as on a 1x display, and the oversized bulge made two nearby
+    // bends bow into each other and enclose a lens/eye artifact where routes
+    // cross). It's still clamped per-corner to half the shorter adjacent
+    // segment below, so tight corners stay tight.
+    final double cornerRadius = 12.0 / zoom;
+    final Path path = Path();
+    path.moveTo(allPoints[0].dx, allPoints[0].dy);
+
+    for (int i = 1; i < allPoints.length - 1; i++) {
+      final prev = allPoints[i - 1];
+      final curr = allPoints[i];
+      final next = allPoints[i + 1];
+
+      // Compute segment lengths
+      final segPrev = (curr - prev).distance;
+      final segNext = (next - curr).distance;
+
+      // Clamp radius to half the shorter adjacent segment
+      final r = min(cornerRadius, min(segPrev / 2, segNext / 2));
+
+      if (r < 1.0) {
+        // Too tight, just draw straight
+        path.lineTo(curr.dx, curr.dy);
+        continue;
+      }
+
+      // Direction vectors (normalized)
+      final dirIn = Offset(
+        (curr.dx - prev.dx) / segPrev,
+        (curr.dy - prev.dy) / segPrev,
+      );
+      final dirOut = Offset(
+        (next.dx - curr.dx) / segNext,
+        (next.dy - curr.dy) / segNext,
+      );
+
+      // Check if points are collinear (no actual turn) — skip the corner
+      final cross = dirIn.dx * dirOut.dy - dirIn.dy * dirOut.dx;
+      if (cross.abs() < 0.01) {
+        path.lineTo(curr.dx, curr.dy);
+        continue;
+      }
+
+      // Squircle (continuous) corner matching the rounded-superellipse nodes.
+      _addSquircleCorner(path, curr, r, dirIn, dirOut);
+    }
+
+    // Final segment to end
+    path.lineTo(allPoints.last.dx, allPoints.last.dy);
+
+    canvas.drawPath(path, paint);
+  }
+
+  void _paintTempDrawingObject(Canvas canvas) {
+    if (tempDrawingObject == null) return;
+    final Paint tempPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 * clampedInverseZoom;
+    final start = tempDrawingObject!.start;
+    final end = tempDrawingObject!.end;
+    final rect = Rect.fromPoints(start, end);
+
+    switch (tempDrawingObject!.tool) {
+      case EditorTool.circle:
+        canvas.drawOval(rect.normalize, tempPaint);
+        break;
+      case EditorTool.square:
+        canvas.drawRect(rect.normalize, tempPaint);
+        break;
+      case EditorTool.diamond:
+        final nr = rect.normalize;
+        final c = nr.center;
+        final hw = nr.width / 2;
+        final hh = nr.height / 2;
+        final diamondPath = Path()
+          ..moveTo(c.dx, c.dy - hh)
+          ..lineTo(c.dx + hw, c.dy)
+          ..lineTo(c.dx, c.dy + hh)
+          ..lineTo(c.dx - hw, c.dy)
+          ..close();
+        canvas.drawPath(diamondPath, tempPaint);
+        break;
+      case EditorTool.parallelogram:
+        final nr = rect.normalize;
+        const skew = 20.0;
+        final paraPath = Path()
+          ..moveTo(nr.left + skew, nr.top)
+          ..lineTo(nr.right, nr.top)
+          ..lineTo(nr.right - skew, nr.bottom)
+          ..lineTo(nr.left, nr.bottom)
+          ..close();
+        canvas.drawPath(paraPath, tempPaint);
+        break;
+      case EditorTool.forkJoin:
+        final nr = rect.normalize;
+        final barRect = Rect.fromLTWH(nr.left, nr.top, nr.width, 10);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(barRect, const Radius.circular(3)),
+          tempPaint,
+        );
+        break;
+      case EditorTool.arrowTopRight:
+        if (tempDrawingObject!.pathType == LinkPathType.orthogonal) {
+          _paintOrthogonalPath(canvas, start, end, tempPaint, waypoints: tempDrawingObject!.waypoints);
+        } else {
+          canvas.drawLine(start, end, tempPaint);
+        }
+        // Compute arrow head direction from last waypoint if available
+        Offset arrowHeadControl = start;
+        if (tempDrawingObject!.pathType == LinkPathType.orthogonal) {
+          final wps = tempDrawingObject!.waypoints;
+          if (wps != null && wps.isNotEmpty) {
+            arrowHeadControl = wps.last;
+          } else {
+            final dx = end.dx - start.dx;
+            final dy = end.dy - start.dy;
+            if (dx.abs() > dy.abs()) {
+              arrowHeadControl = Offset(end.dx, start.dy);
+            } else {
+              arrowHeadControl = Offset(start.dx, end.dy);
+            }
+          }
+        }
+        _paintArrowHead(canvas, arrowHeadControl, end, tempPaint);
+        break;
+      case EditorTool.line:
+        canvas.drawLine(start, end, tempPaint);
+        break;
+      case EditorTool.pencil:
+        _paintPencilStroke(
+          canvas,
+          PencilStrokeObject(id: "temp", points: tempDrawingObject!.points),
+          tempPaint,
+        );
+        break;
+      case EditorTool.figure:
+        _paintDashedRect(canvas, rect.normalize, tempPaint);
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _paintSelectionArea(Canvas canvas, Rect viewport) {
+    if (selectionArea.isEmpty) return;
+    final style = FlSelectionAreaStyle();
+    final Paint selectionPaint = Paint()
+      ..color = style.color
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(selectionArea, selectionPaint);
+    final Paint borderPaint = Paint()
+      ..color = style.borderColor
+      ..strokeWidth = style.borderWidth
+      ..style = PaintingStyle.stroke;
+    canvas.drawRect(selectionArea, borderPaint);
+  }
+
+  @override
+  bool get isRepaintBoundary => true;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (hitTestChildren(result, position: position)) {
+      result.add(BoxHitTestEntry(this, position));
+      return true;
+    }
+
+    if (size.contains(position)) {
+      result.add(BoxHitTestEntry(this, position));
+      return true;
+    }
+
+    return false;
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    RenderBox? child = lastChild;
+    while (child != null) {
+      final childParentData = child.parentData as _ParentData;
+      final nodeInstance = canvasState.nodes[childParentData.id];
+
+      if (nodeInstance == null) {
+        child = childParentData.previousSibling;
+        continue;
+      }
+
+      final transform = _getTransformMatrix();
+      final invertedTransform = Matrix4.tryInvert(transform);
+      if (invertedTransform == null) {
+        child = childParentData.previousSibling;
+        continue;
+      }
+
+      final worldPosition = MatrixUtils.transformPoint(
+        invertedTransform,
+        position,
+      );
+
+      final childLocalPosition = worldPosition - nodeInstance.offset;
+
+      if (child.hitTest(result, position: childLocalPosition)) {
+        return true;
+      }
+
+      child = childParentData.previousSibling;
+    }
+    return false;
+  }
+}

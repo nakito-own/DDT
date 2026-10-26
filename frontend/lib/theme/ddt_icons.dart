@@ -15,6 +15,8 @@ abstract final class DdtIcons {
   static const FaIconData grid = FontAwesomeIcons.tableCells;
   static const FaIconData additions = FontAwesomeIcons.tableCellsLarge;
   static const FaIconData penToSquare = FontAwesomeIcons.penToSquare;
+  static const FaIconData boards = FontAwesomeIcons.chalkboard;
+  static const FaIconData moreVertical = FontAwesomeIcons.ellipsisVertical;
   static const FaIconData settings = FontAwesomeIcons.gear;
 
   // Common actions
@@ -61,6 +63,8 @@ abstract final class DdtIcons {
   static const FaIconData paperclip = FontAwesomeIcons.paperclip;
   static const FaIconData link = FontAwesomeIcons.link;
   static const FaIconData copy = FontAwesomeIcons.copy;
+  static const FaIconData listUl = FontAwesomeIcons.listUl;
+  static const FaIconData listOl = FontAwesomeIcons.listOl;
 
   // Navigation & layout
   static const FaIconData dragHandle = FontAwesomeIcons.bars;
@@ -81,6 +85,7 @@ abstract final class DdtIcons {
   static const FaIconData fileLines = FontAwesomeIcons.fileLines;
   static const FaIconData filePdf = FontAwesomeIcons.filePdf;
   static const FaIconData fileImage = FontAwesomeIcons.image;
+  static const FaIconData camera = FontAwesomeIcons.camera;
   static const FaIconData fileAudio = FontAwesomeIcons.fileAudio;
   static const FaIconData fileVideo = FontAwesomeIcons.fileVideo;
   static const FaIconData fileZip = FontAwesomeIcons.fileZipper;

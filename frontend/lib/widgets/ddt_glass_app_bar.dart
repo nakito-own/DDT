@@ -12,6 +12,7 @@ import 'ddt_adaptive.dart';
 import 'ddt_context_menu.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_user_avatar.dart';
 
 class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
   const DdtGlassAppBar({
@@ -509,13 +510,21 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
       buildWhen: (prev, curr) {
         final prevEmail = prev is AuthAuthenticated ? prev.user.email : null;
         final currEmail = curr is AuthAuthenticated ? curr.user.email : null;
+        final prevAvatar = prev is AuthAuthenticated
+            ? prev.user.avatarVersion
+            : null;
+        final currAvatar = curr is AuthAuthenticated
+            ? curr.user.avatarVersion
+            : null;
         return (prev is AuthAuthenticated) != (curr is AuthAuthenticated) ||
-            prevEmail != currEmail;
+            prevEmail != currEmail ||
+            prevAvatar != currAvatar;
       },
       builder: (context, authState) {
         final email = authState is AuthAuthenticated
             ? authState.user.email
             : null;
+        final profile = authState is AuthAuthenticated ? authState.user : null;
         final isAuthenticated = authState is AuthAuthenticated;
         final bgColor = _hovered && isAuthenticated
             ? (isDark ? DdtTheme.darkWidget : const Color(0xFFF1F5F9))
@@ -556,27 +565,11 @@ class _UserEmailIslandState extends State<_UserEmailIsland> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: DdtTheme.shellSizeOf(context, 20),
-                        height: DdtTheme.shellSizeOf(context, 20),
-                        decoration: BoxDecoration(
-                          color: email != null
-                              ? DdtTheme.primaryColor.withValues(
-                                  alpha: isDark ? 0.22 : 0.12,
-                                )
-                              : DdtTheme.borderSubtle(context),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: DdtIcon(
-                          DdtIcons.user,
-                          size: DdtTheme.shellSizeOf(context, 10),
-                          color: email != null
-                              ? (isDark
-                                    ? DdtTheme.accentColor
-                                    : DdtTheme.primaryColor)
-                              : mutedColor,
-                        ),
+                      DdtUserAvatar(
+                        size: DdtTheme.shellSizeOf(context, 20),
+                        userId: profile?.id,
+                        avatarVersion: profile?.avatarVersion,
+                        versionIsKnown: profile != null,
                       ),
                       if (!DdtAdaptive.isCompact(context)) ...[
                         SizedBox(width: DdtTheme.shellSizeOf(context, 7)),
@@ -698,29 +691,15 @@ class _ProfilePanelHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Container(
-          width: 36.w,
-          height: 36.w,
-          decoration: BoxDecoration(
-            color: DdtTheme.primaryColor.withValues(
-              alpha: isDark ? 0.22 : 0.10,
-            ),
-            borderRadius: BorderRadius.circular(8.r),
-            border: Border.all(
-              color: DdtTheme.primaryColor.withValues(
-                alpha: isDark ? 0.35 : 0.20,
-              ),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: DdtIcon(
-            DdtIcons.user,
-            size: 16.sp,
-            color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
-          ),
+        DdtUserAvatar(
+          size: 36.w,
+          userId: profile.id,
+          avatarVersion: profile.avatarVersion,
+          versionIsKnown: true,
+          borderRadius: BorderRadius.circular(8.r),
+          showBorder: true,
         ),
         SizedBox(width: 10.w),
         Expanded(

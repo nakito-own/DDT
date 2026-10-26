@@ -28,7 +28,7 @@ const _kKanbanSlotCurve = Curves.easeOutCubic;
 
 /// Top fade holds the column title in its middle, close to the column edge.
 const _kKanbanColumnTopFadeHeight = 52.0;
-const _kKanbanColumnBottomFadeHeight = kDdtScrollEdgeFadeHeightCompact;
+const _kKanbanColumnBottomFadeHeight = 40.0;
 const _kKanbanColumnFadeGap = 4.0;
 const _kKanbanColumnListTopInset = 48.0;
 
@@ -267,7 +267,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       enableDrag: false,
       padding: EdgeInsets.only(
         top: () {
-          final reserved = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+          final reserved =
+              DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
           final compactTop = _kCompactKanbanListTopInset.h;
           return reserved > compactTop ? reserved : compactTop;
         }(),
@@ -324,44 +325,26 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   }
 
   Widget _compactKanban(BuildContext context) {
-    final background = DdtTheme.scaffoldBackground(context);
     final lastColumn = TaskStatus.values.length - 1;
 
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
         Positioned.fill(
-          child: PageView.builder(
-            controller: _columnController,
-            itemCount: TaskStatus.values.length,
-            onPageChanged: (next) {
-              if (next == _columnIndex) return;
-              setState(() => _columnIndex = next);
-            },
-            itemBuilder: (context, page) {
-              return _plainKanbanList(TaskStatus.values[page]);
-            },
-          ),
-        ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: _kCompactKanbanTopFadeHeight.h,
-          child: IgnorePointer(
-            child: SizedBox.expand(
-              child: _KanbanColumnFade(color: background, atTop: true),
+          child: _KanbanScrollMask(
+            top: _kCompactKanbanTopFadeHeight.h,
+            bottom: kDdtScrollEdgeFadeHeight.h,
+            child: PageView.builder(
+              controller: _columnController,
+              itemCount: TaskStatus.values.length,
+              onPageChanged: (next) {
+                if (next == _columnIndex) return;
+                setState(() => _columnIndex = next);
+              },
+              itemBuilder: (context, page) {
+                return _plainKanbanList(TaskStatus.values[page]);
+              },
             ),
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: DdtScrollEdgeFadeGradient(
-            backgroundColor: background,
-            atTop: false,
-            fadeHeight: kDdtScrollEdgeFadeHeight,
           ),
         ),
         Positioned(
@@ -615,17 +598,6 @@ class _KanbanColumnState extends State<_KanbanColumn> {
     );
   }
 
-  Color _resolveColumnFadeColor(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseTrack = isDark
-        ? DdtTheme.darkSurface.withValues(alpha: 0.90)
-        : const Color(0xFFF3F6FB).withValues(alpha: 0.90);
-    return Color.alphaBlend(
-      _statusColor.withValues(alpha: isDark ? 0.06 : 0.04),
-      baseTrack,
-    );
-  }
-
   final _dragOver = ValueNotifier(false);
 
   @override
@@ -644,7 +616,6 @@ class _KanbanColumnState extends State<_KanbanColumn> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final columnColor = _resolveColumnColor(context);
-    final fadeColor = _resolveColumnFadeColor(context);
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
@@ -668,119 +639,103 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                   borderRadius: DdtTheme.radius,
                   border: Border.all(color: borderColor),
                 ),
-                padding: EdgeInsets.fromLTRB(
-                  scrollbarGutter + scrollbarEdge,
-                  4.h,
-                  scrollbarEdge,
-                  DdtTheme.spacing.w,
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final listPadding = EdgeInsets.only(
-                      top: _kKanbanColumnListTopInset.h,
-                      bottom:
-                          _kKanbanColumnBottomFadeHeight.h +
-                          _kKanbanColumnFadeGap.h,
-                    );
+                child: Stack(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: scrollbarGutter + scrollbarEdge,
+                        right: scrollbarEdge,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final listPadding = EdgeInsets.only(
+                            top: _kKanbanColumnListTopInset.h,
+                            bottom:
+                                _kKanbanColumnBottomFadeHeight.h +
+                                _kKanbanColumnFadeGap.h,
+                          );
 
-                    return ScrollConfiguration(
-                      behavior: const DdtScrollBehavior(),
-                      child: ClipRRect(
-                        borderRadius: DdtTheme.radius,
-                        child: Stack(
-                          children: [
-                            DragTarget<Task>(
-                              onWillAcceptWithDetails: (_) => true,
-                              onMove: (details) {
-                                _setDragOver(true);
-                                widget.onDropPreview(
-                                  widget.status,
-                                  widget.onResolveInsertIndex(
+                          return ScrollConfiguration(
+                            behavior: const DdtScrollBehavior(),
+                            child: _KanbanScrollMask(
+                              top: _kKanbanColumnListTopInset.h,
+                              bottom: _kKanbanColumnBottomFadeHeight.h,
+                              child: DragTarget<Task>(
+                                onWillAcceptWithDetails: (_) => true,
+                                onMove: (details) {
+                                  _setDragOver(true);
+                                  widget.onDropPreview(
                                     widget.status,
-                                    details.offset,
-                                  ),
-                                );
-                              },
-                              onLeave: (_) {
-                                _setDragOver(false);
-                              },
-                              onAcceptWithDetails: (details) {
-                                _setDragOver(false);
-                                widget.onRegisterDrop(
-                                  details.data,
-                                  widget.status,
-                                  widget.dropIndex ??
-                                      widget.onResolveInsertIndex(
-                                        widget.status,
-                                        details.offset,
-                                      ),
-                                );
-                              },
-                              builder: (context, candidateData, rejectedData) {
-                                return SizedBox(
-                                  height: constraints.maxHeight,
-                                  child: _KanbanTaskList(
-                                    key: widget.taskListKey,
-                                    status: widget.status,
-                                    tasks: widget.tasks,
-                                    draggingTaskId: widget.draggingTaskId,
-                                    dropIndex: widget.dropIndex,
-                                    placeholderHeight: widget.placeholderHeight,
-                                    taskCardKey: widget.taskCardKey,
-                                    padding: listPadding,
-                                    onRegisterCardSize:
-                                        widget.onRegisterCardSize,
-                                    onDragStarted: widget.onDragStarted,
-                                    onDragEnd: widget.onDragEnd,
-                                    onArchiveTask: widget.onArchiveTask,
-                                    onOpenTask: widget.onOpenTask,
-                                  ),
-                                );
-                              },
-                            ),
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              height: _kKanbanColumnTopFadeHeight.h,
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: _KanbanColumnFade(
-                                      color: fadeColor,
-                                      atTop: true,
+                                    widget.onResolveInsertIndex(
+                                      widget.status,
+                                      details.offset,
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.only(
-                                      right: scrollbarGutter,
-                                    ),
-                                    child: Center(
-                                      child: _KanbanColumnHeader(
-                                        status: widget.status,
-                                        taskCount: widget.tasks.length,
-                                        onAddTask: widget.onAddTask,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                  );
+                                },
+                                onLeave: (_) {
+                                  _setDragOver(false);
+                                },
+                                onAcceptWithDetails: (details) {
+                                  _setDragOver(false);
+                                  widget.onRegisterDrop(
+                                    details.data,
+                                    widget.status,
+                                    widget.dropIndex ??
+                                        widget.onResolveInsertIndex(
+                                          widget.status,
+                                          details.offset,
+                                        ),
+                                  );
+                                },
+                                builder:
+                                    (context, candidateData, rejectedData) {
+                                      return SizedBox(
+                                        height: constraints.maxHeight,
+                                        child: _KanbanTaskList(
+                                          key: widget.taskListKey,
+                                          status: widget.status,
+                                          tasks: widget.tasks,
+                                          draggingTaskId: widget.draggingTaskId,
+                                          dropIndex: widget.dropIndex,
+                                          placeholderHeight:
+                                              widget.placeholderHeight,
+                                          taskCardKey: widget.taskCardKey,
+                                          padding: listPadding,
+                                          onRegisterCardSize:
+                                              widget.onRegisterCardSize,
+                                          onDragStarted: widget.onDragStarted,
+                                          onDragEnd: widget.onDragEnd,
+                                          onArchiveTask: widget.onArchiveTask,
+                                          onOpenTask: widget.onOpenTask,
+                                        ),
+                                      );
+                                    },
                               ),
                             ),
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: DdtScrollEdgeFadeGradient(
-                                backgroundColor: fadeColor,
-                                atTop: false,
-                                fadeHeight: _kKanbanColumnBottomFadeHeight,
-                              ),
-                            ),
-                          ],
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: _kKanbanColumnTopFadeHeight.h,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: scrollbarGutter + scrollbarEdge,
+                          right: scrollbarEdge + scrollbarGutter,
+                        ),
+                        child: Center(
+                          child: _KanbanColumnHeader(
+                            status: widget.status,
+                            taskCount: widget.tasks.length,
+                            onAddTask: widget.onAddTask,
+                          ),
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -824,29 +779,50 @@ class _KanbanColumnState extends State<_KanbanColumn> {
   }
 }
 
-/// Top fade stays solid through the header, then dissolves like the analytics sidebar.
-class _KanbanColumnFade extends StatelessWidget {
-  const _KanbanColumnFade({required this.color, required this.atTop});
+/// Fades scrolled cards at the viewport edges without painting a color band.
+/// A color gradient over the glass picks up a dark fringe, especially in the
+/// dark theme. Masking alpha leaves the column itself unchanged.
+class _KanbanScrollMask extends StatelessWidget {
+  const _KanbanScrollMask({
+    required this.child,
+    required this.top,
+    required this.bottom,
+  });
 
-  final Color color;
-  final bool atTop;
+  final Widget child;
+  final double top;
+  final double bottom;
 
   @override
   Widget build(BuildContext context) {
-    final solid = color.withValues(alpha: 1);
-    final clear = color.withValues(alpha: 0);
-
-    return IgnorePointer(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: atTop ? [solid, solid, clear] : [clear, solid],
-            stops: atTop ? const [0, 0.62, 1] : null,
-          ),
-        ),
-      ),
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) {
+        final height = bounds.height < 1 ? 1.0 : bounds.height;
+        double stop(double pixels) => (pixels / height).clamp(0.0, 1.0);
+        final hold = stop(top * 0.5);
+        final shown = stop(top);
+        final fadeOut = stop(height - bottom);
+        final stops = <double>[0, hold, shown, fadeOut, 1];
+        for (var i = 1; i < stops.length; i++) {
+          if (stops[i] <= stops[i - 1]) {
+            stops[i] = (stops[i - 1] + 0.0001).clamp(0.0, 1.0);
+          }
+        }
+        return LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: const [
+            Colors.transparent,
+            Colors.transparent,
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: stops,
+        ).createShader(bounds);
+      },
+      child: child,
     );
   }
 }
@@ -1211,10 +1187,7 @@ class _DraggableTaskCardState extends State<_DraggableTaskCard> {
           rootOverlay: true,
           onDragStarted: widget.onDragStarted,
           onDragEnd: widget.onDragEnd,
-          childWhenDragging: _DropPlaceholder(
-            height: placeholderHeight,
-            includeSpacing: false,
-          ),
+          childWhenDragging: SizedBox(height: placeholderHeight),
           feedback: _cardSize == null
               ? const SizedBox.shrink()
               : IgnorePointer(
@@ -1245,34 +1218,21 @@ class _DropPlaceholder extends StatelessWidget {
   const _DropPlaceholder({
     super.key,
     required this.height,
-    this.includeSpacing = true,
     this.animateFromZero = false,
   });
 
   final double height;
-  final bool includeSpacing;
   final bool animateFromZero;
 
   @override
   Widget build(BuildContext context) {
-    final color = DdtTheme.primaryColor;
-    final slot = _AnimatedDropSlot(
-      height: height,
-      animateFromZero: animateFromZero,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: DdtTheme.radius,
-          color: color.withValues(alpha: 0.08),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-      ),
-    );
-
-    if (!includeSpacing) return slot;
-
     return Padding(
       padding: EdgeInsets.only(bottom: DdtTheme.spacing.h),
-      child: slot,
+      child: _AnimatedDropSlot(
+        height: height,
+        animateFromZero: animateFromZero,
+        child: const SizedBox.expand(),
+      ),
     );
   }
 }

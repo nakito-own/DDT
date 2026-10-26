@@ -1,0 +1,305 @@
+import 'package:nodeline/nodeline.dart';
+import 'package:nodeline/src/constants.dart';
+import 'package:nodeline/src/core/utils/renderbox.dart';
+import 'package:nodeline/src/ui/shared/debug_info.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../ui/nodes/builders.dart';
+import 'flow_draw_editor_data_layer.dart';
+import 'paint_profiler.dart';
+import 'crossing_counter.dart';
+
+export 'flow_draw_editor_data_layer.dart' show FlOverlayData;
+
+class FlowDrawCanvas extends StatelessWidget {
+  final bool expandToParent;
+  final Size? fixedSize;
+  final List<FlOverlayData> Function()? overlay;
+  final FlNodeHeaderBuilder? headerBuilder;
+  final FlNodeBuilder? nodeBuilder;
+  final bool debug;
+
+  /// Perf and Crossings badges. The board editor places them in its own bar.
+  final bool showHud;
+
+  const FlowDrawCanvas({
+    super.key,
+    this.expandToParent = true,
+    this.fixedSize,
+    this.overlay,
+    this.headerBuilder,
+    this.nodeBuilder,
+    this.debug = false,
+    this.showHud = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final FlowDrawEditorStyle style = FlowDrawEditorStyle.forBrightness(
+      Theme.of(context).brightness,
+    );
+
+    final Widget editor = Container(
+      decoration: style.decoration,
+      padding: style.padding,
+      clipBehavior: Clip.none,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: FlowDrawEditorDataLayer(
+              style: style,
+              fragmentShader: 'packages/nodeline/shaders/grid.frag',
+              headerBuilder: headerBuilder,
+              nodeBuilder: nodeBuilder,
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: PaintProfiler.enabledListenable,
+            builder: (context, on, _) =>
+                on ? const FpsOverlay() : const SizedBox.shrink(),
+          ),
+          if (showHud) ...[
+            const PaintProfilerToggle(),
+            const CrossingCounter(),
+          ],
+          if (overlay != null)
+            ...overlay!().map(
+              (overlayData) => Positioned(
+                top: overlayData.top,
+                left: overlayData.left,
+                bottom: overlayData.bottom,
+                right: overlayData.right,
+                child: RepaintBoundary(child: overlayData.child),
+              ),
+            ),
+          // Floating toolbar appears above selected objects
+          BlocBuilder<SelectionBloc, SelectionState>(
+            builder: (context, selectionState) {
+              final allSelected = selectionState.selectedNodeIds
+                  .union(selectionState.selectedDrawingObjectIds);
+              if (allSelected.isEmpty) return const SizedBox.shrink();
+
+              return BlocBuilder<CanvasBloc, CanvasState>(
+                builder: (context, canvasState) {
+                  final pos = _computeToolbarPosition(
+                    allSelected,
+                    canvasState,
+                  );
+                  if (pos == null) return const SizedBox.shrink();
+
+                  // Compute creationZoom for single selected object
+                  double? objCreationZoom;
+                  if (allSelected.length == 1) {
+                    final objId = allSelected.first;
+                    final obj = canvasState.drawingObjects[objId];
+                    if (obj != null && obj.creationZoom != 1.0) {
+                      objCreationZoom = obj.creationZoom;
+                    }
+                  }
+
+                  // Resolve the font picture for the selection: whether any
+                  // selected object carries text, the font it currently shows,
+                  // and whether it has been individually customized.
+                  final fontInfo =
+                      _selectionFontInfo(allSelected, canvasState);
+
+                  return FloatingToolbar(
+                    selectedIds: allSelected,
+                    drawingObjects: canvasState.drawingObjects,
+                    position: pos,
+                    onDelete: () {
+                      context.read<CanvasBloc>().add(ObjectsRemoved(
+                            nodeIds: selectionState.selectedNodeIds,
+                            drawingObjectIds:
+                                selectionState.selectedDrawingObjectIds,
+                          ));
+                      context
+                          .read<SelectionBloc>()
+                          .add(SelectionCleared());
+                    },
+                    onDuplicate: () {
+                      context.read<CanvasBloc>().add(SelectionDuplicated(
+                            selectionState.selectedDrawingObjectIds,
+                          ));
+                    },
+                    onBringToFront: () {
+                      context.read<CanvasBloc>().add(
+                            ObjectsBroughtToFront(allSelected),
+                          );
+                    },
+                    onSendToBack: () {
+                      context.read<CanvasBloc>().add(
+                            ObjectsSentToBack(allSelected),
+                          );
+                    },
+                    onMinimizeCrossings: (changeConnectionPoints) {
+                      context.read<CanvasBloc>().add(
+                            CrossingsMinimized(
+                              allSelected,
+                              changeConnectionPoints: changeConnectionPoints,
+                            ),
+                          );
+                    },
+                    creationZoom: objCreationZoom,
+                    onGoToCreationZoom: objCreationZoom != null
+                        ? () => context
+                            .read<CanvasBloc>()
+                            .add(CanvasZoomed(objCreationZoom!))
+                        : null,
+                    hasFontTarget: fontInfo.hasFontTarget,
+                    currentFontFamily: fontInfo.family,
+                    currentFontSize: fontInfo.size,
+                    globalFontFamily: canvasState.defaultFontFamily,
+                    globalFontSize: canvasState.defaultFontSize,
+                    fontCustomized: fontInfo.customized,
+                    onFontChanged: fontInfo.hasFontTarget
+                        ? (family, size) {
+                            context.read<CanvasBloc>().add(ObjectFontChanged(
+                                  allSelected,
+                                  fontFamily: family,
+                                  fontSize: size,
+                                ));
+                          }
+                        : null,
+                    onFontReset: fontInfo.customized
+                        ? () => context
+                            .read<CanvasBloc>()
+                            .add(ObjectFontReset(allSelected))
+                        : null,
+                  );
+                },
+              );
+            },
+          ),
+          if (debug) const DebugInfoWidget(),
+        ],
+      ),
+    );
+
+    if (expandToParent) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: editor,
+          );
+        },
+      );
+    } else {
+      return BlocBuilder<CanvasBloc, CanvasState>(
+        builder: (context, state) {
+          return SizedBox(
+            width: fixedSize?.width ?? 100,
+            height: fixedSize?.height ?? 100,
+            child: editor,
+          );
+        },
+      );
+    }
+  }
+
+  /// Computes the screen position for the floating toolbar based on the
+  /// bounding box of all selected drawing objects.
+  static Offset? _computeToolbarPosition(
+    Set<String> selectedIds,
+    CanvasState canvasState,
+  ) {
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = double.negativeInfinity;
+
+    for (final id in selectedIds) {
+      final drawObj = canvasState.drawingObjects[id];
+      if (drawObj != null) {
+        final r = drawObj.rect;
+        if (r.left < minX) minX = r.left;
+        if (r.top < minY) minY = r.top;
+        if (r.right > maxX) maxX = r.right;
+      }
+      // For nodes, use the offset (position) — size isn't easily available
+      // here since it comes from the rendered widget.
+      final node = canvasState.nodes[id];
+      if (node != null) {
+        final pos = node.offset;
+        if (pos.dx < minX) minX = pos.dx;
+        if (pos.dy < minY) minY = pos.dy;
+        if (pos.dx + 200 > maxX) maxX = pos.dx + 200; // estimated width
+      }
+    }
+
+    if (minX.isInfinite) return null;
+
+    final bounds = getEditorBoundsInScreen(kNodeEditorWidgetKey);
+    if (bounds == null || bounds.isEmpty) return null;
+
+    // Same mapping as worldToScreen, but local to the editor. The previous
+    // formula subtracted the viewport offset, which mirrored the bar around
+    // the canvas center.
+    final centerX = (minX + maxX) / 2;
+    final zoom = canvasState.viewportZoom;
+    final vp = canvasState.viewportOffset;
+    final screenX = (centerX + vp.dx) * zoom + bounds.width / 2;
+    final screenY = (minY + vp.dy) * zoom + bounds.height / 2;
+
+    return Offset(screenX, screenY);
+  }
+
+  /// Summarizes the font state of the selection for the floating toolbar.
+  ///
+  /// [hasFontTarget] is true when at least one selected object carries text.
+  /// [family]/[size] are the effective font shown for the first such object
+  /// (resolving the global default for non-customized shapes). [customized] is
+  /// true when any selected object has been individually customized.
+  static ({bool hasFontTarget, String family, double size, bool customized})
+      _selectionFontInfo(Set<String> selectedIds, CanvasState canvasState) {
+    bool hasFontTarget = false;
+    bool customized = false;
+    String family = canvasState.defaultFontFamily;
+    double size = canvasState.defaultFontSize;
+    bool gotFirst = false;
+
+    for (final id in selectedIds) {
+      final obj = canvasState.drawingObjects[id];
+      TextStyle? style;
+      bool objCustomized = false;
+      if (obj is RectangleObject) {
+        style = obj.textStyle;
+        objCustomized = obj.fontCustomized;
+      } else if (obj is CircleObject) {
+        style = obj.textStyle;
+        objCustomized = obj.fontCustomized;
+      } else if (obj is DiamondObject) {
+        style = obj.textStyle;
+        objCustomized = obj.fontCustomized;
+      } else if (obj is ParallelogramObject) {
+        style = obj.textStyle;
+        objCustomized = obj.fontCustomized;
+      } else {
+        continue;
+      }
+
+      hasFontTarget = true;
+      if (objCustomized) customized = true;
+
+      if (!gotFirst) {
+        gotFirst = true;
+        final resolved = effectiveShapeTextStyle(
+          style: style,
+          customized: objCustomized,
+          defaultFamily: canvasState.defaultFontFamily,
+          defaultSize: canvasState.defaultFontSize,
+        );
+        family = resolved.fontFamily ?? canvasState.defaultFontFamily;
+        size = resolved.fontSize ?? canvasState.defaultFontSize;
+      }
+    }
+
+    return (
+      hasFontTarget: hasFontTarget,
+      family: family,
+      size: size,
+      customized: customized,
+    );
+  }
+}

@@ -543,16 +543,34 @@ class OwaClient {
     required DateTime end,
     String? location,
     String? body,
+    List<CalendarPerson> attendees = const [],
   }) async {
     if (!end.isAfter(start)) {
       throw Exception('Окончание должно быть позже начала');
     }
+    final invited = [
+      for (final person in attendees)
+        if (person.email.trim().isNotEmpty)
+          {
+            '__type': 'AttendeeType:#Exchange',
+            'Mailbox': {
+              '__type': 'EmailAddress:#Exchange',
+              'Name': person.displayName.trim().isEmpty
+                  ? person.email.trim()
+                  : person.displayName.trim(),
+              'EmailAddress': person.email.trim(),
+              'RoutingType': 'SMTP',
+            },
+          },
+    ];
     final json = await _call('CreateItem', {
       '__type': 'CreateItemJsonRequest:#Exchange',
       'Header': owaHeader(),
       'Body': {
         '__type': 'CreateItemRequest:#Exchange',
-        'SendMeetingInvitations': 'SendToNone',
+        'SendMeetingInvitations': invited.isEmpty
+            ? 'SendToNone'
+            : 'SendToAllAndSaveCopy',
         'SavedItemFolderId': {
           '__type': 'TargetFolderId:#Exchange',
           'BaseFolderId': _distinguishedFolder('calendar'),
@@ -574,6 +592,7 @@ class OwaClient {
                 'BodyType': 'Text',
                 'Value': body,
               },
+            if (invited.isNotEmpty) 'RequiredAttendees': invited,
           },
         ],
       },
@@ -1122,7 +1141,8 @@ List<CalendarAttendee> _attendeesOf(dynamic raw, {required bool optional}) {
     for (final entry in raw)
       if (asMap(entry) != null)
         CalendarAttendee(
-          name: personNameOf(asMap(entry)!['Mailbox']) ??
+          name:
+              personNameOf(asMap(entry)!['Mailbox']) ??
               personEmailOf(asMap(entry)!['Mailbox']) ??
               '',
           email: personEmailOf(asMap(entry)!['Mailbox']),
@@ -1335,7 +1355,8 @@ CalendarEvent calendarEventFromOwaItem(
     body: _bodyValue(item),
     bodyType: _bodyType(item),
     attendees: attendeesFromOwaItem(item),
-    detailLoaded: _bodyValue(item) != null || attendeesFromOwaItem(item).isNotEmpty,
+    detailLoaded:
+        _bodyValue(item) != null || attendeesFromOwaItem(item).isNotEmpty,
   );
 }
 
@@ -1810,11 +1831,23 @@ Map<String, dynamic> _calendarItemBody(String eventId) {
           {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:End'},
           {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:Location'},
           {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:Organizer'},
-          {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:RequiredAttendees'},
-          {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:OptionalAttendees'},
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:RequiredAttendees',
+          },
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:OptionalAttendees',
+          },
           {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:IsMeeting'},
-          {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:MyResponseType'},
-          {'__type': 'PropertyUri:#Exchange', 'FieldURI': 'calendar:IsOrganizer'},
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:MyResponseType',
+          },
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:IsOrganizer',
+          },
         ],
       },
       'ItemIds': [

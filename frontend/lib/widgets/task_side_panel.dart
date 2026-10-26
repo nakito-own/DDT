@@ -30,6 +30,7 @@ import 'ddt_side_panel.dart';
 import 'task_comments_section.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_user_avatar.dart';
 
 enum TaskSidePanelMode { view, create }
 
@@ -1505,24 +1506,16 @@ class _DropdownControl<T> extends StatelessWidget {
 }
 
 class _TaskPersonTile extends StatelessWidget {
-  const _TaskPersonTile({required this.name});
+  const _TaskPersonTile({required this.name, this.userId});
 
   final String name;
+  final int? userId;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 22.w,
-          height: 22.w,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.primary.withValues(alpha: 0.12),
-          ),
-          child: DdtIcon(DdtIcons.user, size: 11.sp, color: AppColors.primary),
-        ),
+        DdtUserAvatar(size: 22.w, userId: userId),
         SizedBox(width: 8.w),
         Expanded(
           child: Text(
@@ -1557,7 +1550,7 @@ class _TaskPersonField extends StatelessWidget {
         return _FormTableSearchableDropdown(
           label: userId == null ? 'Не указан' : name,
           placeholder: userId == null,
-          value: userId == null ? null : _TaskPersonTile(name: name),
+          value: userId == null ? null : _TaskPersonTile(name: name, userId: userId),
           emptyLabel: loading ? 'Загрузка…' : 'Нет пользователей',
           selected: {userId?.toString() ?? ''},
           onSelected: (key) =>
@@ -1569,7 +1562,7 @@ class _TaskPersonField extends StatelessWidget {
                 key: '${user.id}',
                 label: user.label,
                 searchText: '${user.label} ${user.email}',
-                content: (context) => _TaskPersonTile(name: user.label),
+                content: (context) => _TaskPersonTile(name: user.label, userId: user.id),
               ),
           ],
         );

@@ -69,10 +69,12 @@ services:
       GOOGLE_SHEETS_CREDENTIALS_PATH: ${GOOGLE_SHEETS_CREDENTIALS_PATH:-}
       GOOGLE_SHEETS_CREDENTIALS_JSON: ${GOOGLE_SHEETS_CREDENTIALS_JSON:-}
       GOOGLE_SHEETS_CACHE_TTL_SECONDS: ${GOOGLE_SHEETS_CACHE_TTL_SECONDS:-60}
+      AVATAR_DIR: /app/data/avatars
     ports:
       - "3000:3000"
     volumes:
       - ./secrets:/app/secrets:ro
+      - avatar_data:/app/data/avatars
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -90,3 +92,4 @@ services:
 
 volumes:
   mysql_data:
+  avatar_data:

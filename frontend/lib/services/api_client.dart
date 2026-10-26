@@ -118,6 +118,31 @@ class ApiClient {
     return response;
   }
 
+  Future<http.Response> postMultipart(
+    String path, {
+    required String field,
+    required List<int> bytes,
+    required String filename,
+    bool auth = true,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$apiUrl$path'));
+    if (auth) {
+      final token = await getSessionToken();
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    request.files.add(
+      http.MultipartFile.fromBytes(field, bytes, filename: filename),
+    );
+    final streamed = await request.send().timeout(defaultTimeout);
+    final response = await http.Response.fromStream(streamed);
+    if (auth) {
+      _handleUnauthorized(response);
+    }
+    return response;
+  }
+
   Future<http.Response> delete(String path, {bool auth = true}) async {
     final uri = Uri.parse('$apiUrl$path');
     final response = await http.delete(

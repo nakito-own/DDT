@@ -20,6 +20,7 @@ import 'ddt_scroll_edge_fade.dart';
 import 'ddt_section_refresh.dart';
 import 'ddt_section_sidebar.dart';
 import 'ddt_tappable.dart';
+import 'ddt_user_avatar.dart';
 
 const _calendarSourcesFadeHeight = 14.0;
 
@@ -1264,11 +1265,7 @@ class _PersonResultRow extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 6.h),
           child: Row(
             children: [
-              DdtIcon(
-                DdtIcons.user,
-                size: 12.sp,
-                color: accent,
-              ),
+              DdtUserAvatar(size: 18.w, name: name, email: email),
               SizedBox(width: 8.w),
               Expanded(
                 child: Column(
