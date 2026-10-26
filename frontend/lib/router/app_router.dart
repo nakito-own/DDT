@@ -118,7 +118,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'new',
                     name: RoutePaths.nameTaskCreate,
-                    pageBuilder: (context, state) => _buildTaskOpenPage(
+                    pageBuilder: (context, state) => _buildRevealPage(
                       key: state.pageKey,
                       child: const TaskCreatePage(),
                     ),
@@ -165,7 +165,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.calendarNew,
             name: RoutePaths.nameCalendarNew,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRevealPage(
               key: state.pageKey,
               child: const EventCreatePage(),
             ),
@@ -253,7 +253,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: '/space/:spaceKey/new',
                 name: RoutePaths.nameSpaceTaskCreate,
-                pageBuilder: (context, state) => _buildTaskOpenPage(
+                pageBuilder: (context, state) => _buildRevealPage(
                   key: state.pageKey,
                   child: const TaskCreatePage(),
                 ),
@@ -316,7 +316,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.board,
             name: RoutePaths.nameBoard,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRevealPage(
               key: state.pageKey,
               child: BoardEditorPage(
                 boardId: state.pathParameters['boardId'] ?? '',
@@ -367,6 +367,42 @@ final class AppRouter {
     router.dispose();
     _authNotifier.dispose();
   }
+}
+
+/// Создание задачи, события и доски: один и тот же переход поверх раздела.
+///
+/// Экран проявляется и чуть сдвигается справа, при закрытии уходит так же.
+/// Рейл и шапка живут в оболочке и не участвуют в переходе.
+CustomTransitionPage<void> _buildRevealPage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: ColoredBox(
+            color: DdtTheme.scaffoldBackground(context),
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// Карточка задачи въезжает внутри оболочки: рейл и шапка не двигаются.

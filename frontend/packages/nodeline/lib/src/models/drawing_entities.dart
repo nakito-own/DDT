@@ -71,9 +71,30 @@ double? _sanitizeFontSize(num? raw) {
   return v.clamp(kMinFontSize, kMaxFontSize);
 }
 
-/// The color used for shape text. Font customization controls family/size only;
-/// color continues to come from the existing color pickers.
+/// The color used for shape text when nothing else has been chosen.
+///
+/// This is the historical default (dark canvas). At paint time it means
+/// "follow the canvas": light boards use dark ink, dark boards use light ink.
+/// Any other stored color is an explicit choice and is kept.
 const Color kDefaultTextColor = Colors.white;
+
+/// Whether [color] should track the canvas instead of staying fixed.
+bool followsCanvasInk(Color? color) {
+  if (color == null) return true;
+  return color.toARGB32() == kDefaultTextColor.toARGB32();
+}
+
+/// Ink that stays readable on [background].
+Color inkForBackground(Color background) {
+  return background.computeLuminance() > 0.45
+      ? const Color(0xFF1A2332)
+      : const Color(0xFFE6E8EE);
+}
+
+/// [ink] when [color] is unset or the default white, otherwise [color].
+Color resolvedTextColor(Color? color, Color ink) {
+  return followsCanvasInk(color) ? ink : color!;
+}
 
 /// Default extra breathing room (world px, per side) the "Fit to content"
 /// action leaves around a shape's text, on top of the per-shape base padding.
@@ -96,14 +117,13 @@ TextStyle effectiveShapeTextStyle({
     return TextStyle(
       fontFamily: style.fontFamily ?? defaultFamily,
       fontSize: style.fontSize ?? defaultSize,
-      color: style.color ?? ink,
+      color: resolvedTextColor(style.color, ink),
     );
   }
   return TextStyle(
     fontFamily: defaultFamily,
     fontSize: defaultSize,
-    // Preserve any explicitly-set text color even on non-customized shapes.
-    color: style?.color ?? ink,
+    color: resolvedTextColor(style?.color, ink),
   );
 }
 
