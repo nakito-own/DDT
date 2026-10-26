@@ -8,6 +8,8 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/app_section.dart';
 import '../screens/additions_page.dart';
+import '../screens/board_editor_page.dart';
+import '../screens/boards_page.dart';
 import '../screens/analytics_page.dart';
 import '../screens/calendar_page.dart';
 import '../screens/event_create_page.dart';
@@ -116,7 +118,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'new',
                     name: RoutePaths.nameTaskCreate,
-                    pageBuilder: (context, state) => NoTransitionPage(
+                    pageBuilder: (context, state) => _buildTaskOpenPage(
                       key: state.pageKey,
                       child: const TaskCreatePage(),
                     ),
@@ -251,7 +253,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: '/space/:spaceKey/new',
                 name: RoutePaths.nameSpaceTaskCreate,
-                pageBuilder: (context, state) => NoTransitionPage(
+                pageBuilder: (context, state) => _buildTaskOpenPage(
                   key: state.pageKey,
                   child: const TaskCreatePage(),
                 ),
@@ -309,6 +311,24 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
               child: const AdditionsPage(),
+            ),
+          ),
+          GoRoute(
+            path: RoutePaths.board,
+            name: RoutePaths.nameBoard,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: BoardEditorPage(
+                boardId: state.pathParameters['boardId'] ?? '',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: RoutePaths.boards,
+            name: RoutePaths.nameBoards,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const BoardsPage(),
             ),
           ),
           GoRoute(

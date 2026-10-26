@@ -9,6 +9,7 @@ enum AppSection {
   analytics(label: 'Аналитика', icon: DdtIcons.analytics),
   space(label: 'Пространство', icon: DdtIcons.grid),
   notes(label: 'Заметки', icon: DdtIcons.penToSquare),
+  boards(label: 'Доски', icon: DdtIcons.boards),
   settings(label: 'Настройки', icon: DdtIcons.settings),
   more(label: 'Дополнения', icon: DdtIcons.additions);
 
@@ -26,6 +27,7 @@ enum AppSection {
     AppSection.analytics => RoutePaths.analytics,
     AppSection.space => RoutePaths.space,
     AppSection.notes => RoutePaths.notes,
+    AppSection.boards => RoutePaths.boards,
     AppSection.settings => RoutePaths.settings,
     AppSection.more => RoutePaths.more,
   };
@@ -45,6 +47,7 @@ enum AppSection {
         location.startsWith(RoutePaths.linkArchive)) {
       return AppSection.notes;
     }
+    if (location.startsWith(RoutePaths.boards)) return AppSection.boards;
     if (location.startsWith(RoutePaths.settings)) return AppSection.settings;
     if (location == RoutePaths.more ||
         location.startsWith('${RoutePaths.more}/')) {

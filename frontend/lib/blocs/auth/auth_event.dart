@@ -39,3 +39,13 @@ final class AuthLogoutRequested extends AuthEvent {
 final class AuthSessionExpired extends AuthEvent {
   const AuthSessionExpired();
 }
+
+/// Профиль обновлён локально, например после загрузки фото.
+final class AuthUserUpdated extends AuthEvent {
+  const AuthUserUpdated(this.user);
+
+  final UserProfile user;
+
+  @override
+  List<Object?> get props => [user];
+}

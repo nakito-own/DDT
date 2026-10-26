@@ -3,6 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../theme/ddt_icons.dart';
 
 import '../models/task.dart';
+import '../models/user_profile.dart';
+import '../services/directory_users.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import 'task_priority_badge.dart';
@@ -10,6 +12,7 @@ import 'task_type_badge.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 import 'ddt_markdown_body.dart';
+import 'ddt_user_chip.dart';
 
 class TaskCard extends StatelessWidget {
   const TaskCard({
@@ -124,34 +127,13 @@ class TaskCard extends StatelessWidget {
               ),
             ),
           ],
-          if (task.type != null || task.priority != null) ...[
-            SizedBox(height: 8.h),
-            Wrap(
-              spacing: 6.w,
-              runSpacing: 6.h,
-              children: [
-                if (task.type != null) TaskTypeBadge(label: task.type!.name),
-                if (task.priority != null)
-                  TaskPriorityBadge(priority: task.priority!),
-              ],
-            ),
-          ],
-          if (task.deadline != null ||
-              task.executorId != null ||
-              (task.links?.isNotEmpty ?? false) ||
-              task.comments.isNotEmpty) ...[
-            SizedBox(height: 9.h),
-            Container(
-              height: 1,
-              color: DdtTheme.borderSubtle(context).withValues(alpha: 0.7),
-            ),
-            SizedBox(height: 7.h),
-            _TaskCardMeta(
-              task: task,
-              overdue: overdue,
-              textSecondary: metaMuted,
-            ),
-          ],
+          SizedBox(height: 9.h),
+          Container(
+            height: 1,
+            color: DdtTheme.borderSubtle(context).withValues(alpha: 0.7),
+          ),
+          SizedBox(height: 7.h),
+          _TaskCardTags(task: task, overdue: overdue),
         ],
       ),
     );
@@ -240,54 +222,124 @@ class _TaskCardEdgeGlowPainter extends CustomPainter {
   }
 }
 
-class _TaskCardMeta extends StatelessWidget {
-  const _TaskCardMeta({
-    required this.task,
-    required this.overdue,
-    required this.textSecondary,
-  });
+class _TaskCardTags extends StatelessWidget {
+  const _TaskCardTags({required this.task, required this.overdue});
 
   final Task task;
   final bool overdue;
-  final Color textSecondary;
+
+  bool get _inSpace =>
+      task.spaceId != null || (task.spaceKey != null && task.spaceKey!.isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
+    final executorId = task.executorId;
+
     return Wrap(
-      spacing: 12.w,
+      spacing: 6.w,
       runSpacing: 6.h,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        _StatusTag(
+          label: task.status.label,
+          color: statusColumnColor(task.status),
+        ),
+        if (task.type != null) TaskTypeBadge(label: task.type!.name),
+        if (task.priority != null) TaskPriorityBadge(priority: task.priority!),
+        if (task.comments.isNotEmpty)
+          _MetaTag(icon: DdtIcons.comment, label: '${task.comments.length}'),
         if (task.deadline != null)
-          _MetaItem(
+          _MetaTag(
             icon: DdtIcons.calendar,
             label: formatTaskDate(task.deadline!),
-            color: overdue ? DdtTheme.dangerColor : textSecondary,
+            color: overdue ? DdtTheme.dangerColor : null,
           ),
-        if (task.executorId != null)
-          _MetaItem(
-            icon: DdtIcons.user,
-            label: formatUserRef(task.executorId, fallback: '—'),
-            color: textSecondary,
-          ),
-        if (task.links?.isNotEmpty ?? false)
-          _MetaItem(
-            icon: DdtIcons.link,
-            label: '${task.links!.length}',
-            color: textSecondary,
-          ),
-        if (task.comments.isNotEmpty)
-          _MetaItem(
-            icon: DdtIcons.comment,
-            label: '${task.comments.length}',
-            color: textSecondary,
-          ),
+        if (_inSpace && executorId != null) _TaskCardUser(userId: executorId),
       ],
     );
   }
 }
 
-class _MetaItem extends StatelessWidget {
-  const _MetaItem({required this.icon, required this.label, this.color});
+class _TaskCardUser extends StatelessWidget {
+  const _TaskCardUser({required this.userId});
+
+  final int userId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<UserProfile>>(
+      future: loadDirectoryUsers(),
+      builder: (context, snapshot) {
+        final person = directoryUserById(
+          snapshot.data ?? const <UserProfile>[],
+          userId,
+        );
+        final waiting =
+            snapshot.connectionState == ConnectionState.waiting &&
+            person == null;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 220.w;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: DdtUserChip(
+                      name:
+                          person?.label ??
+                          (waiting ? 'Загрузка…' : 'Пользователь'),
+                      userId: person?.id ?? userId,
+                      email: person?.email,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _StatusTag extends StatelessWidget {
+  const _StatusTag({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark
+        ? Color.lerp(color, Colors.white, 0.36)!
+        : Color.lerp(color, Colors.black, 0.14)!;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.18 : 0.10),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.38 : 0.24)),
+      ),
+      child: Text(
+        label,
+        style: DdtTheme.style(
+          fontSize: DdtTypography.captionSize,
+          fontWeight: FontWeight.w600,
+          color: labelColor,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaTag extends StatelessWidget {
+  const _MetaTag({required this.icon, required this.label, this.color});
 
   final FaIconData icon;
   final String label;
@@ -295,22 +347,37 @@ class _MetaItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = color ?? DdtTheme.textMuted(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tint = color ?? DdtTheme.textSecondary(context);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DdtIcon(icon, size: 12.sp, color: textColor),
-        SizedBox(width: 4.w),
-        Text(
-          label,
-          style: DdtTheme.style(
-            fontSize: DdtTypography.captionSize,
-            fontWeight: FontWeight.w500,
-            color: textColor,
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : const Color(0xFFF1F5F9),
+        borderRadius: DdtTheme.badgeBorderRadius,
+        border: Border.all(
+          color: (color ?? DdtTheme.borderSubtle(context)).withValues(
+            alpha: color == null ? 1 : (isDark ? 0.38 : 0.28),
           ),
         ),
-      ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DdtIcon(icon, size: 11.sp, color: tint),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.captionSize,
+              fontWeight: FontWeight.w600,
+              color: tint,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

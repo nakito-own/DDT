@@ -14,6 +14,7 @@ class AdditionsPage extends StatelessWidget {
   const AdditionsPage({super.key});
 
   static const sections = [
+    AppSection.boards,
     AppSection.contacts,
     AppSection.analytics,
     AppSection.space,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/app_section.dart';
+import '../models/tasks_view_mode.dart';
 import '../router/route_paths.dart';
 import '../widgets/ddt_shell_layout.dart';
 
@@ -25,13 +26,17 @@ class MainShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+    // uri.path is the open page. A task pushed from kanban must keep the
+    // kanban shell slot: switching padding here jumps the whole content area.
+    final location = GoRouterState.of(context).uri.path;
+    final board = TasksViewMode.fromRoute(location);
+    final diagramEditor = location.startsWith('${RoutePaths.boards}/');
 
     return DdtShellLayout(
       title: selectedSection.label,
       selectedSection: selectedSection,
       onSectionSelected: (section) => context.go(section.routePath),
-      padContent: !RoutePaths.isKanbanRoute(location),
+      padContent: board != TasksViewMode.kanban && !diagramEditor,
       child: child,
     );
   }

@@ -8,7 +8,7 @@ from app.services.task_key import normalize_user_key_prefix
 
 USER_COLUMNS = """
 id, name, username, email, display_name, job_title, department,
-phone, office_location, ews_account_id
+phone, office_location, avatar_version, ews_account_id
 """
 
 
@@ -23,6 +23,7 @@ class UserProfile:
     department: str | None = None
     phone: str | None = None
     office_location: str | None = None
+    avatar_version: int | None = None
     ews_account_id: int | None = None
 
 
@@ -37,8 +38,15 @@ def _map_user_row(row) -> UserProfile:
         department=row.get("department"),
         phone=row.get("phone"),
         office_location=row.get("office_location"),
+        avatar_version=_optional_int(row.get("avatar_version")),
         ews_account_id=row.get("ews_account_id"),
     )
+
+
+def _optional_int(value) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def user_profile_to_dict(user: UserProfile) -> dict:
@@ -52,6 +60,7 @@ def user_profile_to_dict(user: UserProfile) -> dict:
         "department": user.department,
         "phone": user.phone,
         "office_location": user.office_location,
+        "avatar_version": user.avatar_version,
     }
 
 
@@ -65,6 +74,42 @@ class UserService:
                 )
                 row = cursor.fetchone()
         return _map_user_row(row) if row else None
+
+    def bump_avatar_version(self, user_id: int) -> UserProfile:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE users
+                    SET avatar_version = COALESCE(avatar_version, 0) + 1
+                    WHERE id = %s
+                    """,
+                    (user_id,),
+                )
+                cursor.execute(
+                    f"SELECT {USER_COLUMNS} FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cursor.fetchone()
+        if not row:
+            raise RuntimeError("User not found")
+        return _map_user_row(row)
+
+    def set_avatar_version(self, user_id: int, version: int | None) -> UserProfile:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET avatar_version = %s WHERE id = %s",
+                    (version, user_id),
+                )
+                cursor.execute(
+                    f"SELECT {USER_COLUMNS} FROM users WHERE id = %s",
+                    (user_id,),
+                )
+                row = cursor.fetchone()
+        if not row:
+            raise RuntimeError("User not found")
+        return _map_user_row(row)
 
     def get_by_email(self, email: str) -> UserProfile | None:
         with get_db() as conn:

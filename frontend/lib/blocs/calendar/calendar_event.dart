@@ -81,6 +81,7 @@ final class CalendarEventCreateRequested extends CalendarBlocEvent {
     required this.end,
     this.location,
     this.body,
+    this.attendees = const [],
   });
 
   final String subject;
@@ -88,9 +89,10 @@ final class CalendarEventCreateRequested extends CalendarBlocEvent {
   final DateTime end;
   final String? location;
   final String? body;
+  final List<CalendarPerson> attendees;
 
   @override
-  List<Object?> get props => [subject, start, end, location, body];
+  List<Object?> get props => [subject, start, end, location, body, attendees];
 }
 
 /// Ответить на приглашение.
@@ -183,7 +185,13 @@ final class _ColleagueCalendarsRefreshRequested extends CalendarBlocEvent {
   final DateTime end;
 
   @override
-  List<Object?> get props => [generation, requestGeneration, emails, start, end];
+  List<Object?> get props => [
+    generation,
+    requestGeneration,
+    emails,
+    start,
+    end,
+  ];
 }
 
 /// Фоновая загрузка одного календаря коллеги.

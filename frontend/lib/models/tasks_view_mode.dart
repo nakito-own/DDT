@@ -22,10 +22,26 @@ enum TasksViewMode {
     TasksViewMode.gantt => RoutePaths.spaceGanttFor(spaceKey),
   };
 
-  /// Определяет активный режим по текущему URL-пути.
-  static TasksViewMode fromRoute(String location) {
+  static TasksViewMode _board = TasksViewMode.list;
+
+  /// Режим доски по адресу. Карточка и создание задачи адреса доски не имеют,
+  /// поэтому остаётся последняя открытая доска, а не список по умолчанию.
+  static TasksViewMode? boardFromRoute(String location) {
     if (location.endsWith('/kanban')) return TasksViewMode.kanban;
     if (location.endsWith('/gantt')) return TasksViewMode.gantt;
-    return TasksViewMode.list;
+    if (location.endsWith('/list') || location.endsWith('/archive')) {
+      return TasksViewMode.list;
+    }
+    return null;
+  }
+
+  /// Активный режим: доска из адреса либо та, с которой открыли задачу.
+  static TasksViewMode fromRoute(String location) {
+    final board = boardFromRoute(location);
+    if (board != null) {
+      _board = board;
+      return board;
+    }
+    return _board;
   }
 }

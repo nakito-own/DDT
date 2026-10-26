@@ -221,8 +221,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     final sessionGeneration = _sessionGeneration;
     final targets = [
       for (final calendar in state.colleagues)
-        if (event.emails.contains(calendar.email) && calendar.enabled)
-          calendar,
+        if (event.emails.contains(calendar.email) && calendar.enabled) calendar,
     ];
     if (targets.isEmpty) return;
 
@@ -313,8 +312,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
               if (calendar.email == event.email)
                 calendar.copyWith(
                   isLoading: false,
-                  error: () =>
-                      error.toString().replaceFirst('Exception: ', ''),
+                  error: () => error.toString().replaceFirst('Exception: ', ''),
                 )
               else
                 calendar,
@@ -485,6 +483,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
         end: event.end,
         location: event.location,
         body: event.body,
+        attendees: event.attendees,
       );
       if (sessionGeneration != _sessionGeneration) return;
       final sorted = [...state.events, created]
@@ -671,9 +670,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     } catch (_) {
       if (sessionGeneration != _sessionGeneration) return;
       if (state.peopleQuery != query) return;
-      emit(
-        state.copyWith(isSearchingPeople: false, peopleResults: const []),
-      );
+      emit(state.copyWith(isSearchingPeople: false, peopleResults: const []));
     }
   }
 
