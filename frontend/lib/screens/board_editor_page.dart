@@ -1,18 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nodeline/nodeline.dart';
 import 'package:nodeline/src/ui/canvas/crossing_counter.dart';
 import 'package:nodeline/src/ui/canvas/paint_profiler.dart';
 
 import '../router/route_paths.dart';
-import '../services/local_boards_store.dart';
+import '../services/boards_store.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/board_toolbar.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_shell_metrics.dart';
 
 class BoardEditorPage extends StatefulWidget {
   const BoardEditorPage({super.key, required this.boardId});
@@ -24,12 +25,13 @@ class BoardEditorPage extends StatefulWidget {
 }
 
 class _BoardEditorPageState extends State<BoardEditorPage> {
-  final _store = LocalBoardsStore.instance;
+  final _store = BoardsStore.instance;
   FlowDrawController? _controller;
   EditorTool _tool = EditorTool.arrow;
   DiagramBoard? _board;
   bool _loading = true;
   bool _missing = false;
+  String? _error;
   bool _skipNext = false;
   Map<String, dynamic>? _pending;
   Timer? _saveTimer;
@@ -63,16 +65,28 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
 
   Future<void> _load() async {
     final generation = ++_generation;
-    await _store.prepare();
-    if (!mounted || generation != _generation) return;
-    final board = _store.find(widget.boardId);
-    setState(() {
-      _board = board;
-      _missing = board == null;
-      _loading = false;
-      _skipNext = board?.project != null;
-      _pending = null;
-    });
+    try {
+      final board = await _store.find(widget.boardId);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _board = board;
+        _missing = board == null;
+        _error = null;
+        _loading = false;
+        _skipNext = board?.project != null;
+        _pending = null;
+      });
+    } catch (error) {
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _board = null;
+        _missing = false;
+        _loading = false;
+        _error = error is BoardsApiException
+            ? error.message
+            : 'Не удалось открыть доску';
+      });
+    }
   }
 
   void _onCanvasState(CanvasState state) {
@@ -90,21 +104,53 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
     final pending = _pending;
     _pending = null;
     if (pending == null) return;
-    unawaited(_store.saveProject(widget.boardId, pending));
+    final boardId = widget.boardId;
+    unawaited(_persist(boardId, pending));
+  }
+
+  Future<void> _persist(String boardId, Map<String, dynamic> project) async {
+    try {
+      await _store.saveProject(boardId, project);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is BoardsApiException
+          ? error.message
+          : 'Не удалось сохранить доску';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  void _close() {
+    _flush();
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(RoutePaths.boards);
   }
 
   @override
   Widget build(BuildContext context) {
+    final top = DdtShellMetrics.maybeOf(context)?.topReserve ?? 0;
+    return Padding(
+      padding: EdgeInsets.only(top: top),
+      child: _buildEditor(context),
+    );
+  }
+
+  Widget _buildEditor(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_missing || _board == null) {
+    if (_error != null || _missing || _board == null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Доска не найдена',
+              _error ?? 'Доска не найдена',
               style: DdtTheme.style(
                 fontSize: DdtTypography.bodyLargeSize,
                 color: DdtTheme.textPrimary(context),
@@ -112,7 +158,7 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
             ),
             SizedBox(height: DdtTheme.shellSizeOf(context, 12)),
             TextButton(
-              onPressed: () => context.go(RoutePaths.boards),
+              onPressed: _close,
               child: const Text('К списку досок'),
             ),
           ],
@@ -139,42 +185,29 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
           child: Stack(
             children: [
               const FlowDrawCanvas(showHud: false),
-              Positioned(
-                top: DdtTheme.shellSizeOf(context, 8),
-                left: DdtTheme.shellSizeOf(context, 8),
-                right: DdtTheme.shellSizeOf(context, 8),
-                height: DdtTheme.shellSizeOf(context, 36),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    _BoardToolbar(
-                      activeTool: _tool,
-                      onTool: (tool) => _controller?.setTool(tool),
-                      onUndo: () => _controller?.undo(),
-                      onRedo: () => _controller?.redo(),
-                      onZoomIn: () => _controller?.zoomIn(),
-                      onZoomOut: () => _controller?.zoomOut(),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _BoardBackButton(
-                            title: board.title,
-                            onPressed: () {
-                              _flush();
-                              context.go(RoutePaths.boards);
-                            },
-                          ),
-                          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-                          const PaintProfilerToggle(anchored: false),
-                          SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-                          const CrossingCounter(anchored: false),
-                        ],
+              Positioned.fill(
+                child: BoardToolbar(
+                  activeTool: _tool,
+                  onTool: (tool) => _controller?.setTool(tool),
+                  onUndo: () => _controller?.undo(),
+                  onRedo: () => _controller?.redo(),
+                  onZoomIn: () => _controller?.zoomIn(),
+                  onZoomOut: () => _controller?.zoomOut(),
+                  onResetZoom: () => _controller?.resetZoom(),
+                  onCenter: () => _controller?.centerView(),
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _BoardBackButton(
+                        title: board.title,
+                        onPressed: _close,
                       ),
-                    ),
-                  ],
+                      SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                      const PaintProfilerToggle(anchored: false),
+                      SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+                      const CrossingCounter(anchored: false),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -230,162 +263,6 @@ class _BoardBackButton extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BoardTool {
-  const _BoardTool(this.tool, this.icon, this.label, {this.turns = 0});
-
-  final EditorTool tool;
-  final FaIconData icon;
-  final String label;
-  final double turns;
-}
-
-class _BoardToolbar extends StatelessWidget {
-  const _BoardToolbar({
-    required this.activeTool,
-    required this.onTool,
-    required this.onUndo,
-    required this.onRedo,
-    required this.onZoomIn,
-    required this.onZoomOut,
-  });
-
-  final EditorTool activeTool;
-  final ValueChanged<EditorTool> onTool;
-  final VoidCallback onUndo;
-  final VoidCallback onRedo;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
-
-  static const _tools = <_BoardTool>[
-    _BoardTool(EditorTool.arrow, FontAwesomeIcons.arrowPointer, 'Выбор'),
-    _BoardTool(EditorTool.square, FontAwesomeIcons.square, 'Прямоугольник'),
-    _BoardTool(EditorTool.circle, FontAwesomeIcons.circle, 'Круг'),
-    _BoardTool(EditorTool.diamond, FontAwesomeIcons.diamond, 'Ромб'),
-    _BoardTool(
-      EditorTool.parallelogram,
-      FontAwesomeIcons.square,
-      'Параллелограмм',
-      turns: 0.12,
-    ),
-    _BoardTool(EditorTool.forkJoin, FontAwesomeIcons.gripLines, 'Развилка'),
-    _BoardTool(EditorTool.arrowTopRight, FontAwesomeIcons.arrowRight, 'Стрелка'),
-    _BoardTool(EditorTool.line, FontAwesomeIcons.slash, 'Линия'),
-    _BoardTool(EditorTool.pencil, FontAwesomeIcons.pencil, 'Карандаш'),
-    _BoardTool(EditorTool.text, FontAwesomeIcons.font, 'Текст'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final gap = DdtTheme.shellSizeOf(context, 2);
-    return DdtTheme.glass(
-      context: context,
-      padding: EdgeInsets.symmetric(
-        horizontal: DdtTheme.shellSizeOf(context, 6),
-        vertical: DdtTheme.shellSizeOf(context, 4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-            for (final tool in _tools) ...[
-              _BoardToolButton(
-                icon: tool.icon,
-                tooltip: tool.label,
-                turns: tool.turns,
-                selected: activeTool == tool.tool,
-                onPressed: () => onTool(tool.tool),
-              ),
-              SizedBox(width: gap),
-            ],
-            _toolbarDivider(context),
-            _BoardToolButton(
-              icon: FontAwesomeIcons.rotateLeft,
-              tooltip: 'Отменить',
-              onPressed: onUndo,
-            ),
-            SizedBox(width: gap),
-            _BoardToolButton(
-              icon: FontAwesomeIcons.rotateRight,
-              tooltip: 'Повторить',
-              onPressed: onRedo,
-            ),
-            _toolbarDivider(context),
-            _BoardToolButton(
-              icon: FontAwesomeIcons.magnifyingGlassMinus,
-              tooltip: 'Уменьшить',
-              onPressed: onZoomOut,
-            ),
-            SizedBox(width: gap),
-            _BoardToolButton(
-              icon: FontAwesomeIcons.magnifyingGlassPlus,
-              tooltip: 'Увеличить',
-              onPressed: onZoomIn,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-Widget _toolbarDivider(BuildContext context) {
-  return Container(
-    width: 1,
-    height: DdtTheme.shellSizeOf(context, 18),
-    margin: EdgeInsets.symmetric(
-      horizontal: DdtTheme.shellSizeOf(context, 6),
-    ),
-    color: DdtTheme.borderSubtle(context),
-  );
-}
-
-class _BoardToolButton extends StatelessWidget {
-  const _BoardToolButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.selected = false,
-    this.turns = 0,
-  });
-
-  final FaIconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool selected;
-  final double turns;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? Colors.white : DdtTheme.textPrimary(context);
-    final size = DdtTheme.shellSizeOf(context, 28);
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: size,
-          height: size,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? DdtTheme.primaryColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(
-              DdtTheme.shellSizeOf(context, 8),
-            ),
-          ),
-          child: Transform.rotate(
-            angle: turns * 6.283185307179586,
-            child: DdtIcon(
-              icon,
-              size: DdtTheme.shellSizeOf(context, 13),
-              color: color,
-            ),
           ),
         ),
       ),

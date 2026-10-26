@@ -1,12 +1,10 @@
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
-import '../blocs/auth/auth_bloc.dart';
 import '../router/route_paths.dart';
-import '../services/local_boards_store.dart';
+import '../services/boards_store.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
@@ -42,6 +40,12 @@ enum _BoardSort {
   final String label;
 }
 
+void _showBoardMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}
+
 class BoardsPage extends StatefulWidget {
   const BoardsPage({super.key});
 
@@ -50,18 +54,29 @@ class BoardsPage extends StatefulWidget {
 }
 
 class _BoardsPageState extends State<BoardsPage> {
-  final _store = LocalBoardsStore.instance;
+  final _store = BoardsStore.instance;
   final _searchController = TextEditingController();
   List<DiagramBoard> _boards = const [];
   bool _loading = true;
+  String? _error;
   String _author = '';
   _BoardDateFilter _date = _BoardDateFilter.any;
   _BoardSort _sort = _BoardSort.createdDesc;
+
+  bool _routeVisible = true;
 
   @override
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = ModalRoute.of(context)?.isCurrent ?? true;
+    if (visible && !_routeVisible) _reload();
+    _routeVisible = visible;
   }
 
   @override
@@ -71,18 +86,23 @@ class _BoardsPageState extends State<BoardsPage> {
   }
 
   Future<void> _reload() async {
-    await _store.prepare();
-    if (!mounted) return;
-    setState(() {
-      _boards = _store.list();
-      _loading = false;
-    });
-  }
-
-  String get _currentAuthor {
-    final auth = context.read<AuthBloc>().state;
-    if (auth is AuthAuthenticated) return auth.user.label;
-    return '';
+    try {
+      final boards = await _store.list();
+      if (!mounted) return;
+      setState(() {
+        _boards = boards;
+        _loading = false;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error is BoardsApiException
+            ? error.message
+            : 'Не удалось загрузить доски';
+      });
+    }
   }
 
   Future<void> _create() async {
@@ -92,9 +112,16 @@ class _BoardsPageState extends State<BoardsPage> {
       confirmLabel: 'Создать',
     );
     if (title == null || !mounted) return;
-    final board = await _store.create(title: title, author: _currentAuthor);
+    final DiagramBoard board;
+    try {
+      board = await _store.create(title: title);
+    } on BoardsApiException catch (error) {
+      if (!mounted) return;
+      _showBoardMessage(context, error.message);
+      return;
+    }
     if (!mounted) return;
-    context.go(RoutePaths.boardFor(board.id));
+    context.push(RoutePaths.boardFor(board.id));
   }
 
   Future<void> _rename(DiagramBoard board) async {
@@ -105,7 +132,13 @@ class _BoardsPageState extends State<BoardsPage> {
       initial: board.title,
     );
     if (title == null) return;
-    await _store.rename(board.id, title);
+    try {
+      await _store.rename(board.id, title);
+    } on BoardsApiException catch (error) {
+      if (!mounted) return;
+      _showBoardMessage(context, error.message);
+      return;
+    }
     await _reload();
   }
 
@@ -123,7 +156,7 @@ class _BoardsPageState extends State<BoardsPage> {
           ),
         ),
         content: Text(
-          '«${board.title}» будет удалена с этого устройства.',
+          '«${board.title}» исчезнет из общего списка.',
           style: DdtTheme.style(
             fontSize: DdtTypography.bodySize,
             color: DdtTheme.textSecondary(context),
@@ -145,7 +178,13 @@ class _BoardsPageState extends State<BoardsPage> {
       ),
     );
     if (confirmed != true) return;
-    await _store.delete(board.id);
+    try {
+      await _store.delete(board.id);
+    } on BoardsApiException catch (error) {
+      if (!mounted) return;
+      _showBoardMessage(context, error.message);
+      return;
+    }
     await _reload();
   }
 
@@ -213,9 +252,10 @@ class _BoardsPageState extends State<BoardsPage> {
               child: Padding(
                 padding: DdtShellMetrics.fixedTopPadding(context),
                 child: Text(
-                  _boards.isEmpty
-                      ? 'Пока нет досок'
-                      : 'Нет досок по выбранным фильтрам',
+                  _error ??
+                      (_boards.isEmpty
+                          ? 'Пока нет досок'
+                          : 'Нет досок по выбранным фильтрам'),
                   style: DdtTheme.style(fontSize: DdtTypography.bodySize),
                 ),
               ),
@@ -230,7 +270,7 @@ class _BoardsPageState extends State<BoardsPage> {
                   final board = boards[index];
                   return _BoardCard(
                     board: board,
-                    onOpen: () => context.go(RoutePaths.boardFor(board.id)),
+                    onOpen: () => context.push(RoutePaths.boardFor(board.id)),
                     onRename: () => _rename(board),
                     onDelete: () => _delete(board),
                   );
