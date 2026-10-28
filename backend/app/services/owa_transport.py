@@ -49,6 +49,9 @@ _ALLOWED_ACTIONS = frozenset(
 
 _AUTH_FAILURE_STATUSES = {401, 440}
 
+# Stay under the default IIS header budget once cookies and the canary are added.
+_HEADER_PAYLOAD_LIMIT = 6_000
+
 
 class OwaTransportError(Exception):
     pass
@@ -170,9 +173,15 @@ class OwaTransport:
             "Action": action,
             "X-OWA-ActionName": action,
             "X-Requested-With": "XMLHttpRequest",
-            # Official OWA sends the JSON in this header and an empty body.
-            "X-OWA-UrlPostData": quote(payload.decode("utf-8"), safe=""),
         }
+        # Small calls match the OWA client: JSON in a header, empty body.
+        # Attachments and other large payloads do not fit there. IIS rejects
+        # the header, so those go in the POST body instead.
+        if action == "CreateAttachment" or len(payload) > _HEADER_PAYLOAD_LIMIT:
+            data = payload
+        else:
+            headers["X-OWA-UrlPostData"] = quote(payload.decode("utf-8"), safe="")
+            data = b""
         if session.canary:
             headers["X-OWA-CANARY"] = session.canary
         timeout = (
@@ -180,11 +189,10 @@ class OwaTransport:
             settings.ews_read_timeout_seconds,
         )
         try:
-            # The OWA client puts the JSON in X-OWA-UrlPostData and leaves the body empty.
             return session.http.post(
                 f"https://{settings.ews_server}/owa/service.svc",
                 params={"action": action},
-                data=b"",
+                data=data,
                 headers=headers,
                 timeout=timeout,
             )

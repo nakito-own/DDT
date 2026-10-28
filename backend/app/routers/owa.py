@@ -8,7 +8,8 @@ from app.services.session_service import SessionContext
 
 router = APIRouter()
 
-_MAX_BODY_BYTES = 2_000_000
+# A 25 MB file is about 34 MB once base64-encoded inside the OWA JSON.
+_MAX_BODY_BYTES = 40 * 1024 * 1024
 
 
 @router.post("/service")
