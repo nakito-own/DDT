@@ -4,13 +4,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/analytics_dashboard.dart';
 import '../../models/analytics_filters.dart';
 import '../../services/analytics_api.dart';
+import '../../services/task_analytics_api.dart';
 
 part 'analytics_event.dart';
 part 'analytics_state.dart';
 
 class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
-  AnalyticsBloc({AnalyticsApi? api})
+  AnalyticsBloc({AnalyticsApi? api, TaskAnalyticsApi? taskApi})
     : _api = api ?? analyticsApi,
+      _taskApi = taskApi ?? taskAnalyticsApi,
       super(const AnalyticsState()) {
     on<AnalyticsLoadRequested>(_onLoadRequested);
     on<AnalyticsRefreshRequested>(_onRefreshRequested);
@@ -21,11 +23,13 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     on<AnalyticsFiltersCleared>(_onFiltersCleared);
     on<AnalyticsTableMoreRequested>(_onTableMoreRequested);
     on<AnalyticsSessionCleared>(_onSessionCleared);
+    on<AnalyticsDashboardSourceChanged>(_onDashboardSourceChanged);
   }
 
   static const tablePageSize = 200;
 
   final AnalyticsApi _api;
+  final TaskAnalyticsApi _taskApi;
   int _requestId = 0;
 
   Future<void> _onLoadRequested(
@@ -129,9 +133,7 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   }) async {
     final requestId = ++_requestId;
     try {
-      final dashboard = await _api.query(
-        filters: state.filters,
-        tableLimit: state.tableLimit,
+      final dashboard = await _fetchDashboard(
         refresh: refresh,
         allowStale: allowStale,
       );
@@ -163,5 +165,42 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   ) {
     _requestId++;
     emit(const AnalyticsState());
+  }
+
+  Future<void> _onDashboardSourceChanged(
+    AnalyticsDashboardSourceChanged event,
+    Emitter<AnalyticsState> emit,
+  ) async {
+    if (event.kind == state.dashboardKind && event.spaceId == state.spaceId) {
+      return;
+    }
+    emit(
+      AnalyticsState(
+        dashboardKind: event.kind,
+        spaceId: event.spaceId,
+        isLoading: true,
+      ),
+    );
+    await _query(emit);
+  }
+
+  Future<AnalyticsDashboard> _fetchDashboard({
+    required bool refresh,
+    required bool allowStale,
+  }) {
+    if (state.dashboardKind.isTaskDashboard) {
+      return _taskApi.query(
+        scope: state.dashboardKind,
+        spaceId: state.spaceId,
+        filters: state.filters,
+        tableLimit: state.tableLimit,
+      );
+    }
+    return _api.query(
+      filters: state.filters,
+      tableLimit: state.tableLimit,
+      refresh: refresh,
+      allowStale: allowStale,
+    );
   }
 }

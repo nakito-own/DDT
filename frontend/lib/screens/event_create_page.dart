@@ -7,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import '../blocs/calendar/calendar_bloc.dart';
+import '../models/calendar_event.dart';
 import '../models/colleague_calendar.dart';
 import '../router/route_paths.dart';
 import '../services/ews_api.dart';
@@ -26,12 +27,67 @@ import '../widgets/ddt_user_chip.dart';
 import '../widgets/event_schedule_assistant.dart';
 
 /// Полноэкранное создание события вместо боковой панели.
-void openEventCreatePage(BuildContext context) {
-  context.push(RoutePaths.calendarNew);
+void openEventCreatePage(BuildContext context, {EventCreateDraft? draft}) {
+  context.push(RoutePaths.calendarNew, extra: draft);
+}
+
+class EventCreateDraft {
+  const EventCreateDraft({
+    required this.subject,
+    required this.start,
+    required this.end,
+    this.location = '',
+    this.body = '',
+    this.attendees = const [],
+  });
+
+  final String subject;
+  final DateTime start;
+  final DateTime end;
+  final String location;
+  final String body;
+  final List<CalendarPerson> attendees;
+
+  factory EventCreateDraft.fromEvent(
+    CalendarEvent event, {
+    String? ownerEmail,
+  }) {
+    final now = DateTime.now();
+    final start =
+        event.start?.toLocal() ??
+        DateTime(now.year, now.month, now.day, now.hour + 1);
+    var end = event.end?.toLocal() ?? start.add(const Duration(hours: 1));
+    if (!end.isAfter(start)) {
+      end = start.add(const Duration(hours: 1));
+    }
+    final owner = ownerEmail?.trim().toLowerCase();
+    final seen = <String>{};
+    final people = <CalendarPerson>[];
+    for (final attendee in event.attendees) {
+      final email = attendee.email?.trim().toLowerCase() ?? '';
+      if (email.isEmpty || email == owner || seen.contains(email)) continue;
+      if (attendee.responseType == 'Organizer') continue;
+      seen.add(email);
+      final name = attendee.name.trim();
+      people.add(
+        CalendarPerson(email: email, displayName: name.isEmpty ? email : name),
+      );
+    }
+    return EventCreateDraft(
+      subject: event.subject,
+      start: start,
+      end: end,
+      location: event.location?.trim() ?? '',
+      body: event.plainBody,
+      attendees: people,
+    );
+  }
 }
 
 class EventCreatePage extends StatefulWidget {
-  const EventCreatePage({super.key});
+  const EventCreatePage({super.key, this.draft});
+
+  final EventCreateDraft? draft;
 
   @override
   State<EventCreatePage> createState() => _EventCreatePageState();
@@ -55,6 +111,16 @@ class _EventCreatePageState extends State<EventCreatePage> {
   @override
   void initState() {
     super.initState();
+    final draft = widget.draft;
+    if (draft != null) {
+      _subjectController.text = draft.subject;
+      _bodyController.text = draft.body;
+      _locationController.text = draft.location;
+      _start = draft.start;
+      _end = draft.end;
+      _participants.addAll(draft.attendees);
+      return;
+    }
     final now = DateTime.now();
     _start = DateTime(now.year, now.month, now.day, now.hour + 1);
     _end = _start.add(const Duration(hours: 1));
@@ -296,10 +362,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
                       width: formWidth,
                       child: _EventScroll(child: form),
                     ),
-                    Container(
-                      width: 1,
-                      color: DdtTheme.borderSubtle(context),
-                    ),
+                    Container(width: 1, color: DdtTheme.borderSubtle(context)),
                     SizedBox(width: 20.w),
                     Expanded(child: assistant),
                   ],
@@ -589,7 +652,10 @@ class _ParticipantChip extends StatelessWidget {
       builder: (context, constraints) {
         final closeSlot = 22.w;
         final chipMax = constraints.maxWidth.isFinite
-            ? (constraints.maxWidth - closeSlot).clamp(0.0, constraints.maxWidth)
+            ? (constraints.maxWidth - closeSlot).clamp(
+                0.0,
+                constraints.maxWidth,
+              )
             : double.infinity;
         return Row(
           mainAxisSize: MainAxisSize.min,

@@ -10,7 +10,7 @@ import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_icons.dart';
 import '../widgets/calendar_event_card.dart';
-import '../widgets/calendar_event_side_panel.dart';
+import '../widgets/calendar_event_tooltip.dart';
 import '../widgets/calendar_sidebar.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
@@ -114,6 +114,7 @@ class _CalendarPageState extends State<CalendarPage> {
       event.isColleague,
       event.myResponseType ?? '',
       event.needsResponse,
+      event.isRecurring,
       event.isPrivate,
       event.isLimited,
       event.busyStatus ?? '',
@@ -176,8 +177,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 final Widget content;
                 if (state.isLoading && state.events.isEmpty) {
                   content = const Center(child: CircularProgressIndicator());
-                } else if (state.errorMessage != null &&
-                    state.events.isEmpty) {
+                } else if (state.errorMessage != null && state.events.isEmpty) {
                   content = _ErrorState(
                     message: state.errorMessage!,
                     onRetry: () => context.read<CalendarBloc>().add(
@@ -186,30 +186,30 @@ class _CalendarPageState extends State<CalendarPage> {
                   );
                 } else {
                   content = BlocBuilder<CalendarBloc, CalendarState>(
-                  buildWhen: (previous, current) =>
-                      previous.isRefreshing != current.isRefreshing,
-                  builder: (context, state) {
-                    return DdtSectionRefreshOverlay(
-                      isRefreshing: state.isRefreshing,
-                      child: BlocBuilder<CalendarBloc, CalendarState>(
-                        buildWhen: (previous, current) =>
-                            _calendarShellChanged(previous, current),
-                        builder: (context, state) {
-                          return _CalendarBody(
-                            state: state,
-                            eventsController: _eventsController,
-                            plannerInitialDate: _plannerInitialDate,
-                            plannerVerticalScrollOffset:
-                                _plannerVerticalScrollOffset,
-                            onPlannerVerticalScrollOffset: (offset) {
-                              _plannerVerticalScrollOffset = offset;
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
+                    buildWhen: (previous, current) =>
+                        previous.isRefreshing != current.isRefreshing,
+                    builder: (context, state) {
+                      return DdtSectionRefreshOverlay(
+                        isRefreshing: state.isRefreshing,
+                        child: BlocBuilder<CalendarBloc, CalendarState>(
+                          buildWhen: (previous, current) =>
+                              _calendarShellChanged(previous, current),
+                          builder: (context, state) {
+                            return _CalendarBody(
+                              state: state,
+                              eventsController: _eventsController,
+                              plannerInitialDate: _plannerInitialDate,
+                              plannerVerticalScrollOffset:
+                                  _plannerVerticalScrollOffset,
+                              onPlannerVerticalScrollOffset: (offset) {
+                                _plannerVerticalScrollOffset = offset;
+                              },
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
                 }
 
                 return Padding(
@@ -416,11 +416,13 @@ class _CalendarBody extends StatelessWidget {
     return SizedBox(
       height: slotHeight,
       width: slotWidth,
-      child: CalendarEventCard(
-        event: calendarEvent,
-        maxHeight: slotHeight,
-        maxWidth: slotWidth,
-        onTap: () => showCalendarEventSidePanel(context, calendarEvent),
+      child: Builder(
+        builder: (cardContext) => CalendarEventCard(
+          event: calendarEvent,
+          maxHeight: slotHeight,
+          maxWidth: slotWidth,
+          onTap: () => showCalendarEventTooltip(cardContext, calendarEvent),
+        ),
       ),
     );
   }
@@ -441,11 +443,13 @@ class _CalendarBody extends StatelessWidget {
     return SizedBox(
       height: eventHeight,
       width: eventWidth,
-      child: CalendarEventCard(
-        event: calendarEvent,
-        maxHeight: eventHeight,
-        maxWidth: eventWidth ?? double.infinity,
-        onTap: () => showCalendarEventSidePanel(context, calendarEvent),
+      child: Builder(
+        builder: (cardContext) => CalendarEventCard(
+          event: calendarEvent,
+          maxHeight: eventHeight,
+          maxWidth: eventWidth ?? double.infinity,
+          onTap: () => showCalendarEventTooltip(cardContext, calendarEvent),
+        ),
       ),
     );
   }
@@ -464,11 +468,13 @@ class _CalendarBody extends StatelessWidget {
     return SizedBox(
       height: height,
       width: width,
-      child: CalendarEventCard(
-        event: calendarEvent,
-        maxHeight: height,
-        maxWidth: width,
-        onTap: () => showCalendarEventSidePanel(context, calendarEvent),
+      child: Builder(
+        builder: (cardContext) => CalendarEventCard(
+          event: calendarEvent,
+          maxHeight: height,
+          maxWidth: width,
+          onTap: () => showCalendarEventTooltip(cardContext, calendarEvent),
+        ),
       ),
     );
   }
@@ -701,8 +707,9 @@ class _PlannerCalendarState extends State<_PlannerCalendar> {
               showCurrentHour: true,
               hourColor: DdtTheme.textSecondary(context),
               halfHourColor: DdtTheme.textMuted(context).withValues(alpha: 0.6),
-              quarterHourColor:
-                  DdtTheme.textMuted(context).withValues(alpha: 0.3),
+              quarterHourColor: DdtTheme.textMuted(
+                context,
+              ).withValues(alpha: 0.3),
               currentHourIndicatorColor: DdtTheme.dangerColor,
             ),
           ),

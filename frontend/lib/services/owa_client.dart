@@ -405,31 +405,88 @@ class OwaClient {
     required String subject,
     required String body,
     List<String> cc = const [],
-  }) {
-    return _call('CreateItem', {
+    String bodyType = 'HTML',
+    List<MailOutgoingAttachment> attachments = const [],
+  }) async {
+    final message = <String, dynamic>{
+      '__type': 'Message:#Exchange',
+      'Subject': subject,
+      'Body': {
+        '__type': 'BodyContentType:#Exchange',
+        'BodyType': bodyType == 'HTML' ? 'HTML' : 'Text',
+        'Value': body,
+      },
+      'ToRecipients': [for (final address in to) _emailAddress(address)],
+      if (cc.isNotEmpty)
+        'CcRecipients': [for (final address in cc) _emailAddress(address)],
+    };
+
+    if (attachments.isEmpty) {
+      await _call('CreateItem', {
+        '__type': 'CreateItemJsonRequest:#Exchange',
+        'Header': owaHeader(),
+        'Body': {
+          '__type': 'CreateItemRequest:#Exchange',
+          'MessageDisposition': 'SendAndSaveCopy',
+          'Items': [message],
+        },
+      });
+      return;
+    }
+
+    final created = await _call('CreateItem', {
       '__type': 'CreateItemJsonRequest:#Exchange',
       'Header': owaHeader(),
       'Body': {
         '__type': 'CreateItemRequest:#Exchange',
-        'MessageDisposition': 'SendAndSaveCopy',
-        'Items': [
-          {
-            '__type': 'Message:#Exchange',
-            'Subject': subject,
-            'Body': {
-              '__type': 'BodyContentType:#Exchange',
-              'BodyType': 'Text',
-              'Value': body,
+        'MessageDisposition': 'SaveOnly',
+        'SavedItemFolderId': {
+          '__type': 'TargetFolderId:#Exchange',
+          'BaseFolderId': _distinguishedFolder('drafts'),
+        },
+        'Items': [message],
+      },
+    });
+    var identity = createdMailIdentity(created);
+    for (final file in attachments) {
+      final attached = await _call('CreateAttachment', {
+        '__type': 'CreateAttachmentJsonRequest:#Exchange',
+        'Header': owaHeader(),
+        'Body': {
+          '__type': 'CreateAttachmentRequest:#Exchange',
+          'ParentItemId': {
+            '__type': 'ItemId:#Exchange',
+            'Id': identity.id,
+            if (identity.changeKey != null) 'ChangeKey': identity.changeKey,
+          },
+          'Attachments': [
+            {
+              '__type': 'FileAttachment:#Exchange',
+              'Name': file.name,
+              'ContentType': file.contentType,
+              'Size': file.bytes.length,
+              'Content': base64Encode(file.bytes),
             },
-            'ToRecipients': [for (final address in to) _emailAddress(address)],
-            if (cc.isNotEmpty)
-              'CcRecipients': [
-                for (final address in cc) _emailAddress(address),
-              ],
+          ],
+        },
+      });
+      identity = createdMailIdentity(attached);
+    }
+    await _call('SendItem', {
+      '__type': 'SendItemJsonRequest:#Exchange',
+      'Header': owaHeader(),
+      'Body': {
+        '__type': 'SendItemRequest:#Exchange',
+        'SaveItemToFolder': true,
+        'ItemIds': [
+          {
+            '__type': 'ItemId:#Exchange',
+            'Id': identity.id,
+            if (identity.changeKey != null) 'ChangeKey': identity.changeKey,
           },
         ],
       },
-    }).then((_) {});
+    });
   }
 
   Future<List<int>> fetchAttachmentBytes(String attachmentId) async {
@@ -528,12 +585,14 @@ class OwaClient {
       end: detailed.end ?? event.end,
       location: detailed.location ?? event.location,
       organizer: detailed.organizer ?? event.organizer,
+      organizerEmail: detailed.organizerEmail ?? event.organizerEmail,
       myResponseType: detailed.myResponseType ?? event.myResponseType,
       isMeeting: detailed.isMeeting || event.isMeeting,
       body: detailed.body,
       bodyType: detailed.bodyType,
       attendees: detailed.attendees,
       detailLoaded: true,
+      isRecurring: event.isRecurring || detailed.isRecurring,
     );
   }
 
@@ -1096,6 +1155,35 @@ String? itemIdOf(Map<String, dynamic> item) {
   return asMap(item['ItemId'])?['Id'] as String?;
 }
 
+class MailItemIdentity {
+  const MailItemIdentity({required this.id, this.changeKey});
+
+  final String id;
+  final String? changeKey;
+}
+
+/// Id returned by CreateItem, or the parent id after CreateAttachment.
+MailItemIdentity createdMailIdentity(Map<String, dynamic> json) {
+  final item = firstItem(json);
+  if (item == null) {
+    throw Exception('Сервер не вернул созданное письмо');
+  }
+  final attachmentId = asMap(item['AttachmentId']);
+  final rootId = attachmentId?['RootItemId'] as String?;
+  if (rootId != null && rootId.isNotEmpty) {
+    return MailItemIdentity(
+      id: rootId,
+      changeKey: attachmentId?['RootItemChangeKey'] as String?,
+    );
+  }
+  final itemId = asMap(item['ItemId']);
+  final id = itemId?['Id'] as String? ?? '';
+  if (id.isEmpty) {
+    throw Exception('Сервер не вернул созданное письмо');
+  }
+  return MailItemIdentity(id: id, changeKey: itemId?['ChangeKey'] as String?);
+}
+
 DateTime? parseOwaDate(dynamic value) {
   if (value is! String || value.isEmpty) return null;
   return DateTime.tryParse(value);
@@ -1187,6 +1275,7 @@ MailMessage mailMessageFromOwaItem(
         : parentId ?? '',
     subject: item['Subject'] as String? ?? '(без темы)',
     sender: personNameOf(item['From']) ?? personNameOf(item['Sender']),
+    senderEmail: personEmailOf(item['From']) ?? personEmailOf(item['Sender']),
     datetimeReceived: parseOwaDate(item['DateTimeReceived']),
     isRead: item['IsRead'] == true,
     preview: item['Preview'] as String? ?? '',
@@ -1341,6 +1430,7 @@ CalendarEvent calendarEventFromOwaItem(
     end: parseOwaDate(item['End']),
     location: locationOf(item['Location']),
     organizer: personNameOf(item['Organizer']),
+    organizerEmail: personEmailOf(item['Organizer']),
     myResponseType: response,
     isMeeting: item['IsMeeting'] == true,
     isResponseRequested: includeResponse
@@ -1357,6 +1447,7 @@ CalendarEvent calendarEventFromOwaItem(
     attendees: attendeesFromOwaItem(item),
     detailLoaded:
         _bodyValue(item) != null || attendeesFromOwaItem(item).isNotEmpty,
+    isRecurring: _isRecurringItem(item),
   );
 }
 
@@ -1848,6 +1939,14 @@ Map<String, dynamic> _calendarItemBody(String eventId) {
             '__type': 'PropertyUri:#Exchange',
             'FieldURI': 'calendar:IsOrganizer',
           },
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:CalendarItemType',
+          },
+          {
+            '__type': 'PropertyUri:#Exchange',
+            'FieldURI': 'calendar:IsRecurring',
+          },
         ],
       },
       'ItemIds': [
@@ -1873,7 +1972,33 @@ Map<String, dynamic> _calendarViewBody(
       },
       'RangeStart': owaTimestamp(start),
       'RangeEnd': owaTimestamp(end),
+      'ItemShape': _calendarViewShape(),
     },
+  };
+}
+
+Map<String, dynamic> _calendarViewShape() {
+  return {
+    '__type': 'ItemResponseShape:#Exchange',
+    'BaseShape': 'IdOnly',
+    'AdditionalProperties': [
+      for (final field in [
+        'item:Subject',
+        'item:Sensitivity',
+        'calendar:Start',
+        'calendar:End',
+        'calendar:Location',
+        'calendar:Organizer',
+        'calendar:IsOrganizer',
+        'calendar:IsMeeting',
+        'calendar:MyResponseType',
+        'calendar:IsResponseRequested',
+        'calendar:LegacyFreeBusyStatus',
+        'calendar:CalendarItemType',
+        'calendar:IsRecurring',
+      ])
+        {'__type': 'PropertyUri:#Exchange', 'FieldURI': field},
+    ],
   };
 }
 
@@ -1921,6 +2046,18 @@ String? _responseType(Map<String, dynamic> item) {
   final value = item['ResponseType'] ?? item['MyResponseType'];
   if (value == null || value == 'None') return null;
   return value.toString();
+}
+
+bool _isRecurringItem(Map<String, dynamic> item) {
+  if (item['IsRecurring'] == true) return true;
+  final type = item['CalendarItemType']?.toString().toLowerCase();
+  if (type == 'occurrence' ||
+      type == 'exception' ||
+      type == 'recurringmaster') {
+    return true;
+  }
+  final recurrence = item['Recurrence'];
+  return recurrence is Map && recurrence.isNotEmpty;
 }
 
 bool _needsResponse(Map<String, dynamic> item) {

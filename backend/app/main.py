@@ -13,9 +13,11 @@ from app.routers import (
     ews_auth,
     ews_notifications,
     health,
+    notes,
     owa,
     spaces,
     static_assets,
+    task_analytics,
     task_types,
     tasks,
     users,
@@ -80,4 +82,10 @@ app.include_router(
     tags=["ews-notifications"],
 )
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(
+    task_analytics.router,
+    prefix="/api/task-analytics",
+    tags=["task-analytics"],
+)
 app.include_router(boards.router, prefix="/api/boards", tags=["boards"])
+app.include_router(notes.router, prefix="/api/notes", tags=["notes"])

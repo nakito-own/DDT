@@ -16,6 +16,7 @@ import '../widgets/analytics_charts.dart';
 import '../widgets/analytics_filters_panel.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/analytics_tables.dart';
+import '../widgets/task_analytics_dashboard.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../widgets/ddt_shell_metrics.dart';
@@ -40,9 +41,18 @@ enum AnalyticsSection {
     }
     return overview;
   }
+
+  static List<AnalyticsSection> forDashboard(AnalyticsDashboardKind kind) {
+    if (kind.isTaskDashboard) {
+      return [overview, table];
+    }
+    return values;
+  }
 }
 
 const _sectionStorageKey = 'analytics_section';
+const _dashboardKindStorageKey = 'analytics_dashboard_kind';
+const _dashboardSpaceIdStorageKey = 'analytics_space_id';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
@@ -58,13 +68,47 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   @override
   void initState() {
     super.initState();
-    _section = AnalyticsSection.fromName(
-      _storage.read<String>(_sectionStorageKey),
-    );
     final bloc = context.read<AnalyticsBloc>();
-    if (bloc.state.dashboard == null && !bloc.state.isLoading) {
+    final storedKind = _storage.read<String>(_dashboardKindStorageKey);
+    final kind = _dashboardKindFromStorage(storedKind);
+    _section = _resolveSection(
+      AnalyticsSection.fromName(_storage.read<String>(_sectionStorageKey)),
+      kind,
+    );
+    final storedSpaceId = _storage.read<int>(_dashboardSpaceIdStorageKey);
+    if (kind != AnalyticsDashboardKind.stp ||
+        storedKind != null ||
+        storedSpaceId != null) {
+      bloc.add(
+        AnalyticsDashboardSourceChanged(
+          kind: kind,
+          spaceId: kind == AnalyticsDashboardKind.tasksSpace
+              ? storedSpaceId
+              : null,
+        ),
+      );
+    } else if (bloc.state.dashboard == null && !bloc.state.isLoading) {
       bloc.add(const AnalyticsLoadRequested());
     }
+  }
+
+  AnalyticsDashboardKind _dashboardKindFromStorage(String? value) {
+    switch (value) {
+      case 'personal':
+        return AnalyticsDashboardKind.tasksPersonal;
+      case 'space':
+        return AnalyticsDashboardKind.tasksSpace;
+      default:
+        return AnalyticsDashboardKind.stp;
+    }
+  }
+
+  AnalyticsSection _resolveSection(
+    AnalyticsSection section,
+    AnalyticsDashboardKind kind,
+  ) {
+    final allowed = AnalyticsSection.forDashboard(kind);
+    return allowed.contains(section) ? section : AnalyticsSection.overview;
   }
 
   void _selectSection(AnalyticsSection section) {
@@ -76,7 +120,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<AnalyticsBloc>();
-    return BlocBuilder<AnalyticsBloc, AnalyticsState>(
+    return BlocListener<AnalyticsBloc, AnalyticsState>(
+      listenWhen: (previous, current) =>
+          previous.dashboardKind != current.dashboardKind,
+      listener: (context, state) {
+        final resolved = _resolveSection(_section, state.dashboardKind);
+        if (resolved != _section) {
+          _selectSection(resolved);
+        }
+      },
+      child: BlocBuilder<AnalyticsBloc, AnalyticsState>(
       builder: (context, state) {
         if (state.isLoading && state.dashboard == null) {
           return const Center(child: CircularProgressIndicator());
@@ -109,6 +162,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
         return _AnalyticsDashboardView(
           dashboard: dashboard,
+          dashboardKind: state.dashboardKind,
           filters: state.filters,
           section: _section,
           isRefreshing: state.isRefreshing,
@@ -126,6 +180,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           onTableMore: () => bloc.add(const AnalyticsTableMoreRequested()),
         );
       },
+    ),
     );
   }
 }
@@ -133,6 +188,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 class _AnalyticsDashboardView extends StatefulWidget {
   const _AnalyticsDashboardView({
     required this.dashboard,
+    required this.dashboardKind,
     required this.filters,
     required this.section,
     required this.isRefreshing,
@@ -147,6 +203,7 @@ class _AnalyticsDashboardView extends StatefulWidget {
   });
 
   final AnalyticsDashboard dashboard;
+  final AnalyticsDashboardKind dashboardKind;
   final AnalyticsFilters filters;
   final AnalyticsSection section;
   final bool isRefreshing;
@@ -179,24 +236,45 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
         final chartHeight = wide ? 340.h : 300.h;
         final tallChartHeight = wide ? 400.h : 340.h;
 
+        final isTaskDashboard = widget.dashboardKind.isTaskDashboard;
         final sectionSlivers = switch (widget.section) {
           AnalyticsSection.overview => [
-            SliverToBoxAdapter(child: _StpKpiGrid(kpi: dashboard.kpi)),
+            SliverToBoxAdapter(
+              child: isTaskDashboard
+                  ? TaskAnalyticsKpiGrid(kpi: dashboard.kpi)
+                  : _StpKpiGrid(kpi: dashboard.kpi),
+            ),
             SliverPadding(
               padding: EdgeInsets.only(top: 12.h),
               sliver: SliverToBoxAdapter(
-                child: _AnalyticsChartGrid(
-                  wide: wide,
-                  chartHeight: chartHeight,
-                  tallChartHeight: tallChartHeight,
-                  charts: dashboard.charts,
-                  trendIsLine: _trendIsLine,
-                  trendGroupBy: _trendGroupBy,
-                  onTrendTypeChanged: (isLine) =>
-                      setState(() => _trendIsLine = isLine),
-                  onTrendGroupChanged: (groupBy) =>
-                      setState(() => _trendGroupBy = groupBy),
-                ),
+                child: isTaskDashboard
+                    ? TaskAnalyticsChartGrid(
+                        wide: wide,
+                        chartHeight: chartHeight,
+                        tallChartHeight: tallChartHeight,
+                        charts: dashboard.charts,
+                        trendIsLine: _trendIsLine,
+                        trendGroupBy: _trendGroupBy,
+                        showSpaceCharts:
+                            widget.dashboardKind ==
+                            AnalyticsDashboardKind.tasksSpace,
+                        onTrendTypeChanged: (isLine) =>
+                            setState(() => _trendIsLine = isLine),
+                        onTrendGroupChanged: (groupBy) =>
+                            setState(() => _trendGroupBy = groupBy),
+                      )
+                    : _AnalyticsChartGrid(
+                        wide: wide,
+                        chartHeight: chartHeight,
+                        tallChartHeight: tallChartHeight,
+                        charts: dashboard.charts,
+                        trendIsLine: _trendIsLine,
+                        trendGroupBy: _trendGroupBy,
+                        onTrendTypeChanged: (isLine) =>
+                            setState(() => _trendIsLine = isLine),
+                        onTrendGroupChanged: (groupBy) =>
+                            setState(() => _trendGroupBy = groupBy),
+                      ),
               ),
             ),
           ],
@@ -208,6 +286,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
               child: _RequestsSection(
                 records: dashboard.records,
                 onMore: widget.onTableMore,
+                title: isTaskDashboard ? 'Таблица задач' : 'Таблица заявок',
               ),
             ),
           ],
@@ -226,6 +305,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
               sliver: SliverToBoxAdapter(
                 child: _DashboardHeader(
                   dashboard: dashboard,
+                  dashboardKind: widget.dashboardKind,
                   filtered:
                       widget.filters.hasPeriod ||
                       widget.filters.hasColumnFilters,
@@ -305,6 +385,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
 class _DashboardHeader extends StatelessWidget {
   const _DashboardHeader({
     required this.dashboard,
+    required this.dashboardKind,
     required this.filtered,
     required this.section,
     required this.isRefreshing,
@@ -314,6 +395,7 @@ class _DashboardHeader extends StatelessWidget {
   });
 
   final AnalyticsDashboard dashboard;
+  final AnalyticsDashboardKind dashboardKind;
   final bool filtered;
   final AnalyticsSection section;
   final bool isRefreshing;
@@ -326,9 +408,10 @@ class _DashboardHeader extends StatelessWidget {
     final fetched = DateFormat(
       'dd.MM.yyyy HH:mm',
     ).format(dashboard.fetchedAt.toLocal());
+    final entity = dashboardKind.isTaskDashboard ? 'задач' : 'заявок';
     final count = filtered
-        ? 'показано ${dashboard.filteredCount} из ${dashboard.totalCount} заявок'
-        : '${dashboard.totalCount} заявок';
+        ? 'показано ${dashboard.filteredCount} из ${dashboard.totalCount} $entity'
+        : '${dashboard.totalCount} $entity';
     final error = errorMessage;
 
     final controls = Row(
@@ -336,7 +419,7 @@ class _DashboardHeader extends StatelessWidget {
       children: [
         DdtSegmentedControl<AnalyticsSection>(
           segments: [
-            for (final item in AnalyticsSection.values)
+            for (final item in AnalyticsSection.forDashboard(dashboardKind))
               DdtSegmentedControlSegment(value: item, label: item.label),
           ],
           selected: section,
@@ -368,7 +451,9 @@ class _DashboardHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'КРР МР — Аналитика СТП',
+          dashboardKind.isTaskDashboard
+              ? dashboard.sheetName
+              : 'КРР МР — Аналитика СТП',
           style: DdtTheme.style(
             fontSize: DdtTypography.panelTitleSize,
             fontWeight: FontWeight.w800,
@@ -377,7 +462,9 @@ class _DashboardHeader extends StatelessWidget {
         ),
         SizedBox(height: 4.h),
         Text(
-          'Лист «${dashboard.sheetName}» · $count · обновлено $fetched',
+          dashboardKind.isTaskDashboard
+              ? '$count · обновлено $fetched'
+              : 'Лист «${dashboard.sheetName}» · $count · обновлено $fetched',
           style: DdtTheme.style(
             fontSize: DdtTypography.captionSize,
             color: DdtTheme.textMuted(context),
@@ -792,16 +879,21 @@ class _SummarySection extends StatelessWidget {
 }
 
 class _RequestsSection extends StatelessWidget {
-  const _RequestsSection({required this.records, required this.onMore});
+  const _RequestsSection({
+    required this.records,
+    required this.onMore,
+    this.title = 'Таблица заявок',
+  });
 
   final AnalyticsRecordsPage records;
   final VoidCallback onMore;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     final shown = records.items.length;
     return AnalyticsPanel(
-      title: 'Таблица заявок',
+      title: title,
       subtitle: records.total > shown
           ? 'Показано $shown из ${records.total} записей'
           : '${records.total} записей',

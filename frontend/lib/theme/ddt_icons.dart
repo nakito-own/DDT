@@ -51,6 +51,7 @@ abstract final class DdtIcons {
   static const FaIconData location = FontAwesomeIcons.locationDot;
   static const FaIconData calendarDay = FontAwesomeIcons.calendarDay;
   static const FaIconData calendarPlus = FontAwesomeIcons.calendarPlus;
+  static const FaIconData repeat = FontAwesomeIcons.repeat;
 
   // Communication
   static const FaIconData comment = FontAwesomeIcons.comment;
@@ -61,6 +62,7 @@ abstract final class DdtIcons {
   static const FaIconData at = FontAwesomeIcons.at;
   static const FaIconData subject = FontAwesomeIcons.font;
   static const FaIconData paperclip = FontAwesomeIcons.paperclip;
+  static const FaIconData reply = FontAwesomeIcons.reply;
   static const FaIconData link = FontAwesomeIcons.link;
   static const FaIconData copy = FontAwesomeIcons.copy;
   static const FaIconData listUl = FontAwesomeIcons.listUl;

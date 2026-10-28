@@ -211,6 +211,10 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
           previous.statusFilters != current.statusFilters ||
           previous.priorityFilter != current.priorityFilter ||
           previous.typeFilter != current.typeFilter ||
+          previous.authorFilter != current.authorFilter ||
+          previous.executorFilter != current.executorFilter ||
+          previous.responsibleFilter != current.responsibleFilter ||
+          previous.dateFilters != current.dateFilters ||
           previous.sortOption != current.sortOption,
       builder: (context, state) {
         final activities = _buildActivities(state.filteredTasks);

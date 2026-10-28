@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _ALLOWED_ACTIONS = frozenset(
     {
         "ApplyConversationAction",
+        "CreateAttachment",
         "CreateItem",
         "EndSearchSession",
         "ExecuteSearch",
@@ -40,6 +41,7 @@ _ALLOWED_ACTIONS = frozenset(
         "GetSearchSuggestions",
         "GetUserAvailabilityInternal",
         "MoveItem",
+        "SendItem",
         "StartSearchSession",
         "UpdateItem",
     }

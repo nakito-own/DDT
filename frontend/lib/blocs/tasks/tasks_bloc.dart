@@ -26,15 +26,18 @@ enum TasksSortOption {
 }
 
 class TasksBloc extends Bloc<TasksEvent, TasksState> {
-  TasksBloc({TasksApi? api, this.archivedOnly = false, bool beginLoading = false})
-    : _api = api ?? tasksApi,
-      super(
-        TasksState(
-          columns: {for (final s in TaskStatus.values) s: <Task>[]},
-          statusFilters: Set.of(TaskStatus.values),
-          isLoading: beginLoading,
-        ),
-      ) {
+  TasksBloc({
+    TasksApi? api,
+    this.archivedOnly = false,
+    bool beginLoading = false,
+  }) : _api = api ?? tasksApi,
+       super(
+         TasksState(
+           columns: {for (final s in TaskStatus.values) s: <Task>[]},
+           statusFilters: Set.of(TaskStatus.values),
+           isLoading: beginLoading,
+         ),
+       ) {
     on<TasksBoardLoadRequested>(_onBoardLoadRequested);
     on<TasksBoardCleared>(_onBoardCleared);
     on<TasksViewModeChanged>(_onViewModeChanged);
@@ -42,6 +45,10 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     on<TasksStatusFilterToggled>(_onStatusFilterToggled);
     on<TasksPriorityFilterChanged>(_onPriorityFilterChanged);
     on<TasksTypeFilterChanged>(_onTypeFilterChanged);
+    on<TasksAuthorFilterChanged>(_onAuthorFilterChanged);
+    on<TasksExecutorFilterChanged>(_onExecutorFilterChanged);
+    on<TasksResponsibleFilterChanged>(_onResponsibleFilterChanged);
+    on<TasksDateFilterChanged>(_onDateFilterChanged);
     on<TasksSortOptionChanged>(_onSortOptionChanged);
     on<TasksFiltersReset>(_onFiltersReset);
     on<TasksShowArchivedChanged>(_onShowArchivedChanged);
@@ -98,10 +105,10 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
           : const <Task>[];
       if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
 
-      final columns = _groupTasks(
-        [...tasks, ...archived],
-        includeArchived: includeArchived,
-      );
+      final columns = _groupTasks([
+        ...tasks,
+        ...archived,
+      ], includeArchived: includeArchived);
       emit(
         state.copyWith(
           isLoading: false,
@@ -175,6 +182,42 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     emit(state.copyWith(typeFilter: () => event.typeId));
   }
 
+  void _onAuthorFilterChanged(
+    TasksAuthorFilterChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    emit(state.copyWith(authorFilter: () => event.userId));
+  }
+
+  void _onExecutorFilterChanged(
+    TasksExecutorFilterChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    emit(state.copyWith(executorFilter: () => event.userId));
+  }
+
+  void _onResponsibleFilterChanged(
+    TasksResponsibleFilterChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    emit(state.copyWith(responsibleFilter: () => event.userId));
+  }
+
+  void _onDateFilterChanged(
+    TasksDateFilterChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        dateFilters: state.dateFilters.withRange(
+          event.field,
+          event.start,
+          event.end,
+        ),
+      ),
+    );
+  }
+
   void _onSortOptionChanged(
     TasksSortOptionChanged event,
     Emitter<TasksState> emit,
@@ -190,6 +233,10 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         statusFilters: Set.of(TaskStatus.values),
         priorityFilter: () => null,
         typeFilter: () => null,
+        authorFilter: () => null,
+        executorFilter: () => null,
+        responsibleFilter: () => null,
+        dateFilters: const TaskDateRanges(),
         sortOption: TasksSortOption.deadlineAsc,
         showArchived: false,
         columns: state.showArchived
@@ -421,7 +468,9 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     } catch (error) {
       final reverted = _copyColumns(state.columns);
       final column = [...(reverted[event.status] ?? <Task>[])];
-      final currentIndex = column.indexWhere((item) => item.id == event.task.id);
+      final currentIndex = column.indexWhere(
+        (item) => item.id == event.task.id,
+      );
       if (keepVisible && currentIndex >= 0) {
         column[currentIndex] = event.task;
       } else if (currentIndex < 0) {
@@ -523,9 +572,9 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         final savedIndex = column.indexWhere((item) => item.id == saved.id);
         if (savedIndex >= 0) {
           column[savedIndex] = saved;
-                    } else if (original.id < 0) {
-                      column.add(saved);
-                    }
+        } else if (original.id < 0) {
+          column.add(saved);
+        }
       }
     } else {
       final existed =
@@ -649,12 +698,14 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       original.parent?.key ?? '',
     );
 
-    final originalChildKeys = original.children.map((child) => child.key).toList()
-      ..sort();
+    final originalChildKeys =
+        original.children.map((child) => child.key).toList()..sort();
     final updatedChildKeys = updated.children.map((child) => child.key).toList()
       ..sort();
     if (originalChildKeys.join(',') != updatedChildKeys.join(',')) {
-      payload['child_keys'] = updated.children.map((child) => child.key).toList();
+      payload['child_keys'] = updated.children
+          .map((child) => child.key)
+          .toList();
     }
 
     if (updated.links != null) {

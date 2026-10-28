@@ -16,7 +16,10 @@ import '../screens/event_create_page.dart';
 import '../screens/contacts_page.dart';
 import '../screens/ews_login_screen.dart';
 import '../screens/kanban_board_page.dart';
+import '../screens/mail_compose_page.dart';
 import '../screens/mail_page.dart';
+import '../utils/mail_compose.dart';
+import '../screens/notes_page.dart';
 import '../screens/main_shell_page.dart';
 import '../screens/settings_page.dart';
 import '../screens/task_create_page.dart';
@@ -161,13 +164,31 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             name: RoutePaths.nameMail,
             pageBuilder: (context, state) =>
                 NoTransitionPage(key: state.pageKey, child: const MailPage()),
+            routes: [
+              GoRoute(
+                path: 'new',
+                name: RoutePaths.nameMailNew,
+                pageBuilder: (context, state) => _buildRevealPage(
+                  key: state.pageKey,
+                  child: MailComposePage(
+                    draft: state.extra is MailComposeDraft
+                        ? state.extra! as MailComposeDraft
+                        : null,
+                  ),
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: RoutePaths.calendarNew,
             name: RoutePaths.nameCalendarNew,
             pageBuilder: (context, state) => _buildRevealPage(
               key: state.pageKey,
-              child: const EventCreatePage(),
+              child: EventCreatePage(
+                draft: state.extra is EventCreateDraft
+                    ? state.extra! as EventCreateDraft
+                    : null,
+              ),
             ),
           ),
           GoRoute(
@@ -326,18 +347,37 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.boards,
             name: RoutePaths.nameBoards,
-            pageBuilder: (context, state) => NoTransitionPage(
-              key: state.pageKey,
-              child: const BoardsPage(),
-            ),
+            pageBuilder: (context, state) =>
+                NoTransitionPage(key: state.pageKey, child: const BoardsPage()),
           ),
-          GoRoute(
-            path: RoutePaths.notes,
-            name: RoutePaths.nameNotes,
-            pageBuilder: (context, state) => NoTransitionPage(
+          ShellRoute(
+            pageBuilder: (context, state, child) => NoTransitionPage(
               key: state.pageKey,
-              child: _PlaceholderPage(section: AppSection.notes),
+              child: NotesShellPage(child: child),
             ),
+            routes: [
+              GoRoute(
+                path: RoutePaths.notes,
+                name: RoutePaths.nameNotes,
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: state.pageKey,
+                  child: const NotesBrowserPage(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':noteId',
+                    name: RoutePaths.nameNote,
+                    pageBuilder: (context, state) {
+                      final noteId = state.pathParameters['noteId'] ?? '';
+                      return _buildRevealPage(
+                        key: state.pageKey,
+                        child: NoteEditorPage(noteId: noteId),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
           GoRoute(
             path: RoutePaths.linkArchive,
@@ -369,7 +409,7 @@ final class AppRouter {
   }
 }
 
-/// Создание задачи, события и доски: один и тот же переход поверх раздела.
+/// Создание задачи, письма, события и доски: один и тот же переход поверх раздела.
 ///
 /// Экран проявляется и чуть сдвигается справа, при закрытии уходит так же.
 /// Рейл и шапка живут в оболочке и не участвуют в переходе.
@@ -493,23 +533,6 @@ class _AuthRouterNotifier extends ChangeNotifier {
 }
 
 // ─── Вспомогательные страницы ───────────────────────────────────────────────
-
-class _PlaceholderPage extends StatelessWidget {
-  const _PlaceholderPage({required this.section});
-
-  final AppSection section;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Раздел «${section.label}» в разработке',
-        style: Theme.of(context).textTheme.titleMedium,
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-}
 
 class _NotFoundPage extends StatelessWidget {
   const _NotFoundPage({this.error});
