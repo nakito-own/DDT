@@ -233,6 +233,14 @@ class TaskService:
     def list_archived_space_tasks(self, space_id: int) -> list[dict]:
         return self._list_tasks("space_id", space_id, archived=True)
 
+    def list_personal_tasks_for_analytics(self, owner_id: int) -> list[dict]:
+        """Все личные задачи, включая архив (без удалённых)."""
+        return self._list_tasks("owner_id", owner_id, archived=None)
+
+    def list_space_tasks_for_analytics(self, space_id: int) -> list[dict]:
+        """Все задачи пространства, включая архив (без удалённых)."""
+        return self._list_tasks("space_id", space_id, archived=None)
+
     def list_deleted_space_tasks(self, space_id: int) -> list[dict]:
         return self._list_tasks("space_id", space_id, deleted=True)
 

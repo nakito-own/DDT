@@ -441,12 +441,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
 
   void _onDetailClosed(MailDetailClosed event, Emitter<MailState> emit) {
     if (state.selectedMessage == null && !state.isLoadingDetail) return;
-    emit(
-      state.copyWith(
-        selectedMessage: () => null,
-        isLoadingDetail: false,
-      ),
-    );
+    emit(state.copyWith(selectedMessage: () => null, isLoadingDetail: false));
   }
 
   Future<void> _onMessageSelected(
@@ -534,6 +529,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         cc: event.cc,
         subject: event.subject,
         body: event.body,
+        bodyType: event.bodyType,
+        attachments: event.attachments,
       );
       if (sessionGeneration != _sessionGeneration) return;
       await _reloadInbox(emit, showAnimation: false);
@@ -747,6 +744,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
         : fallbackBody;
 
     return primary.copyWith(
+      sender: primary.sender ?? fallback.sender,
+      senderEmail: primary.senderEmail ?? fallback.senderEmail,
       body: resolvedBody,
       bodyType: primaryBody != null && primaryBody.isNotEmpty
           ? primary.bodyType
@@ -779,9 +778,7 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     // Тот же верхний ряд беседы, но с новым id после обновления на сервере.
     final conversationId = previousSelected.conversationId;
     final openedAsChild = _isThreadChild(state.messages, previousSelected.id);
-    if (!openedAsChild &&
-        conversationId != null &&
-        conversationId.isNotEmpty) {
+    if (!openedAsChild && conversationId != null && conversationId.isNotEmpty) {
       for (final message in messages) {
         if (message.conversationId == conversationId) {
           return _mergeMessageDetails(message, previousSelected);
@@ -814,6 +811,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
     return messages.map((m) {
       if (m.id != detail.id) return m;
       return m.copyWith(
+        sender: detail.sender ?? m.sender,
+        senderEmail: detail.senderEmail ?? m.senderEmail,
         body: detail.body,
         bodyType: detail.bodyType,
         preview: detail.preview,
@@ -842,6 +841,8 @@ class MailBloc extends Bloc<MailEvent, MailState> {
 
       final hasCachedBody = existing.body != null && existing.body!.isNotEmpty;
       return freshMsg.copyWith(
+        sender: freshMsg.sender ?? existing.sender,
+        senderEmail: freshMsg.senderEmail ?? existing.senderEmail,
         body: hasCachedBody ? existing.body : freshMsg.body,
         bodyType: hasCachedBody ? existing.bodyType : freshMsg.bodyType,
         hasAttachments: freshMsg.hasAttachments || existing.hasAttachments,

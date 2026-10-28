@@ -32,6 +32,26 @@ class MailAttachment {
   }
 }
 
+/// File the user attaches while composing. Bytes stay on the client until send.
+class MailOutgoingAttachment {
+  const MailOutgoingAttachment({
+    required this.name,
+    required this.bytes,
+    required this.contentType,
+  });
+
+  final String name;
+  final List<int> bytes;
+  final String contentType;
+
+  String get displaySize {
+    final size = bytes.length;
+    if (size < 1024) return '$size B';
+    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(0)} KB';
+    return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
 class MailArchiveResult {
   const MailArchiveResult({required this.archivedIds, required this.errors});
 
@@ -71,12 +91,14 @@ class MailMessage {
     this.isExpanded = false,
     this.isExpanding = false,
     this.thread = const [],
+    this.senderEmail,
   });
 
   final String id;
   final String folderId;
   final String subject;
   final String? sender;
+  final String? senderEmail;
   final DateTime? datetimeReceived;
   final bool isRead;
   final String preview;
@@ -111,6 +133,7 @@ class MailMessage {
       folderId: json['folder_id'] as String? ?? '',
       subject: json['subject'] as String? ?? '(без темы)',
       sender: json['sender'] as String?,
+      senderEmail: json['sender_email'] as String?,
       datetimeReceived: json['datetime_received'] != null
           ? DateTime.parse(json['datetime_received'] as String)
           : null,
@@ -129,6 +152,7 @@ class MailMessage {
     String? folderId,
     String? subject,
     String? sender,
+    String? senderEmail,
     DateTime? datetimeReceived,
     bool? isRead,
     String? preview,
@@ -150,6 +174,7 @@ class MailMessage {
       folderId: folderId ?? this.folderId,
       subject: subject ?? this.subject,
       sender: sender ?? this.sender,
+      senderEmail: senderEmail ?? this.senderEmail,
       datetimeReceived: datetimeReceived ?? this.datetimeReceived,
       isRead: isRead ?? this.isRead,
       preview: preview ?? this.preview,

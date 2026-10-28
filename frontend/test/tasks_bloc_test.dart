@@ -60,6 +60,136 @@ void main() {
     expect(spaceState.allTasks.single.spaceId, 2);
   });
 
+  test('person filters narrow tasks and reset clears them', () async {
+    final api = _BoardApi([
+      _stored(
+        id: 1,
+        key: 'T-1',
+        title: 'С автором',
+        authorId: 1,
+        executorId: 2,
+        responsibleId: 3,
+      ),
+      _stored(
+        id: 2,
+        key: 'T-2',
+        title: 'Другой автор',
+        authorId: 9,
+        executorId: 2,
+        responsibleId: 4,
+      ),
+      _stored(id: 3, key: 'T-3', title: 'Без людей'),
+    ]);
+    final bloc = TasksBloc(api: api);
+    addTearDown(bloc.close);
+
+    bloc.add(const TasksBoardLoadRequested());
+    await bloc.stream.firstWhere((state) => state.allTasks.length == 3);
+
+    bloc.add(const TasksAuthorFilterChanged(1));
+    var state = await bloc.stream.firstWhere(
+      (state) => state.authorFilter == 1,
+    );
+    expect(state.filteredTasks.map((task) => task.id), [1]);
+
+    bloc.add(const TasksExecutorFilterChanged(2));
+    state = await bloc.stream.firstWhere((state) => state.executorFilter == 2);
+    expect(state.filteredTasks.map((task) => task.id), [1]);
+
+    bloc.add(const TasksResponsibleFilterChanged(4));
+    state = await bloc.stream.firstWhere(
+      (state) => state.responsibleFilter == 4,
+    );
+    expect(state.filteredTasks, isEmpty);
+
+    bloc.add(const TasksFiltersReset());
+    state = await bloc.stream.firstWhere(
+      (state) =>
+          state.authorFilter == null &&
+          state.executorFilter == null &&
+          state.responsibleFilter == null,
+    );
+    expect(state.filteredTasks.map((task) => task.id), [1, 2, 3]);
+  });
+
+  test('date filters keep tasks inside each local-day range', () async {
+    final october = DateTime.utc(2026, 10, 10, 12);
+    final september = DateTime.utc(2026, 9, 1, 12);
+    final api = _BoardApi([
+      _stored(
+        id: 1,
+        key: 'T-1',
+        title: 'В октябре',
+        timeStart: october,
+        timeEnd: october,
+        deadline: october,
+        updatedAt: october,
+      ),
+      _stored(
+        id: 2,
+        key: 'T-2',
+        title: 'В сентябре',
+        timeStart: september,
+        deadline: september,
+        updatedAt: september,
+      ),
+      _stored(id: 3, key: 'T-3', title: 'Без дат'),
+    ]);
+    final bloc = TasksBloc(api: api);
+    addTearDown(bloc.close);
+
+    bloc.add(const TasksBoardLoadRequested());
+    await bloc.stream.firstWhere((state) => state.allTasks.length == 3);
+
+    bloc.add(
+      TasksDateFilterChanged(
+        TaskDateField.started,
+        DateTime(2026, 10, 1),
+        DateTime(2026, 10, 31),
+      ),
+    );
+    var state = await bloc.stream.firstWhere(
+      (state) => state.dateFilters.startedStart != null,
+    );
+    expect(state.filteredTasks.map((task) => task.id), [1]);
+
+    bloc.add(
+      TasksDateFilterChanged(
+        TaskDateField.deadline,
+        DateTime(2026, 11, 1),
+        DateTime(2026, 11, 30),
+      ),
+    );
+    state = await bloc.stream.firstWhere(
+      (state) => state.dateFilters.deadlineStart != null,
+    );
+    expect(state.filteredTasks, isEmpty);
+
+    bloc.add(const TasksDateFilterChanged(TaskDateField.deadline, null, null));
+    bloc.add(
+      TasksDateFilterChanged(
+        TaskDateField.updated,
+        DateTime(2026, 10, 10),
+        DateTime(2026, 10, 10),
+      ),
+    );
+    state = await bloc.stream.firstWhere(
+      (state) =>
+          state.dateFilters.deadlineStart == null &&
+          state.dateFilters.updatedStart != null,
+    );
+    expect(state.filteredTasks.map((task) => task.id), [1]);
+
+    bloc.add(const TasksFiltersReset());
+    state = await bloc.stream.firstWhere(
+      (state) => !state.dateFilters.isActive,
+    );
+    expect(
+      state.filteredTasks.map((task) => task.id),
+      unorderedEquals([1, 2, 3]),
+    );
+  });
+
   test('parent assignment updates the other task immediately', () async {
     final parent = _stored(id: 1, key: 'T-1', title: 'Родитель');
     final child = _stored(id: 2, key: 'T-2', title: 'Потомок');
@@ -150,6 +280,11 @@ Task _stored({
   TaskStatus status = TaskStatus.todo,
   DateTime? timeStart,
   DateTime? timeEnd,
+  DateTime? deadline,
+  DateTime? updatedAt,
+  int? authorId,
+  int? executorId,
+  int? responsibleId,
 }) {
   return Task(
     id: id,
@@ -159,6 +294,11 @@ Task _stored({
     timeSet: DateTime.utc(2026, 8, 18),
     timeStart: timeStart,
     timeEnd: timeEnd,
+    deadline: deadline,
+    updatedAt: updatedAt,
+    authorId: authorId,
+    executorId: executorId,
+    responsibleId: responsibleId,
   );
 }
 
@@ -200,7 +340,8 @@ class _BoardApi extends TasksApi {
       timeStart: body['time_start'] is String
           ? DateTime.parse(body['time_start'] as String)
           : null,
-      clearTimeStart: body.containsKey('time_start') && body['time_start'] == null,
+      clearTimeStart:
+          body.containsKey('time_start') && body['time_start'] == null,
       timeEnd: body['time_end'] is String
           ? DateTime.parse(body['time_end'] as String)
           : null,

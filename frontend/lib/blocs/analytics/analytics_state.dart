@@ -3,6 +3,8 @@ part of 'analytics_bloc.dart';
 final class AnalyticsState extends Equatable {
   const AnalyticsState({
     this.dashboard,
+    this.dashboardKind = AnalyticsDashboardKind.stp,
+    this.spaceId,
     this.filters = const AnalyticsFilters(),
     this.tableLimit = AnalyticsBloc.tablePageSize,
     this.isLoading = false,
@@ -11,6 +13,8 @@ final class AnalyticsState extends Equatable {
   });
 
   final AnalyticsDashboard? dashboard;
+  final AnalyticsDashboardKind dashboardKind;
+  final int? spaceId;
   final AnalyticsFilters filters;
   final int tableLimit;
   final bool isLoading;
@@ -19,6 +23,8 @@ final class AnalyticsState extends Equatable {
 
   AnalyticsState copyWith({
     AnalyticsDashboard? dashboard,
+    AnalyticsDashboardKind? dashboardKind,
+    int? Function()? spaceId,
     AnalyticsFilters? filters,
     int? tableLimit,
     bool? isLoading,
@@ -27,6 +33,8 @@ final class AnalyticsState extends Equatable {
   }) {
     return AnalyticsState(
       dashboard: dashboard ?? this.dashboard,
+      dashboardKind: dashboardKind ?? this.dashboardKind,
+      spaceId: spaceId != null ? spaceId() : this.spaceId,
       filters: filters ?? this.filters,
       tableLimit: tableLimit ?? this.tableLimit,
       isLoading: isLoading ?? this.isLoading,
@@ -38,6 +46,8 @@ final class AnalyticsState extends Equatable {
   @override
   List<Object?> get props => [
     dashboard,
+    dashboardKind,
+    spaceId,
     filters,
     tableLimit,
     isLoading,

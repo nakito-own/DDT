@@ -48,6 +48,10 @@ class TasksListPage extends StatelessWidget {
           previous.statusFilters != current.statusFilters ||
           previous.priorityFilter != current.priorityFilter ||
           previous.typeFilter != current.typeFilter ||
+          previous.authorFilter != current.authorFilter ||
+          previous.executorFilter != current.executorFilter ||
+          previous.responsibleFilter != current.responsibleFilter ||
+          previous.dateFilters != current.dateFilters ||
           previous.sortOption != current.sortOption ||
           previous.isLoading != current.isLoading,
       builder: (context, state) {

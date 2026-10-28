@@ -230,8 +230,17 @@ class EwsApi {
     required String subject,
     required String body,
     List<String> cc = const [],
+    String bodyType = 'HTML',
+    List<MailOutgoingAttachment> attachments = const [],
   }) {
-    return _owa.sendMail(to: to, subject: subject, body: body, cc: cc);
+    return _owa.sendMail(
+      to: to,
+      subject: subject,
+      body: body,
+      cc: cc,
+      bodyType: bodyType,
+      attachments: attachments,
+    );
   }
 
   Future<void> downloadAttachment(

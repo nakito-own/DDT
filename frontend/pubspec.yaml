@@ -39,8 +39,10 @@ dependencies:
   share_plus: ^12.0.2
   liquid_glass_native: ^0.3.1
   image_picker: ^1.2.4
+  file_picker: ^10.3.3
   crop_your_image: ^2.0.1
   nodeline: ^0.1.2
+  flutter_smooth_markdown: ^0.10.0
 
 dependency_overrides:
   get_storage:

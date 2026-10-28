@@ -7,13 +7,18 @@ import '../theme/ddt_icons.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task_priority.dart';
 import '../models/task_status.dart';
+import '../models/user_profile.dart';
+import '../services/directory_users.dart';
 import '../theme/ddt_theme.dart';
+import '../utils/task_formatters.dart';
+import 'analytics_period_calendar.dart';
 import 'ddt_app_input.dart';
 import '../theme/ddt_typography.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_panel_primary_button.dart';
 import 'ddt_section_sidebar.dart';
 import 'ddt_switch.dart';
+import 'ddt_user_chip.dart';
 
 class TasksFiltersPanel extends StatefulWidget {
   const TasksFiltersPanel({super.key, this.onCreatePressed});
@@ -81,6 +86,10 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
         !allStatuses ||
         state.priorityFilter != null ||
         state.typeFilter != null ||
+        state.authorFilter != null ||
+        state.executorFilter != null ||
+        state.responsibleFilter != null ||
+        state.dateFilters.isActive ||
         state.sortOption != TasksSortOption.deadlineAsc ||
         state.showArchived;
   }
@@ -98,6 +107,10 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
           previous.statusFilters != current.statusFilters ||
           previous.priorityFilter != current.priorityFilter ||
           previous.typeFilter != current.typeFilter ||
+          previous.authorFilter != current.authorFilter ||
+          previous.executorFilter != current.executorFilter ||
+          previous.responsibleFilter != current.responsibleFilter ||
+          previous.dateFilters != current.dateFilters ||
           previous.sortOption != current.sortOption ||
           previous.showArchived != current.showArchived ||
           previous.taskTypes != current.taskTypes ||
@@ -130,6 +143,8 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
         final selectedType = {
           if (state.typeFilter != null) '${state.typeFilter}' else '',
         };
+
+        final inSpace = context.read<TasksBloc>().spaceKey?.isNotEmpty ?? false;
 
         final sortOptions = [
           for (final option in TasksSortOption.values)
@@ -226,6 +241,38 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                     },
                   ),
                 ),
+              if (inSpace) ...[
+                _PersonFilterField(
+                  label: 'Автор',
+                  emptyLabel: 'Все авторы',
+                  userId: state.authorFilter,
+                  onChanged: (userId) => context.read<TasksBloc>().add(
+                    TasksAuthorFilterChanged(userId),
+                  ),
+                ),
+                _PersonFilterField(
+                  label: 'Исполнитель',
+                  emptyLabel: 'Все исполнители',
+                  userId: state.executorFilter,
+                  onChanged: (userId) => context.read<TasksBloc>().add(
+                    TasksExecutorFilterChanged(userId),
+                  ),
+                ),
+                _PersonFilterField(
+                  label: 'Ответственный',
+                  emptyLabel: 'Все ответственные',
+                  userId: state.responsibleFilter,
+                  onChanged: (userId) => context.read<TasksBloc>().add(
+                    TasksResponsibleFilterChanged(userId),
+                  ),
+                ),
+                for (final field in TaskDateField.values)
+                  _DateFilterField(
+                    field: field,
+                    start: state.dateFilters.bounds(field).$1,
+                    end: state.dateFilters.bounds(field).$2,
+                  ),
+              ],
               DdtSectionSidebarField(
                 label: 'Сортировка',
                 child: DdtSearchableFilterDropdown(
@@ -261,9 +308,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                   decoration: BoxDecoration(
                     color: DdtTheme.inputFillColor(context),
                     borderRadius: DdtTheme.inputControlBorderRadius,
-                    border: Border.all(
-                      color: DdtTheme.borderSubtle(context),
-                    ),
+                    border: Border.all(color: DdtTheme.borderSubtle(context)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -326,6 +371,117 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
   }
 }
 
+class _PersonFilterField extends StatelessWidget {
+  const _PersonFilterField({
+    required this.label,
+    required this.emptyLabel,
+    required this.userId,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String emptyLabel;
+  final int? userId;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<UserProfile>>(
+      future: loadDirectoryUsers(),
+      builder: (context, snapshot) {
+        final users = snapshot.data ?? const <UserProfile>[];
+        final selected = directoryUserById(users, userId);
+        final loading =
+            snapshot.connectionState == ConnectionState.waiting &&
+            users.isEmpty;
+        final summary = userId == null
+            ? emptyLabel
+            : (selected?.label ?? (loading ? 'Загрузка…' : 'Пользователь'));
+
+        return DdtSectionSidebarField(
+          label: label,
+          child: DdtSearchableFilterDropdown(
+            summary: summary,
+            active: userId != null,
+            options: [
+              DdtFilterOption(key: '', label: emptyLabel),
+              for (final user in users)
+                DdtFilterOption(
+                  key: '${user.id}',
+                  label: user.label,
+                  searchText: '${user.label} ${user.email}',
+                  content: (context) =>
+                      DdtUserChip(name: user.label, userId: user.id),
+                ),
+            ],
+            selected: {if (userId != null) '$userId' else ''},
+            multi: false,
+            emptyLabel: loading ? 'Загрузка…' : 'Нет пользователей',
+            onSelected: (key) =>
+                onChanged(key.isEmpty ? null : int.tryParse(key)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DateFilterField extends StatelessWidget {
+  const _DateFilterField({
+    required this.field,
+    required this.start,
+    required this.end,
+  });
+
+  final TaskDateField field;
+  final DateTime? start;
+  final DateTime? end;
+
+  @override
+  Widget build(BuildContext context) {
+    return DdtSectionSidebarField(
+      label: field.label,
+      child: Builder(
+        builder: (anchorContext) {
+          return DdtFilterDropdownAnchor(
+            label: _dateFilterLabel(start, end),
+            active: start != null,
+            icon: DdtIcons.calendar,
+            onTap: () {
+              final today = DateTime.now();
+              showAnalyticsPeriodCalendar(
+                context: context,
+                anchorContext: anchorContext,
+                start: start,
+                end: end,
+                firstDate: DateTime(today.year - 5),
+                lastDate: DateTime(today.year, today.month, today.day),
+                onApply: (nextStart, nextEnd) {
+                  context.read<TasksBloc>().add(
+                    TasksDateFilterChanged(field, nextStart, nextEnd),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+String _dateFilterLabel(DateTime? start, DateTime? end) {
+  if (start == null) return 'Все даты';
+  final from = formatTaskDate(start);
+  if (end == null ||
+      (start.year == end.year &&
+          start.month == end.month &&
+          start.day == end.day)) {
+    return from;
+  }
+  return '$from — ${formatTaskDate(end)}';
+}
+
 class _ShowArchivedSwitch extends StatelessWidget {
   const _ShowArchivedSwitch({required this.enabled});
 
@@ -355,9 +511,8 @@ class _ShowArchivedSwitch extends StatelessWidget {
           SizedBox(width: 8.w),
           DdtSwitch(
             value: enabled,
-            onChanged: (value) => context.read<TasksBloc>().add(
-              TasksShowArchivedChanged(value),
-            ),
+            onChanged: (value) =>
+                context.read<TasksBloc>().add(TasksShowArchivedChanged(value)),
           ),
         ],
       ),

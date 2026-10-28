@@ -73,6 +73,17 @@ class AnalyticsDailyBucket(BaseModel):
     created: int
     closed: int
     avg_reaction_hours: float | None = None
+    avg_resolution_hours: float | None = None
+
+
+class AnalyticsExecutorTrendSeries(BaseModel):
+    name: str
+    values: list[int] = Field(default_factory=list)
+
+
+class AnalyticsExecutorTrend(BaseModel):
+    labels: list[str] = Field(default_factory=list)
+    series: list[AnalyticsExecutorTrendSeries] = Field(default_factory=list)
 
 
 class AnalyticsStatusByCategory(BaseModel):
@@ -101,6 +112,10 @@ class AnalyticsCharts(BaseModel):
     daily_detail: list[AnalyticsDailyBucket]
     status_by_category: AnalyticsStatusByCategory
     solved: AnalyticsSolved
+    priority: list[CountPoint] = Field(default_factory=list)
+    executor: list[CountPoint] = Field(default_factory=list)
+    author: list[CountPoint] = Field(default_factory=list)
+    executor_trend: AnalyticsExecutorTrend | None = None
 
 
 class AnalyticsGroupRow(BaseModel):

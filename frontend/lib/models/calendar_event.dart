@@ -6,6 +6,7 @@ class CalendarEvent {
     required this.end,
     required this.location,
     required this.organizer,
+    this.organizerEmail,
     this.myResponseType,
     this.isMeeting = false,
     this.isResponseRequested,
@@ -21,6 +22,7 @@ class CalendarEvent {
     this.bodyType = 'text',
     this.attendees = const [],
     this.detailLoaded = false,
+    this.isRecurring = false,
   });
 
   final String id;
@@ -29,6 +31,7 @@ class CalendarEvent {
   final DateTime? end;
   final String? location;
   final String? organizer;
+  final String? organizerEmail;
   final String? myResponseType;
   final bool isMeeting;
   final bool? isResponseRequested;
@@ -44,11 +47,54 @@ class CalendarEvent {
   final String bodyType;
   final List<CalendarAttendee> attendees;
   final bool detailLoaded;
+  final bool isRecurring;
 
   bool get isAccepted => myResponseType == 'Accept';
   bool get isDeclined => myResponseType == 'Decline';
   bool get isTentative => myResponseType == 'Tentative';
   bool get isOrganizer => myResponseType == 'Organizer';
+
+  bool authoredBy({String? email, String? displayName}) {
+    if (isColleague) return false;
+    if (isOrganizer) return true;
+    final organizerName = organizer?.trim() ?? '';
+    if (!isMeeting &&
+        organizerName.isEmpty &&
+        (organizerEmail ?? '').trim().isEmpty) {
+      return true;
+    }
+    final ownerEmail = email?.trim().toLowerCase();
+    final mail = organizerEmail?.trim().toLowerCase();
+    if (ownerEmail != null &&
+        ownerEmail.isNotEmpty &&
+        mail != null &&
+        mail == ownerEmail) {
+      return true;
+    }
+    final ownerName = displayName?.trim().toLowerCase();
+    final name = organizerName.toLowerCase();
+    if (ownerName != null && ownerName.isNotEmpty && name == ownerName) {
+      return true;
+    }
+    return false;
+  }
+
+  String get plainBody {
+    final raw = body?.trim() ?? '';
+    if (raw.isEmpty || bodyType != 'html') return raw;
+    return raw
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'</p\s*>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
 
   String get responseLabel => switch (myResponseType) {
     'Accept' => 'Принято',
@@ -70,6 +116,7 @@ class CalendarEvent {
       end: json['end'] != null ? DateTime.parse(json['end'] as String) : null,
       location: json['location'] as String?,
       organizer: json['organizer'] as String?,
+      organizerEmail: json['organizer_email'] as String?,
       myResponseType: json['my_response_type'] as String?,
       isMeeting: json['is_meeting'] as bool? ?? false,
       isResponseRequested: json['is_response_requested'] as bool?,
@@ -81,6 +128,7 @@ class CalendarEvent {
       isLimited: json['is_limited'] as bool? ?? false,
       body: json['body'] as String?,
       bodyType: json['body_type'] as String? ?? 'text',
+      isRecurring: json['is_recurring'] as bool? ?? false,
     );
   }
 
@@ -91,6 +139,7 @@ class CalendarEvent {
     DateTime? end,
     String? location,
     String? organizer,
+    String? organizerEmail,
     String? myResponseType,
     bool? isMeeting,
     bool? isResponseRequested,
@@ -106,6 +155,7 @@ class CalendarEvent {
     String? bodyType,
     List<CalendarAttendee>? attendees,
     bool? detailLoaded,
+    bool? isRecurring,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -114,6 +164,7 @@ class CalendarEvent {
       end: end ?? this.end,
       location: location ?? this.location,
       organizer: organizer ?? this.organizer,
+      organizerEmail: organizerEmail ?? this.organizerEmail,
       myResponseType: myResponseType ?? this.myResponseType,
       isMeeting: isMeeting ?? this.isMeeting,
       isResponseRequested: isResponseRequested ?? this.isResponseRequested,
@@ -129,6 +180,7 @@ class CalendarEvent {
       bodyType: bodyType ?? this.bodyType,
       attendees: attendees ?? this.attendees,
       detailLoaded: detailLoaded ?? this.detailLoaded,
+      isRecurring: isRecurring ?? this.isRecurring,
     );
   }
 }

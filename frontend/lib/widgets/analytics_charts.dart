@@ -1904,6 +1904,187 @@ class AnalyticsSolvedChart extends StatelessWidget {
   }
 }
 
+class AnalyticsResolutionTrendChart extends StatelessWidget {
+  const AnalyticsResolutionTrendChart({super.key, required this.buckets});
+
+  final List<AnalyticsDailyBucket> buckets;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = buckets
+        .where((bucket) => bucket.avgResolutionHours != null)
+        .toList();
+    if (points.isEmpty) return const AnalyticsEmptyChart();
+
+    final maxValue = points.fold<double>(
+      1,
+      (max, bucket) => math.max(max, bucket.avgResolutionHours ?? 0),
+    );
+    final gridColor = DdtTheme.textMuted(context).withValues(alpha: 0.18);
+    final labelStyle = DdtTheme.style(
+      fontSize: DdtTypography.microSize,
+      color: DdtTheme.textMuted(context),
+    );
+    final lineColor = _palette[3];
+
+    return _ChartTooltipHost(
+      builder: (tooltip) => LineChart(
+        LineChartData(
+          minX: 0,
+          maxX: math.max(1, points.length - 1).toDouble(),
+          minY: 0,
+          maxY: maxValue * 1.18,
+          gridData: FlGridData(
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (value) =>
+                FlLine(color: gridColor, strokeWidth: 1),
+          ),
+          borderData: FlBorderData(show: false),
+          titlesData: _chartAxisTitles(
+            labels: [for (final bucket in points) _shortDayLabel(bucket.day)],
+            labelStyle: labelStyle,
+            maxLabels: 8,
+            angled: points.length > 10,
+          ),
+          lineTouchData: LineTouchData(
+            handleBuiltInTouches: true,
+            touchCallback: (event, response) {
+              final spots = response?.lineBarSpots;
+              if (spots == null || spots.isEmpty) {
+                tooltip.hide();
+                return;
+              }
+              final index = spots.first.x.toInt();
+              if (index < 0 || index >= points.length) {
+                tooltip.hide();
+                return;
+              }
+              final bucket = points[index];
+              _syncChartTooltip(
+                tooltip: tooltip,
+                event: event,
+                visible: true,
+                message:
+                    '${_shortDayLabel(bucket.day)}\n'
+                    'Ср. время решения: ${formatAnalyticsDuration(bucket.avgResolutionHours)}',
+              );
+            },
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (touched) => [for (final _ in touched) null],
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: [
+                for (var index = 0; index < points.length; index++)
+                  FlSpot(
+                    index.toDouble(),
+                    points[index].avgResolutionHours ?? 0,
+                  ),
+              ],
+              isCurved: true,
+              preventCurveOverShooting: true,
+              color: lineColor,
+              barWidth: 2.5,
+              dotData: FlDotData(
+                getDotPainter: (spot, percent, bar, index) =>
+                    FlDotCirclePainter(
+                      radius: 2.5,
+                      color: lineColor,
+                      strokeWidth: 0,
+                    ),
+              ),
+            ),
+          ],
+        ),
+        duration: _chartDuration,
+        curve: _chartCurve,
+      ),
+    );
+  }
+}
+
+class AnalyticsExecutorTrendChart extends StatelessWidget {
+  const AnalyticsExecutorTrendChart({super.key, required this.trend});
+
+  final AnalyticsExecutorTrend trend;
+
+  @override
+  Widget build(BuildContext context) {
+    if (trend.isEmpty) return const AnalyticsEmptyChart();
+
+    final maxValue = trend.series.fold<int>(1, (max, series) {
+      final peak = series.values.fold<int>(0, math.max);
+      return math.max(max, peak);
+    });
+    final gridColor = DdtTheme.textMuted(context).withValues(alpha: 0.18);
+    final labelStyle = DdtTheme.style(
+      fontSize: DdtTypography.microSize,
+      color: DdtTheme.textMuted(context),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ChartLegend(
+          items: [
+            for (var index = 0; index < trend.series.length; index++)
+              _LegendItem(
+                trend.series[index].name,
+                analyticsSeriesColor(index),
+              ),
+          ],
+        ),
+        SizedBox(height: 8.h),
+        Expanded(
+          child: _ChartTooltipHost(
+            builder: (tooltip) => LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: math.max(1, trend.labels.length - 1).toDouble(),
+                minY: 0,
+                maxY: maxValue * 1.18,
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) =>
+                      FlLine(color: gridColor, strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: _chartAxisTitles(
+                  labels: trend.labels,
+                  labelStyle: labelStyle,
+                  maxLabels: 8,
+                  angled: trend.labels.length > 8,
+                ),
+                lineTouchData: const LineTouchData(enabled: false),
+                lineBarsData: [
+                  for (var index = 0; index < trend.series.length; index++)
+                    LineChartBarData(
+                      spots: [
+                        for (var i = 0; i < trend.series[index].values.length; i++)
+                          FlSpot(
+                            i.toDouble(),
+                            trend.series[index].values[i].toDouble(),
+                          ),
+                      ],
+                      isCurved: true,
+                      preventCurveOverShooting: true,
+                      color: analyticsSeriesColor(index),
+                      barWidth: 2,
+                      dotData: const FlDotData(show: false),
+                    ),
+                ],
+              ),
+              duration: _chartDuration,
+              curve: _chartCurve,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LegendItem {
   const _LegendItem(this.label, this.color);
   final String label;

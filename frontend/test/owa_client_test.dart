@@ -25,7 +25,9 @@ void main() {
     expect(event.subject, 'Статус');
     expect(event.location, 'Телемост');
     expect(event.organizer, 'Анна');
+    expect(event.organizerEmail, 'anna@example.com');
     expect(event.myResponseType, 'Accept');
+    expect(event.isRecurring, isFalse);
     expect(event.needsResponse, isFalse);
     expect(event.start?.toUtc(), DateTime.parse('2026-10-07T07:00:00Z'));
   });
@@ -67,6 +69,25 @@ void main() {
     );
     expect(link?.service, CalendarMeetingService.peregovorka);
     expect(locationWithoutLinks('Кабинет 4 https://zoom.us/j/1'), 'Кабинет 4');
+  });
+
+  test('recurring occurrences keep a repeat flag', () {
+    final occurrence = calendarEventFromOwaItem({
+      'ItemId': {'Id': 'evt-r'},
+      'Subject': 'Стендап',
+      'CalendarItemType': 'Occurrence',
+      'IsOrganizer': true,
+    });
+    final series = calendarEventFromOwaItem({
+      'ItemId': {'Id': 'evt-m'},
+      'Subject': 'Серия',
+      'Recurrence': {'Pattern': 'Daily'},
+    });
+
+    expect(occurrence.isRecurring, isTrue);
+    expect(occurrence.isOrganizer, isTrue);
+    expect(series.isRecurring, isTrue);
+    expect(occurrence.authoredBy(email: 'other@example.com'), isTrue);
   });
 
   test('organizer response does not ask for a reply', () {
@@ -140,6 +161,7 @@ void main() {
 
     expect(message.id, 'msg-1');
     expect(message.sender, 'Иван');
+    expect(message.senderEmail, 'ivan@example.com');
     expect(message.folderId, 'inbox-id');
     expect(message.isRead, isFalse);
     expect(message.hasAttachments, isTrue);
