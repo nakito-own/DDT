@@ -464,7 +464,7 @@ class OwaClient {
               '__type': 'FileAttachment:#Exchange',
               'Name': file.name,
               'ContentType': file.contentType,
-              'Size': file.bytes.length,
+              'IsInline': false,
               'Content': base64Encode(file.bytes),
             },
           ],

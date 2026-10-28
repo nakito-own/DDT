@@ -1373,13 +1373,32 @@ class _MailDetailHeader extends StatelessWidget {
               ),
             ),
             SizedBox(width: 8.w),
-            Button(
-              text: 'Ответить',
-              type: ButtonType.outlined,
-              borderRadius: DdtTheme.radius,
-              onPressed: () => openMailComposePage(
-                context,
-                draft: MailComposeDraft.replyTo(message),
+            Tooltip(
+              message: 'Ответить',
+              child: Semantics(
+                button: true,
+                label: 'Ответить',
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Tooltip.dismissAllToolTips();
+                      openMailComposePage(
+                        context,
+                        draft: MailComposeDraft.replyTo(message),
+                      );
+                    },
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 4.h),
+                      child: DdtIcon(
+                        DdtIcons.reply,
+                        size: 16 / DdtIcon.visualScale,
+                        color: DdtTheme.taskCardTextSecondary(context),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
