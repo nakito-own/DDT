@@ -81,7 +81,28 @@ class _EventCardShell extends StatelessWidget {
             confirmed: confirmed,
             accent: CalendarPalette.colorFor(event.colorIndex),
             onTap: onTap,
-            child: Opacity(opacity: declined ? 0.72 : 1, child: child),
+            child: Opacity(
+              opacity: declined ? 0.72 : 1,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(right: event.isRecurring ? 14 : 0),
+                    child: child,
+                  ),
+                  if (event.isRecurring)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: DdtIcon(
+                        DdtIcons.repeat,
+                        size: 10,
+                        color: DdtTheme.taskCardTextSecondary(context),
+                        semanticLabel: 'Повторяется',
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
           if (!confirmed)
             Positioned.fill(
@@ -169,10 +190,7 @@ class _EventAccent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: color,
-      child: const SizedBox(width: 4),
-    );
+    return ColoredBox(color: color, child: const SizedBox(width: 4));
   }
 }
 

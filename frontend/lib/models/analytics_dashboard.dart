@@ -213,12 +213,14 @@ class AnalyticsDailyBucket {
     required this.created,
     required this.closed,
     this.avgReactionHours,
+    this.avgResolutionHours,
   });
 
   final String day;
   final int created;
   final int closed;
   final double? avgReactionHours;
+  final double? avgResolutionHours;
 
   factory AnalyticsDailyBucket.fromJson(Map<String, dynamic> json) {
     return AnalyticsDailyBucket(
@@ -226,6 +228,42 @@ class AnalyticsDailyBucket {
       created: _int(json['created']),
       closed: _int(json['closed']),
       avgReactionHours: _double(json['avg_reaction_hours']),
+      avgResolutionHours: _double(json['avg_resolution_hours']),
+    );
+  }
+}
+
+class AnalyticsExecutorTrendSeries {
+  const AnalyticsExecutorTrendSeries({
+    required this.name,
+    this.values = const [],
+  });
+
+  final String name;
+  final List<int> values;
+
+  factory AnalyticsExecutorTrendSeries.fromJson(Map<String, dynamic> json) {
+    return AnalyticsExecutorTrendSeries(
+      name: json['name'] as String? ?? '',
+      values: _ints(json['values']),
+    );
+  }
+}
+
+class AnalyticsExecutorTrend {
+  const AnalyticsExecutorTrend({this.labels = const [], this.series = const []});
+
+  final List<String> labels;
+  final List<AnalyticsExecutorTrendSeries> series;
+
+  bool get isEmpty => labels.isEmpty || series.isEmpty;
+
+  factory AnalyticsExecutorTrend.fromJson(Map<String, dynamic> json) {
+    return AnalyticsExecutorTrend(
+      labels: _strings(json['labels']),
+      series: _maps(json['series'])
+          .map(AnalyticsExecutorTrendSeries.fromJson)
+          .toList(),
     );
   }
 }
@@ -291,6 +329,10 @@ class AnalyticsCharts {
     required this.dailyDetail,
     required this.statusByCategory,
     required this.solved,
+    this.priority = const [],
+    this.executor = const [],
+    this.author = const [],
+    this.executorTrend,
   });
 
   final Map<AnalyticsTrendGroupBy, AnalyticsTrendBuckets> trend;
@@ -305,6 +347,10 @@ class AnalyticsCharts {
   final List<AnalyticsDailyBucket> dailyDetail;
   final AnalyticsStatusByCategory statusByCategory;
   final AnalyticsSolvedBuckets solved;
+  final List<AnalyticsCountPoint> priority;
+  final List<AnalyticsCountPoint> executor;
+  final List<AnalyticsCountPoint> author;
+  final AnalyticsExecutorTrend? executorTrend;
 
   AnalyticsTrendBuckets trendFor(AnalyticsTrendGroupBy groupBy) =>
       trend[groupBy] ?? const AnalyticsTrendBuckets();
@@ -335,6 +381,12 @@ class AnalyticsCharts {
         _map(json['status_by_category']),
       ),
       solved: AnalyticsSolvedBuckets.fromJson(_map(json['solved'])),
+      priority: AnalyticsCountPoint.listFromJson(json['priority']),
+      executor: AnalyticsCountPoint.listFromJson(json['executor']),
+      author: AnalyticsCountPoint.listFromJson(json['author']),
+      executorTrend: json['executor_trend'] == null
+          ? null
+          : AnalyticsExecutorTrend.fromJson(_map(json['executor_trend'])),
     );
   }
 }
@@ -560,6 +612,27 @@ class AnalyticsRecordsPage {
   }
 }
 
+enum AnalyticsDashboardKind {
+  stp,
+  tasksPersonal,
+  tasksSpace;
+
+  bool get isTaskDashboard =>
+      this == AnalyticsDashboardKind.tasksPersonal ||
+      this == AnalyticsDashboardKind.tasksSpace;
+
+  static AnalyticsDashboardKind fromApi(String? value) {
+    switch (value) {
+      case 'tasks_personal':
+        return AnalyticsDashboardKind.tasksPersonal;
+      case 'tasks_space':
+        return AnalyticsDashboardKind.tasksSpace;
+      default:
+        return AnalyticsDashboardKind.stp;
+    }
+  }
+}
+
 class AnalyticsDashboard {
   const AnalyticsDashboard({
     required this.spreadsheetId,
@@ -575,10 +648,14 @@ class AnalyticsDashboard {
     required this.charts,
     required this.summary,
     required this.records,
+    this.dashboardKind = AnalyticsDashboardKind.stp,
+    this.spaceName,
   });
 
   final String spreadsheetId;
   final String sheetName;
+  final AnalyticsDashboardKind dashboardKind;
+  final String? spaceName;
   final DateTime fetchedAt;
   final String itsmBaseUrl;
   final int totalCount;
@@ -609,6 +686,10 @@ class AnalyticsDashboard {
       charts: AnalyticsCharts.fromJson(_map(json['charts'])),
       summary: AnalyticsSummary.fromJson(_map(json['summary'])),
       records: AnalyticsRecordsPage.fromJson(_map(json['records'])),
+      dashboardKind: AnalyticsDashboardKind.fromApi(
+        json['dashboard_kind'] as String?,
+      ),
+      spaceName: json['space_name'] as String?,
     );
   }
 }

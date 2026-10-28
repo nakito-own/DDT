@@ -20,13 +20,19 @@ abstract final class RoutePaths {
   static String task(String taskKey) => '/tasks/$taskKey';
 
   /// Полный URL задачи: личная — `/tasks/<username>-id`, пространство — `/space/<spacekey>-id`.
-  static String forTask({required String taskKey, int? spaceId, String? spaceKey}) {
+  static String forTask({
+    required String taskKey,
+    int? spaceId,
+    String? spaceKey,
+  }) {
     if (taskKey.isEmpty) return tasksList;
-    final inSpace = spaceId != null || (spaceKey != null && spaceKey.isNotEmpty);
+    final inSpace =
+        spaceId != null || (spaceKey != null && spaceKey.isNotEmpty);
     return inSpace ? spaceTask(taskKey) : task(taskKey);
   }
 
   static const mail = '/mail';
+  static const mailNew = '/mail/new';
   static const calendar = '/calendar';
   static const calendarNew = '/calendar/new';
   static const contacts = '/contacts';
@@ -47,6 +53,19 @@ abstract final class RoutePaths {
   static String spaceTask(String taskKey) => '/space/$taskKey';
   static String spaceTaskNew(String spaceKey) => '/space/$spaceKey/new';
   static const notes = '/notes';
+  static const note = '/notes/:noteId';
+
+  static String notesAt({String? folderId}) {
+    if (folderId == null || folderId.isEmpty) return notes;
+    return '$notes?folder=${Uri.encodeQueryComponent(folderId)}';
+  }
+
+  static String noteFor(String noteId, {String? folderId}) {
+    final path = '$notes/$noteId';
+    if (folderId == null || folderId.isEmpty) return path;
+    return '$path?folder=${Uri.encodeQueryComponent(folderId)}';
+  }
+
   static const boards = '/boards';
   static const board = '/boards/:boardId';
   static const more = '/more';
@@ -86,6 +105,7 @@ abstract final class RoutePaths {
   static const nameTaskDetails = 'task-details';
   static const nameTaskCreate = 'task-create';
   static const nameMail = 'mail';
+  static const nameMailNew = 'mail-new';
   static const nameCalendar = 'calendar';
   static const nameCalendarNew = 'calendar-new';
   static const nameContacts = 'contacts';
@@ -99,6 +119,7 @@ abstract final class RoutePaths {
   static const nameSpaceTaskDetails = 'space-task-details';
   static const nameSpaceTaskCreate = 'space-task-create';
   static const nameNotes = 'notes';
+  static const nameNote = 'note';
   static const nameBoards = 'boards';
   static const nameBoard = 'board';
   static const nameMore = 'more';

@@ -71,3 +71,16 @@ final class AnalyticsTableMoreRequested extends AnalyticsEvent {
 final class AnalyticsSessionCleared extends AnalyticsEvent {
   const AnalyticsSessionCleared();
 }
+
+final class AnalyticsDashboardSourceChanged extends AnalyticsEvent {
+  const AnalyticsDashboardSourceChanged({
+    required this.kind,
+    this.spaceId,
+  });
+
+  final AnalyticsDashboardKind kind;
+  final int? spaceId;
+
+  @override
+  List<Object?> get props => [kind, spaceId];
+}

@@ -14,7 +14,8 @@ import '../models/mail_message.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
-import '../widgets/compose_mail_panel.dart';
+import '../utils/mail_compose.dart';
+import 'mail_compose_page.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_tappable.dart';
@@ -929,7 +930,7 @@ class _MailListState extends State<_MailList> {
                       child: DdtPanelPrimaryButton(
                         label: 'Написать',
                         icon: DdtIcons.edit,
-                        onPressed: () => showComposeMailPanel(context),
+                        onPressed: () => openMailComposePage(context),
                       ),
                     ),
                     SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
@@ -1358,13 +1359,30 @@ class _MailDetailHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          message.subject,
-          style: DdtTheme.style(
-            fontSize: DdtTypography.pageTitleSize,
-            fontWeight: FontWeight.w700,
-            color: DdtTheme.taskCardTextPrimary(context),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                message.subject,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.pageTitleSize,
+                  fontWeight: FontWeight.w700,
+                  color: DdtTheme.taskCardTextPrimary(context),
+                ),
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Button(
+              text: 'Ответить',
+              type: ButtonType.outlined,
+              borderRadius: DdtTheme.radius,
+              onPressed: () => openMailComposePage(
+                context,
+                draft: MailComposeDraft.replyTo(message),
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 8.h),
         DdtUserChip(name: message.sender),

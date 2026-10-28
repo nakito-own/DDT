@@ -105,15 +105,26 @@ final class MailMessageSendRequested extends MailEvent {
     required this.subject,
     required this.body,
     this.cc = const [],
+    this.bodyType = 'HTML',
+    this.attachments = const [],
   });
 
   final List<String> to;
   final String subject;
   final String body;
   final List<String> cc;
+  final String bodyType;
+  final List<MailOutgoingAttachment> attachments;
 
   @override
-  List<Object?> get props => [to, subject, body, cc];
+  List<Object?> get props => [
+    to,
+    subject,
+    body,
+    cc,
+    bodyType,
+    for (final file in attachments) '${file.name}:${file.bytes.length}',
+  ];
 }
 
 // ─── Множественный выбор ──────────────────────────────────────────────────────

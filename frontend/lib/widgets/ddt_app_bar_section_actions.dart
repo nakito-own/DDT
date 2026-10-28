@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme/ddt_typography.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/ddt_icons.dart';
 
 import '../blocs/analytics/analytics_bloc.dart';
+import '../models/analytics_dashboard.dart';
 import '../blocs/calendar/calendar_bloc.dart';
 import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
 import '../models/space.dart';
 import '../models/tasks_view_mode.dart';
 import '../router/route_paths.dart';
+import '../screens/notes_page.dart';
 import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_context_menu.dart';
@@ -32,6 +35,7 @@ class DdtAppBarSectionActions extends StatelessWidget {
       AppSection.mail => const _MailAppBarActions(),
       AppSection.calendar => const _CalendarAppBarActions(),
       AppSection.analytics => const _AnalyticsAppBarActions(),
+      AppSection.notes => const _NotesAppBarActions(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -138,6 +142,21 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
           },
         ),
       ],
+    );
+  }
+}
+
+class _NotesAppBarActions extends StatelessWidget {
+  const _NotesAppBarActions();
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppBarIconAction(
+      tooltip: 'Создать папку',
+      icon: DdtIcons.folder,
+      onPressed: () {
+        createNotesFolder(context);
+      },
     );
   }
 }
@@ -398,41 +417,135 @@ class _MailAppBarActions extends StatelessWidget {
   }
 }
 
-class _AnalyticsAppBarActions extends StatelessWidget {
+class _AnalyticsAppBarActions extends StatefulWidget {
   const _AnalyticsAppBarActions();
+
+  @override
+  State<_AnalyticsAppBarActions> createState() =>
+      _AnalyticsAppBarActionsState();
+}
+
+class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
+  static const _dashboardKindStorageKey = 'analytics_dashboard_kind';
+  static const _dashboardSpaceIdStorageKey = 'analytics_space_id';
+
+  final _storage = GetStorage('ddt_storage');
+  late final Future<List<Space>> _spaces = spacesApi.fetchSpaces();
+
+  String _selectionKey(AnalyticsState state) {
+    return switch (state.dashboardKind) {
+      AnalyticsDashboardKind.stp => 'stp',
+      AnalyticsDashboardKind.tasksPersonal => 'personal',
+      AnalyticsDashboardKind.tasksSpace => 'space:${state.spaceId ?? 0}',
+    };
+  }
+
+  String _selectionLabel(AnalyticsState state, List<Space> spaces) {
+    return switch (state.dashboardKind) {
+      AnalyticsDashboardKind.stp => 'КРР МР — Аналитика СТП',
+      AnalyticsDashboardKind.tasksPersonal => 'Личные задачи',
+      AnalyticsDashboardKind.tasksSpace => () {
+        final id = state.spaceId;
+        Space? space;
+        for (final item in spaces) {
+          if (item.id == id) {
+            space = item;
+            break;
+          }
+        }
+        final name = space?.name ?? state.dashboard?.spaceName;
+        return name != null ? 'Задачи $name' : 'Задачи пространства';
+      }(),
+    };
+  }
+
+  void _selectDashboard(
+    BuildContext context, {
+    required AnalyticsDashboardKind kind,
+    int? spaceId,
+  }) {
+    _storage.write(_dashboardKindStorageKey, switch (kind) {
+      AnalyticsDashboardKind.stp => 'stp',
+      AnalyticsDashboardKind.tasksPersonal => 'personal',
+      AnalyticsDashboardKind.tasksSpace => 'space',
+    });
+    if (kind == AnalyticsDashboardKind.tasksSpace) {
+      _storage.write(_dashboardSpaceIdStorageKey, spaceId);
+    } else {
+      _storage.remove(_dashboardSpaceIdStorageKey);
+    }
+    context.read<AnalyticsBloc>().add(
+      AnalyticsDashboardSourceChanged(kind: kind, spaceId: spaceId),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AnalyticsBloc, AnalyticsState>(
       buildWhen: (previous, current) =>
           previous.isLoading != current.isLoading ||
+          previous.dashboardKind != current.dashboardKind ||
+          previous.spaceId != current.spaceId ||
           previous.dashboard?.sheetName != current.dashboard?.sheetName,
       builder: (context, state) {
-        final sheetName = state.dashboard?.sheetName.trim();
-        final label = sheetName != null && sheetName.isNotEmpty
-            ? sheetName
-            : 'Google Таблица';
-
         final loading = state.isLoading && state.dashboard == null;
-        const sheetKey = 'current-sheet';
-        const addDashboardKey = 'add-dashboard';
 
-        return _AppBarFilterDropdown(
-          width: 240,
-          label: loading ? 'Загрузка…' : label,
-          isBusy: loading,
-          active: !loading,
-          options: [
-            DdtFilterOption(key: sheetKey, label: label),
-            const DdtFilterOption(
-              key: addDashboardKey,
-              label: 'Добавить дашборд',
-              enabled: false,
-            ),
-          ],
-          selected: loading ? const {} : {sheetKey},
-          emptyLabel: 'Нет источников',
-          onSelected: (_) {},
+        return FutureBuilder<List<Space>>(
+          future: _spaces,
+          builder: (context, snapshot) {
+            final spaces = snapshot.data ?? const <Space>[];
+            final selectedKey = _selectionKey(state);
+            final label = loading
+                ? 'Загрузка…'
+                : _selectionLabel(state, spaces);
+
+            final options = [
+              const DdtFilterOption(
+                key: 'stp',
+                label: 'КРР МР — Аналитика СТП',
+              ),
+              const DdtFilterOption(key: 'personal', label: 'Личные задачи'),
+              for (final space in spaces)
+                DdtFilterOption(
+                  key: 'space:${space.id}',
+                  label: 'Задачи ${space.name}',
+                ),
+            ];
+
+            return _AppBarFilterDropdown(
+              width: 280,
+              label: label,
+              isBusy:
+                  loading ||
+                  snapshot.connectionState == ConnectionState.waiting,
+              active: !loading,
+              options: options,
+              selected: loading ? const {} : {selectedKey},
+              emptyLabel: 'Нет дашбордов',
+              onSelected: (key) {
+                if (key == 'stp') {
+                  _selectDashboard(context, kind: AnalyticsDashboardKind.stp);
+                  return;
+                }
+                if (key == 'personal') {
+                  _selectDashboard(
+                    context,
+                    kind: AnalyticsDashboardKind.tasksPersonal,
+                  );
+                  return;
+                }
+                if (key.startsWith('space:')) {
+                  final id = int.tryParse(key.substring('space:'.length));
+                  if (id == null) return;
+                  _selectDashboard(
+                    context,
+                    kind: AnalyticsDashboardKind.tasksSpace,
+                    spaceId: id,
+                  );
+                }
+              },
+            );
+          },
         );
       },
     );
@@ -725,9 +838,8 @@ class CalendarViewSwitcher extends StatelessWidget {
             ),
           ],
           selected: state.viewMode,
-          onChanged: (mode) => context.read<CalendarBloc>().add(
-            CalendarViewModeChanged(mode),
-          ),
+          onChanged: (mode) =>
+              context.read<CalendarBloc>().add(CalendarViewModeChanged(mode)),
         );
       },
     );

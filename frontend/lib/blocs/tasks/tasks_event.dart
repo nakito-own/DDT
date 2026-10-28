@@ -74,6 +74,48 @@ final class TasksTypeFilterChanged extends TasksEvent {
   List<Object?> get props => [typeId];
 }
 
+/// Установить фильтр по автору (null = все авторы).
+final class TasksAuthorFilterChanged extends TasksEvent {
+  const TasksAuthorFilterChanged(this.userId);
+
+  final int? userId;
+
+  @override
+  List<Object?> get props => [userId];
+}
+
+/// Установить фильтр по исполнителю (null = все исполнители).
+final class TasksExecutorFilterChanged extends TasksEvent {
+  const TasksExecutorFilterChanged(this.userId);
+
+  final int? userId;
+
+  @override
+  List<Object?> get props => [userId];
+}
+
+/// Установить фильтр по ответственному (null = все ответственные).
+final class TasksResponsibleFilterChanged extends TasksEvent {
+  const TasksResponsibleFilterChanged(this.userId);
+
+  final int? userId;
+
+  @override
+  List<Object?> get props => [userId];
+}
+
+/// Период по одной из дат задачи. Оба края null снимают фильтр.
+final class TasksDateFilterChanged extends TasksEvent {
+  const TasksDateFilterChanged(this.field, this.start, this.end);
+
+  final TaskDateField field;
+  final DateTime? start;
+  final DateTime? end;
+
+  @override
+  List<Object?> get props => [field, start, end];
+}
+
 /// Изменить вариант сортировки.
 final class TasksSortOptionChanged extends TasksEvent {
   const TasksSortOptionChanged(this.option);
