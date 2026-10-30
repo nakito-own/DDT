@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +24,7 @@ import '../theme/ddt_typography.dart';
 import '../utils/calendar_body_html.dart';
 import '../utils/ddt_toast.dart';
 import 'ddt_icon.dart';
-import 'ddt_user_avatar.dart';
+import 'ddt_user_chip.dart';
 
 const _tooltipDuration = Duration(milliseconds: 280);
 const _arrowLength = 10.0;
@@ -31,11 +32,41 @@ const _arrowHalf = 8.0;
 const _tipRadius = 16.0;
 const _tipGap = 8.0;
 const _contentPad = 16.0;
+const _maxTooltipWidth = 640.0;
+const _maxTooltipHeight = 380.0;
+
+/// Marks the calendar surface so the event tooltip stays inside it.
+class CalendarTooltipHost extends StatefulWidget {
+  const CalendarTooltipHost({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<CalendarTooltipHost> createState() => _CalendarTooltipHostState();
+}
+
+class _CalendarTooltipHostState extends State<CalendarTooltipHost> {
+  Rect? overlayBounds() {
+    if (!mounted) return null;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return null;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final overlayBox = overlay?.context.findRenderObject();
+    final offset = overlayBox is RenderBox
+        ? box.localToGlobal(Offset.zero, ancestor: overlayBox)
+        : box.localToGlobal(Offset.zero);
+    return offset & box.size;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
 
 OverlayEntry? _activeTooltip;
 
 void showCalendarEventTooltip(BuildContext context, CalendarEvent event) {
   final anchor = _anchorInOverlay(context);
+  final host = context.findAncestorStateOfType<_CalendarTooltipHostState>();
   final theme = Theme.of(context);
   final bloc = context.read<CalendarBloc>();
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -58,6 +89,7 @@ void showCalendarEventTooltip(BuildContext context, CalendarEvent event) {
           anchor: anchor,
           event: event,
           onClosed: close,
+          readBounds: () => host?.overlayBounds(),
         ),
       ),
     ),
@@ -105,16 +137,24 @@ _TooltipPlacement _placeTooltip({
   required Size screen,
   required EdgeInsets padding,
   required Rect? anchor,
+  Rect? limit,
 }) {
-  const margin = 12.0;
-  final bounds = Rect.fromLTRB(
+  const margin = 8.0;
+  var bounds = Rect.fromLTRB(
     padding.left + margin,
     padding.top + margin,
     math.max(padding.left + margin + 1, screen.width - padding.right - margin),
     math.max(padding.top + margin + 1, screen.height - padding.bottom - margin),
   );
-  final preferredWidth = math.min(screen.width * 0.48, bounds.width);
-  final preferredHeight = math.min(screen.height * 0.74, bounds.height);
+  if (limit != null && limit.width > 48 && limit.height > 48) {
+    final limited = limit.deflate(margin);
+    if (limited.width > 48 && limited.height > 48) {
+      final next = bounds.intersect(limited);
+      if (next.width > 48 && next.height > 48) bounds = next;
+    }
+  }
+  final preferredWidth = math.min(_maxTooltipWidth, bounds.width);
+  final preferredHeight = math.min(_maxTooltipHeight, bounds.height);
 
   if (anchor == null) {
     final width = math.min(preferredWidth, bounds.width);
@@ -131,19 +171,15 @@ _TooltipPlacement _placeTooltip({
     );
   }
 
-  final ranked =
-      <_ArrowSide>[
-        _ArrowSide.left,
-        _ArrowSide.right,
-        _ArrowSide.top,
-        _ArrowSide.bottom,
-      ]..sort(
-        (a, b) => _sideSpace(
-          bounds,
-          anchor,
-          b,
-        ).compareTo(_sideSpace(bounds, anchor, a)),
-      );
+  int bySpace(_ArrowSide a, _ArrowSide b) => _sideSpace(
+    bounds,
+    anchor,
+    b,
+  ).compareTo(_sideSpace(bounds, anchor, a));
+  final ranked = <_ArrowSide>[
+    ...([_ArrowSide.left, _ArrowSide.right]..sort(bySpace)),
+    ...([_ArrowSide.top, _ArrowSide.bottom]..sort(bySpace)),
+  ];
 
   for (final side in ranked) {
     final placed = _placeOnSide(
@@ -176,6 +212,19 @@ _TooltipPlacement _placeTooltip({
     arrowCenter: height / 2,
     showArrow: false,
   );
+}
+
+Rect _fitInside(Rect outer, Rect? limit) {
+  if (limit == null) return outer;
+  var left = outer.left;
+  var top = outer.top;
+  var width = math.min(outer.width, limit.width);
+  var height = math.min(outer.height, limit.height);
+  if (left < limit.left) left = limit.left;
+  if (top < limit.top) top = limit.top;
+  if (left + width > limit.right) left = limit.right - width;
+  if (top + height > limit.bottom) top = limit.bottom - height;
+  return Rect.fromLTWH(left, top, width, height);
 }
 
 double _sideSpace(Rect bounds, Rect anchor, _ArrowSide side) {
@@ -293,11 +342,13 @@ class _CalendarEventTooltipLayer extends StatefulWidget {
     required this.anchor,
     required this.event,
     required this.onClosed,
+    required this.readBounds,
   });
 
   final Rect? anchor;
   final CalendarEvent event;
   final VoidCallback onClosed;
+  final Rect? Function() readBounds;
 
   @override
   State<_CalendarEventTooltipLayer> createState() =>
@@ -341,12 +392,14 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final limit = widget.readBounds();
     final placement = _placeTooltip(
       screen: media.size,
       padding: media.padding,
       anchor: widget.anchor,
+      limit: limit,
     );
-    final rect = placement.outer;
+    final rect = _fitInside(placement.outer, limit);
 
     return Focus(
       autofocus: true,
@@ -369,6 +422,14 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
             _ArrowSide.top => Offset(0, slide),
             _ArrowSide.bottom => Offset(0, -slide),
           };
+          final tip = Opacity(
+            opacity: t,
+            child: Transform.scale(
+              alignment: _scaleOrigin(placement.side),
+              scale: 0.94 + 0.06 * t,
+              child: child,
+            ),
+          );
           return Stack(
             clipBehavior: Clip.none,
             children: [
@@ -379,20 +440,32 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
                   child: const SizedBox.expand(),
                 ),
               ),
-              Positioned(
-                left: rect.left + offset.dx,
-                top: rect.top + offset.dy,
-                width: rect.width,
-                height: rect.height,
-                child: Opacity(
-                  opacity: t,
-                  child: Transform.scale(
-                    alignment: _scaleOrigin(placement.side),
-                    scale: 0.94 + 0.06 * t,
-                    child: child,
+              if (limit == null)
+                Positioned(
+                  left: rect.left + offset.dx,
+                  top: rect.top + offset.dy,
+                  width: rect.width,
+                  height: rect.height,
+                  child: tip,
+                )
+              else
+                Positioned.fromRect(
+                  rect: limit,
+                  child: ClipRect(
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        Positioned(
+                          left: rect.left - limit.left + offset.dx,
+                          top: rect.top - limit.top + offset.dy,
+                          width: rect.width,
+                          height: rect.height,
+                          child: tip,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -752,17 +825,27 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
           displayName: state.ownerDisplayName,
         );
         final canRespond = _event.isMeeting && !_event.isColleague && !canEdit;
+        final showStatus = _event.isMeeting && !_event.isColleague;
         final link = meetingLinkFor(
           location: _event.location,
           html: _event.body,
         );
         final place = locationWithoutLinks(_event.location);
         final when = _whenLabel(_event);
+        final requiredAttendees = [
+          for (final attendee in _event.attendees)
+            if (!attendee.optional) attendee,
+        ];
+        final optionalAttendees = [
+          for (final attendee in _event.attendees)
+            if (attendee.optional) attendee,
+        ];
+        final calendarName = _event.isColleague
+            ? _event.ownerName
+            : 'Мои события';
         final pad = _contentPad.w;
-        final topBand = 58.h;
-        final bottomBand = !canRespond
-            ? 0.0
-            : (_event.isAccepted ? 76.h : 128.h);
+        final topBand = 76.h;
+        final bottomBand = showStatus || canRespond ? 72.h : 0.0;
 
         return Material(
           type: MaterialType.transparency,
@@ -774,62 +857,55 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                     pad,
                     topBand,
                     pad,
-                    canRespond ? bottomBand : pad,
+                    bottomBand > 0 ? bottomBand : pad,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (_event.isMeeting && !_event.isColleague)
-                        _ResponseStatusBadge(event: _event),
-                      if (when != null ||
-                          (place != null && place.isNotEmpty) ||
-                          (_event.organizer != null &&
-                              _event.organizer!.isNotEmpty) ||
-                          (_event.isColleague &&
-                              _event.ownerName != null &&
-                              _event.ownerName!.isNotEmpty) ||
-                          _event.isLimited ||
-                          _event.isRecurring) ...[
-                        SizedBox(height: 12.h),
-                        _DetailCard(
-                          children: [
-                            if (when != null)
-                              _DetailRow(icon: DdtIcons.clock, text: when),
-                            if (_event.isRecurring)
-                              const _DetailRow(
-                                icon: DdtIcons.repeat,
-                                text: 'Повторяется',
-                              ),
-                            if (place != null && place.isNotEmpty)
-                              _DetailRow(icon: DdtIcons.location, text: place),
-                            if (_event.organizer != null &&
-                                _event.organizer!.isNotEmpty)
-                              _DetailRow(
-                                icon: DdtIcons.user,
-                                text: _event.organizer!,
-                                personName: _event.organizer,
-                              ),
-                            if (_event.isColleague &&
-                                _event.ownerName != null &&
-                                _event.ownerName!.isNotEmpty)
-                              _DetailRow(
-                                icon: DdtIcons.calendarDay,
-                                text: _event.ownerName!,
-                              ),
-                            if (_event.isLimited)
-                              const _DetailRow(
-                                icon: DdtIcons.info,
-                                text: 'Ограниченные сведения (занятость)',
-                              ),
-                          ],
+                      if (when != null)
+                        _FieldLine(label: 'Время и дата', value: when),
+                      if (_event.isRecurring)
+                        const _FieldLine(label: 'Повтор', value: 'Повторяется'),
+                      if ((place != null && place.isNotEmpty) || link != null)
+                        _FieldLine(
+                          label: 'Место',
+                          valueWidget: _PlaceValue(place: place, link: link),
                         ),
-                      ],
-                      if (link != null) ...[
-                        SizedBox(height: 12.h),
-                        _JoinButton(link: link),
-                      ],
+                      if (_event.organizer != null &&
+                          _event.organizer!.isNotEmpty)
+                        _FieldLine(
+                          label: 'Организатор',
+                          value: _event.organizer!,
+                        ),
+                      if (requiredAttendees.isNotEmpty)
+                        _FieldLine(
+                          label: 'Участники',
+                          valueWidget: _AttendeeChips(
+                            attendees: requiredAttendees,
+                          ),
+                        ),
+                      if (optionalAttendees.isNotEmpty)
+                        _FieldLine(
+                          label: 'Опциональные участники',
+                          valueWidget: _AttendeeChips(
+                            attendees: optionalAttendees,
+                          ),
+                        ),
+                      if (calendarName != null && calendarName.isNotEmpty)
+                        _FieldLine(
+                          label: 'Календарь',
+                          valueWidget: _CalendarValue(
+                            name: calendarName,
+                            own: !_event.isColleague,
+                          ),
+                        ),
+                      if (_event.isLimited)
+                        const _FieldLine(
+                          label: 'Сведения',
+                          value: 'Ограниченные сведения (занятость)',
+                        ),
                       if (_loadingDetail) ...[
-                        SizedBox(height: 16.h),
+                        SizedBox(height: 8.h),
                         const Center(
                           child: SizedBox(
                             width: 18,
@@ -839,10 +915,10 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                         ),
                       ],
                       if (_event.body != null &&
-                          _event.body!.trim().isNotEmpty) ...[
-                        SizedBox(height: 12.h),
-                        _DetailCard(
-                          child: _event.bodyType == 'html'
+                          _event.body!.trim().isNotEmpty)
+                        _FieldLine(
+                          label: 'Описание',
+                          valueWidget: _event.bodyType == 'html'
                               ? _AgendaHtml(html: _event.body!)
                               : Text(
                                   _event.body!,
@@ -856,11 +932,6 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                                   ),
                                 ),
                         ),
-                      ],
-                      if (_event.attendees.isNotEmpty) ...[
-                        SizedBox(height: 12.h),
-                        _AttendeeSection(attendees: _event.attendees),
-                      ],
                     ],
                   ),
                 ),
@@ -872,10 +943,11 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                 height: topBand,
                 child: _EdgeFade(
                   top: true,
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.topLeft,
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: pad),
+                    padding: EdgeInsets.fromLTRB(pad, 6, pad, 0),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
@@ -907,7 +979,7 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                   ),
                 ),
               ),
-              if (canRespond)
+              if (showStatus || canRespond)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -915,17 +987,31 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                   height: bottomBand,
                   child: _EdgeFade(
                     top: false,
-                    alignment: Alignment.bottomLeft,
+                    alignment: Alignment.bottomCenter,
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(pad, 0, pad, 10.h),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: _ResponseActions(
-                          event: _event,
-                          isLoading:
-                              state.isResponding || _pendingAction != null,
-                          onRespond: _respond,
-                        ),
+                      padding: EdgeInsets.fromLTRB(pad, 2, pad, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (showStatus)
+                            Flexible(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _ResponseStatusBadge(event: _event),
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                          if (canRespond) ...[
+                            if (showStatus) SizedBox(width: 8.w),
+                            _ResponseActions(
+                              isLoading:
+                                  state.isResponding || _pendingAction != null,
+                              pending: _pendingAction,
+                              onRespond: _respond,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -938,21 +1024,214 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
   }
 }
 
+const _weekdays = [
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье',
+];
+
+const _months = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+];
+
 String? _whenLabel(CalendarEvent event) {
   final start = event.start?.toLocal();
   if (start == null) return null;
   final end = event.end?.toLocal();
-  final day = DateFormat('dd.MM.yyyy');
   final time = DateFormat('HH:mm');
-  if (end == null) return '${day.format(start)}, ${time.format(start)}';
+  final head = _dayHeading(start);
+  if (end == null) return '$head, ${time.format(start)}';
   final sameDay =
       start.year == end.year &&
       start.month == end.month &&
       start.day == end.day;
   if (sameDay) {
-    return '${day.format(start)}, ${time.format(start)} – ${time.format(end)}';
+    return '$head, ${time.format(start)} — ${time.format(end)}';
   }
-  return '${day.format(start)} ${time.format(start)} – ${day.format(end)} ${time.format(end)}';
+  return '$head, ${time.format(start)} — ${_dayHeading(end)}, ${time.format(end)}';
+}
+
+String _dayHeading(DateTime date) {
+  return '${_weekdays[date.weekday - 1]}, ${date.day} ${_months[date.month - 1]}';
+}
+
+class _AttendeeChips extends StatefulWidget {
+  const _AttendeeChips({required this.attendees});
+
+  final List<CalendarAttendee> attendees;
+
+  @override
+  State<_AttendeeChips> createState() => _AttendeeChipsState();
+}
+
+class _AttendeeChipsState extends State<_AttendeeChips> {
+  static const _previewCount = 3;
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final attendees = widget.attendees;
+    final hidden = !_expanded && attendees.length > _previewCount;
+    final visible = hidden ? attendees.take(_previewCount) : attendees;
+    return Wrap(
+      spacing: 6.w,
+      runSpacing: 6.h,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final attendee in visible)
+          DdtUserChip(
+            name: attendee.name,
+            email: attendee.email,
+            avatarSize: 22,
+            fontSize: DdtTypography.labelSize,
+          ),
+        if (hidden)
+          _MoreAttendeesButton(
+            onTap: () => setState(() => _expanded = true),
+          ),
+      ],
+    );
+  }
+}
+
+class _MoreAttendeesButton extends StatelessWidget {
+  const _MoreAttendeesButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.white.withValues(alpha: 0.72),
+      borderRadius: DdtTheme.badgeBorderRadius,
+      child: InkWell(
+        borderRadius: DdtTheme.badgeBorderRadius,
+        onTap: onTap,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+          decoration: BoxDecoration(
+            borderRadius: DdtTheme.badgeBorderRadius,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.16)
+                  : DdtTheme.lightBorderSubtle.withValues(alpha: 0.9),
+            ),
+          ),
+          child: Text(
+            '…',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              fontWeight: FontWeight.w700,
+              height: 1,
+              color: DdtTheme.sidePanelTextPrimary(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceValue extends StatelessWidget {
+  const _PlaceValue({required this.place, required this.link});
+
+  final String? place;
+  final CalendarMeetingLink? link;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = place?.trim() ?? '';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (name.isNotEmpty)
+          Expanded(
+            child: Text(
+              name,
+              textAlign: TextAlign.start,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.bodySize,
+                fontWeight: FontWeight.w500,
+                height: 1.35,
+                color: DdtTheme.sidePanelTextPrimary(context),
+              ),
+            ),
+          ),
+        if (link != null) ...[
+          if (name.isNotEmpty) SizedBox(width: 8.w),
+          _JoinButton(link: link!),
+        ],
+      ],
+    );
+  }
+}
+
+class _JoinButton extends StatelessWidget {
+  const _JoinButton({required this.link});
+
+  final CalendarMeetingLink link;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary,
+      borderRadius: DdtTheme.radius,
+      child: InkWell(
+        borderRadius: DdtTheme.radius,
+        onTap: () => _openUrl(link.url),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (link.asset.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.r),
+                  child: Image.asset(
+                    link.asset,
+                    width: 16.w,
+                    height: 16.w,
+                    fit: BoxFit.contain,
+                  ),
+                )
+              else
+                DdtIcon(DdtIcons.link, size: 14.sp, color: Colors.white),
+              SizedBox(width: 8.w),
+              Text(
+                'Подключиться',
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.bodySize,
+                  fontWeight: FontWeight.w600,
+                  height: 1.1,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              DdtIcon(DdtIcons.arrowUpRight, size: 13.sp, color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AgendaHtml extends StatelessWidget {
@@ -1074,6 +1353,15 @@ class _TooltipIconButton extends StatelessWidget {
   }
 }
 
+Color _glassForeground(BuildContext context, Color color) {
+  if (Theme.of(context).brightness != Brightness.dark) return color;
+  final hsl = HSLColor.fromColor(color);
+  return hsl
+      .withLightness(math.max(hsl.lightness, 0.76))
+      .withSaturation(math.min(0.58, math.max(hsl.saturation, 0.22)))
+      .toColor();
+}
+
 class _ResponseStatusBadge extends StatelessWidget {
   const _ResponseStatusBadge({required this.event});
 
@@ -1081,319 +1369,288 @@ class _ResponseStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final pending = event.needsResponse;
     final declined = event.isDeclined;
     final color = pending
-        ? AppColors.primary
-        : (declined
-              ? DdtTheme.sidePanelTextSecondary(context)
-              : AppColors.primary);
-    final background = color.withValues(alpha: isDark ? 0.16 : 0.1);
+        ? DdtTheme.primaryColor
+        : (declined ? DdtTheme.textMuted(context) : DdtTheme.successColor);
+    final foreground = _glassForeground(context, color);
     final icon = pending
         ? DdtIcons.clock
         : (declined ? DdtIcons.closeCircle : DdtIcons.checkCircle);
 
-    return _DetailCard(
-      background: background,
-      children: [
-        _DetailRow(icon: icon, text: event.responseLabel, color: color),
-      ],
-    );
-  }
-}
-
-class _DetailCard extends StatelessWidget {
-  const _DetailCard({this.child, this.children, this.background});
-
-  final Widget? child;
-  final List<Widget>? children;
-  final Color? background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-      decoration: BoxDecoration(
-        color: background ?? DdtTheme.inputFillColor(context),
-        borderRadius: DdtTheme.inputControlBorderRadius,
-        border: Border.all(color: DdtTheme.borderSubtle(context), width: 1),
-      ),
-      child:
-          child ??
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var index = 0; index < children!.length; index++) ...[
-                if (index > 0) SizedBox(height: 8.h),
-                children![index],
-              ],
-            ],
-          ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.text,
-    this.color,
-    this.personName,
-  });
-
-  final FaIconData icon;
-  final String text;
-  final Color? color;
-  final String? personName;
-
-  @override
-  Widget build(BuildContext context) {
-    final tint = color ?? DdtTheme.sidePanelTextPrimary(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(top: 1.h),
-          child: personName == null
-              ? DdtIcon(icon, size: 14.sp, color: tint)
-              : DdtUserAvatar(size: 16.w, name: personName),
-        ),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            text,
-            textAlign: TextAlign.start,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.bodySize,
-              fontWeight: FontWeight.w500,
-              color: tint,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AttendeeSection extends StatefulWidget {
-  const _AttendeeSection({required this.attendees});
-
-  final List<CalendarAttendee> attendees;
-
-  @override
-  State<_AttendeeSection> createState() => _AttendeeSectionState();
-}
-
-class _AttendeeSectionState extends State<_AttendeeSection> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: _DetailCard(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _DetailRow(
-                      icon: DdtIcons.users,
-                      text: 'Приглашённые · ${widget.attendees.length}',
-                    ),
-                  ),
-                  DdtIcon(
-                    _expanded ? DdtIcons.chevronDown : DdtIcons.chevronRight,
-                    size: 12.sp,
-                    color: DdtTheme.sidePanelTextSecondary(context),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        AnimatedSize(
-          duration: DdtTheme.selectionAnimationDuration,
-          curve: DdtTheme.selectionAnimationCurve,
-          alignment: Alignment.topCenter,
-          child: _expanded
-              ? Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: Column(
-                    children: [
-                      for (
-                        var index = 0;
-                        index < widget.attendees.length;
-                        index++
-                      ) ...[
-                        if (index > 0) SizedBox(height: 8.h),
-                        _AttendeeRow(attendee: widget.attendees[index]),
-                      ],
-                    ],
-                  ),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-      ],
-    );
-  }
-}
-
-class _AttendeeRow extends StatelessWidget {
-  const _AttendeeRow({required this.attendee});
-
-  final CalendarAttendee attendee;
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = DdtTheme.sidePanelTextSecondary(context);
-    final status = attendee.responseLabel;
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-      decoration: BoxDecoration(
-        color: DdtTheme.inputFillColor(context),
-        borderRadius: DdtTheme.inputControlBorderRadius,
-        border: Border.all(color: DdtTheme.borderSubtle(context)),
-      ),
-      child: Row(
-        children: [
-          DdtUserAvatar(size: 26.w, name: attendee.name, email: attendee.email),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: Text(
-              attendee.name,
+    return _FrostedGlass(
+      color: color,
+      borderRadius: 8.r,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DdtIcon(icon, size: 13.sp, color: foreground),
+            SizedBox(width: 6.w),
+            Text(
+              event.responseLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DdtTheme.style(
-                fontSize: DdtTypography.bodySize,
-                color: DdtTheme.sidePanelTextPrimary(context),
-              ),
-            ),
-          ),
-          if (status.isNotEmpty) ...[
-            SizedBox(width: 8.w),
-            Text(
-              status,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.labelSmallSize,
-                color: muted,
+                fontSize: DdtTypography.labelSize,
+                fontWeight: FontWeight.w600,
+                color: foreground,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLine extends StatelessWidget {
+  const _FieldLine({required this.label, this.value, this.valueWidget});
+
+  final String label;
+  final String? value;
+  final Widget? valueWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    final valueChild =
+        valueWidget ??
+        Text(
+          value ?? '',
+          textAlign: TextAlign.start,
+          style: DdtTheme.style(
+            fontSize: DdtTypography.bodySize,
+            fontWeight: FontWeight.w500,
+            height: 1.35,
+            color: DdtTheme.sidePanelTextPrimary(context),
+          ),
+        );
+    return Padding(
+      padding: EdgeInsets.only(bottom: 16.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Text(
+              label,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.bodySize,
+                height: 1.35,
+                color: DdtTheme.sidePanelTextSecondary(context),
+              ),
+            ),
+          ),
+          SizedBox(width: 16.w),
+          Expanded(flex: 8, child: valueChild),
         ],
       ),
     );
   }
 }
 
-class _JoinButton extends StatelessWidget {
-  const _JoinButton({required this.link});
+class _CalendarValue extends StatelessWidget {
+  const _CalendarValue({required this.name, required this.own});
 
-  final CalendarMeetingLink link;
+  final String name;
+  final bool own;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.primary,
-      borderRadius: DdtTheme.radius,
-      child: InkWell(
-        borderRadius: DdtTheme.radius,
-        onTap: () => _openUrl(link.url),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-          child: Row(
-            children: [
-              if (link.asset.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4.r),
-                  child: Image.asset(
-                    link.asset,
-                    width: 18.w,
-                    height: 18.w,
-                    fit: BoxFit.contain,
-                  ),
-                )
-              else
-                DdtIcon(DdtIcons.link, size: 16.sp, color: Colors.white),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Text(
-                  'Подключиться',
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.bodySize,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              DdtIcon(DdtIcons.arrowUpRight, size: 14.sp, color: Colors.white),
-            ],
+    return Row(
+      children: [
+        if (own) ...[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: DdtTheme.primaryColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: 8.w),
+        ],
+        Flexible(
+          child: Text(
+            name,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodySize,
+              fontWeight: FontWeight.w500,
+              color: DdtTheme.sidePanelTextPrimary(context),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
 class _ResponseActions extends StatelessWidget {
   const _ResponseActions({
-    required this.event,
     required this.isLoading,
+    required this.pending,
     required this.onRespond,
   });
 
-  final CalendarEvent event;
   final bool isLoading;
+  final CalendarEventResponseAction? pending;
   final ValueChanged<CalendarEventResponseAction> onRespond;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final gray = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFB7C0CE)
+        : const Color(0xFF6B7280);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (!event.isAccepted) ...[
-          Button(
-            text: isLoading ? 'Отправка...' : 'Принять',
-            borderRadius: DdtTheme.radius,
-            onPressed: isLoading
-                ? null
-                : () => onRespond(CalendarEventResponseAction.accept),
-          ),
-          SizedBox(height: 8.h),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: Button(
-                text: isLoading && event.isAccepted
-                    ? 'Отправка...'
-                    : 'Предварительно',
-                type: ButtonType.outlined,
-                borderRadius: DdtTheme.radius,
-                onPressed: isLoading
-                    ? null
-                    : () => onRespond(CalendarEventResponseAction.tentative),
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Expanded(
-              child: Button(
-                text: 'Отклонить',
-                type: ButtonType.outlined,
-                borderRadius: DdtTheme.radius,
-                onPressed: isLoading
-                    ? null
-                    : () => onRespond(CalendarEventResponseAction.decline),
-              ),
-            ),
-          ],
+        _RsvpIconButton(
+          icon: DdtIcons.check,
+          color: DdtTheme.successColor,
+          tooltip: 'Принять',
+          busy: isLoading && pending == CalendarEventResponseAction.accept,
+          onTap: isLoading
+              ? null
+              : () => onRespond(CalendarEventResponseAction.accept),
+        ),
+        SizedBox(width: 6.w),
+        _RsvpIconButton(
+          icon: DdtIcons.close,
+          color: DdtTheme.dangerColor,
+          tooltip: 'Отклонить',
+          busy: isLoading && pending == CalendarEventResponseAction.decline,
+          onTap: isLoading
+              ? null
+              : () => onRespond(CalendarEventResponseAction.decline),
+        ),
+        SizedBox(width: 6.w),
+        _RsvpIconButton(
+          icon: DdtIcons.question,
+          color: gray,
+          tooltip: 'Предварительно',
+          busy: isLoading && pending == CalendarEventResponseAction.tentative,
+          onTap: isLoading
+              ? null
+              : () => onRespond(CalendarEventResponseAction.tentative),
         ),
       ],
+    );
+  }
+}
+
+class _RsvpIconButton extends StatelessWidget {
+  const _RsvpIconButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final FaIconData icon;
+  final Color color;
+  final String tooltip;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = 36.w;
+    final foreground = _glassForeground(context, color);
+    return Tooltip(
+      message: tooltip,
+      child: Opacity(
+        opacity: onTap == null && !busy ? 0.45 : 1,
+        child: _FrostedGlass(
+          color: color,
+          borderRadius: 8.r,
+          onTap: onTap,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Center(
+              child: busy
+                  ? SizedBox(
+                      width: 14.w,
+                      height: 14.w,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: foreground,
+                      ),
+                    )
+                  : DdtIcon(
+                      icon,
+                      size: 16.sp,
+                      color: foreground,
+                      fitParent: true,
+                      semanticLabel: tooltip,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FrostedGlass extends StatelessWidget {
+  const _FrostedGlass({
+    required this.color,
+    required this.borderRadius,
+    required this.child,
+    this.onTap,
+  });
+
+  final Color color;
+  final double borderRadius;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final radius = BorderRadius.circular(borderRadius);
+    final surface = isDark ? DdtTheme.darkSurface : DdtTheme.lightSurface;
+    final fill = isDark
+        ? Color.alphaBlend(
+            color.withValues(alpha: 0.22),
+            surface.withValues(alpha: 0.94),
+          )
+        : Color.alphaBlend(
+            color.withValues(alpha: 0.4),
+            surface.withValues(alpha: 0.68),
+          );
+    final edge = isDark
+        ? color.withValues(alpha: 0.42)
+        : Color.alphaBlend(
+            Colors.white.withValues(alpha: 0.7),
+            color.withValues(alpha: 0.9),
+          );
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 11, sigmaY: 11),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: radius,
+            border: Border.all(color: edge.withValues(alpha: 0.8)),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              splashColor: color.withValues(alpha: 0.16),
+              highlightColor: color.withValues(alpha: 0.08),
+              borderRadius: radius,
+              child: child,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

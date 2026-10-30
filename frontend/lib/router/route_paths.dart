@@ -19,6 +19,22 @@ abstract final class RoutePaths {
 
   static String task(String taskKey) => '/tasks/$taskKey';
 
+  static String taskEdit(String taskKey) => '/tasks/$taskKey/edit';
+
+  static String spaceTaskEdit(String taskKey) => '/space/$taskKey/edit';
+
+  /// Полный URL редактирования: личная задача или задача пространства.
+  static String forTaskEdit({
+    required String taskKey,
+    int? spaceId,
+    String? spaceKey,
+  }) {
+    if (taskKey.isEmpty) return tasksList;
+    final inSpace =
+        spaceId != null || (spaceKey != null && spaceKey.isNotEmpty);
+    return inSpace ? spaceTaskEdit(taskKey) : taskEdit(taskKey);
+  }
+
   /// Полный URL задачи: личная — `/tasks/<username>-id`, пространство — `/space/<spacekey>-id`.
   static String forTask({
     required String taskKey,
@@ -104,6 +120,7 @@ abstract final class RoutePaths {
   static const nameTasksArchive = 'tasks-archive';
   static const nameTaskDetails = 'task-details';
   static const nameTaskCreate = 'task-create';
+  static const nameTaskEdit = 'task-edit';
   static const nameMail = 'mail';
   static const nameMailNew = 'mail-new';
   static const nameCalendar = 'calendar';
@@ -118,6 +135,7 @@ abstract final class RoutePaths {
   static const nameSpaceArchive = 'space-archive';
   static const nameSpaceTaskDetails = 'space-task-details';
   static const nameSpaceTaskCreate = 'space-task-create';
+  static const nameSpaceTaskEdit = 'space-task-edit';
   static const nameNotes = 'notes';
   static const nameNote = 'note';
   static const nameBoards = 'boards';
