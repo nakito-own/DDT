@@ -328,7 +328,7 @@ class _CalendarBody extends StatelessWidget {
             ),
     );
 
-    return calendar;
+    return CalendarTooltipHost(child: calendar);
   }
 
   static String _plannerPeriodKey(DateTime focused, CalendarViewMode mode) {

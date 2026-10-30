@@ -8,9 +8,9 @@ import 'package:ddt_frontend/blocs/tasks/tasks_bloc.dart';
 import 'package:ddt_frontend/models/task.dart';
 import 'package:ddt_frontend/models/task_ref.dart';
 import 'package:ddt_frontend/models/task_status.dart';
+import 'package:ddt_frontend/screens/task_create_page.dart';
 import 'package:ddt_frontend/theme/ddt_scale.dart';
 import 'package:ddt_frontend/theme/ddt_theme.dart';
-import 'package:ddt_frontend/widgets/task_side_panel.dart';
 
 Task _task(int id, String key) {
   return Task(
@@ -52,12 +52,16 @@ void main() {
     await tester.pumpWidget(
       _Harness(
         onPressed: (context) async {
-          saved = await showTaskSidePanel(
-            context,
-            mode: TaskSidePanelMode.view,
-            task: target,
-            taskTypes: const [],
-            relatedTasks: [target],
+          saved = await Navigator.of(context).push<Task>(
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                body: TaskEditPage(
+                  taskKey: target.key,
+                  task: target,
+                  relatedTasks: [target],
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -87,12 +91,16 @@ void main() {
     await tester.pumpWidget(
       _Harness(
         onPressed: (context) async {
-          saved = await showTaskSidePanel(
-            context,
-            mode: TaskSidePanelMode.view,
-            task: target,
-            taskTypes: const [],
-            relatedTasks: [target, _task(2, 'a-2'), _task(3, 'a-3')],
+          saved = await Navigator.of(context).push<Task>(
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                body: TaskEditPage(
+                  taskKey: target.key,
+                  task: target,
+                  relatedTasks: [target, _task(2, 'a-2'), _task(3, 'a-3')],
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -100,14 +108,17 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Добавить задачу'));
+    await tester.tap(find.text('Нет').at(1));
     await tester.pumpAndSettle();
     await tester.tap(find.text('a-2 · Task a-2').last);
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    // The picker resets so another child can be added right away.
-    expect(find.text('Добавить задачу'), findsOneWidget);
+    expect(find.text('a-2'), findsWidgets);
+
+    // Multi-select menu stays open and covers the toolbar.
+    await tester.tapAt(const Offset(40, 500));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Сохранить'));
     await tester.pumpAndSettle();
@@ -137,12 +148,16 @@ void main() {
     await tester.pumpWidget(
       _Harness(
         onPressed: (context) async {
-          saved = await showTaskSidePanel(
-            context,
-            mode: TaskSidePanelMode.view,
-            task: target,
-            taskTypes: const [],
-            relatedTasks: [target, _task(2, 'a-2')],
+          saved = await Navigator.of(context).push<Task>(
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                body: TaskEditPage(
+                  taskKey: target.key,
+                  task: target,
+                  relatedTasks: [target, _task(2, 'a-2')],
+                ),
+              ),
+            ),
           );
         },
       ),

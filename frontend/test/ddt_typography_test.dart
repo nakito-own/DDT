@@ -39,7 +39,7 @@ void main() {
       expect(
         textTheme.bodyMedium?.fontFamily?.toLowerCase(),
         contains('golos'),
-        reason: 'Theme text should use Golos Text from google_fonts',
+        reason: 'Theme text should use the bundled Golos Text family',
       );
       expect(
         DdtTypography.style(size: DdtTypography.bodySize).fontFamily

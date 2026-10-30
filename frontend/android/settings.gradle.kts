@@ -24,3 +24,25 @@ plugins {
 }
 
 include(":app")
+
+// Transitive plugins such as image_cropper 9.1.0 still declare compileSdk 33.
+// Their AndroidX dependencies require 34+, and AGP 9 locks compileSdk before
+// an afterEvaluate override can change it. Raise it in the plugin script
+// before Gradle evaluates the project.
+gradle.beforeProject {
+    if (this == rootProject) {
+        return@beforeProject
+    }
+    val script = buildFile
+    if (!script.isFile) {
+        return@beforeProject
+    }
+    val original = script.readText()
+    val updated = Regex("""compileSdk(?:Version)?(\s*=\s*|\s+)(\d+)""").replace(original) { match ->
+        val sdk = match.groupValues[2].toInt()
+        if (sdk < 36) match.value.replace(match.groupValues[2], "36") else match.value
+    }
+    if (updated != original) {
+        script.writeText(updated)
+    }
+}

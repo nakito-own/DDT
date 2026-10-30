@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
+import '../models/task_link.dart';
 import '../models/task_priority.dart';
 import '../models/task_ref.dart';
 import '../models/task_status.dart';
@@ -15,6 +16,7 @@ import '../models/task_type.dart';
 import '../models/user_profile.dart';
 import '../router/route_paths.dart';
 import '../services/directory_users.dart';
+import '../services/tasks_api.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
@@ -23,6 +25,7 @@ import '../utils/ddt_date_time_picker.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import '../utils/task_status_dates.dart';
+import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_markdown_description_input.dart';
 import '../widgets/ddt_markdown_live_controller.dart';
@@ -30,6 +33,8 @@ import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_user_chip.dart';
+
+part 'task_edit_page.dart';
 
 /// Полноэкранное создание задачи вместо боковой панели.
 void openTaskCreatePage(
@@ -318,6 +323,10 @@ class _CreateMainPane extends StatefulWidget {
     required this.onClose,
     required this.onSubmit,
     this.trailing,
+    this.toolbarLabel = 'НОВАЯ ЗАДАЧА',
+    this.backLabel = 'Назад к задачам',
+    this.submitLabel = 'Создать',
+    this.autofocusTitle = true,
   });
 
   final TextEditingController titleController;
@@ -326,6 +335,10 @@ class _CreateMainPane extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onSubmit;
   final Widget? trailing;
+  final String toolbarLabel;
+  final String backLabel;
+  final String submitLabel;
+  final bool autofocusTitle;
 
   @override
   State<_CreateMainPane> createState() => _CreateMainPaneState();
@@ -419,8 +432,9 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _CreateToolbar(
-                          label: 'НОВАЯ ЗАДАЧА',
-                          backLabel: 'Назад к задачам',
+                          label: widget.toolbarLabel,
+                          backLabel: widget.backLabel,
+                          submitLabel: widget.submitLabel,
                           onClose: widget.onClose,
                           onSubmit: widget.onSubmit,
                         ),
@@ -428,7 +442,7 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
                         _SkeletonTextField(
                           controller: widget.titleController,
                           hint: 'Название',
-                          autofocus: true,
+                          autofocus: widget.autofocusTitle,
                           style: titleStyle,
                           onSubmitted: (_) =>
                               widget.descriptionFocus.requestFocus(),
@@ -762,10 +776,12 @@ class _CreateToolbar extends StatelessWidget {
     required this.backLabel,
     required this.onClose,
     required this.onSubmit,
+    this.submitLabel = 'Создать',
   });
 
   final String label;
   final String backLabel;
+  final String submitLabel;
   final VoidCallback onClose;
   final VoidCallback onSubmit;
 
@@ -795,7 +811,7 @@ class _CreateToolbar extends StatelessWidget {
         ),
         SizedBox(width: 12.w),
         Button(
-          text: 'Создать',
+          text: submitLabel,
           onPressed: onSubmit,
           borderRadius: DdtTheme.radius,
         ),

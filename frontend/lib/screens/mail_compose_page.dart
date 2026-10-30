@@ -768,35 +768,49 @@ class _RecipientChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DdtUserChip(
-          name: person.displayName,
-          email: person.email,
-          avatarSize: 22,
-          fontSize: DdtTypography.labelSize,
-        ),
-        Tooltip(
-          message: 'Убрать',
-          child: Semantics(
-            button: true,
-            label: 'Убрать ${person.displayName}',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onRemove,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(4.w, 4.h, 2.w, 4.h),
-                child: DdtIcon(
-                  DdtIcons.close,
-                  size: 11.sp,
-                  color: DdtTheme.textMuted(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final closeSlot = 22.w;
+        final chipMax = constraints.maxWidth.isFinite
+            ? (constraints.maxWidth - closeSlot).clamp(
+                0.0,
+                constraints.maxWidth,
+              )
+            : double.infinity;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: chipMax),
+              child: DdtUserChip(
+                name: person.displayName,
+                email: person.email,
+                avatarSize: 22,
+                fontSize: DdtTypography.labelSize,
+              ),
+            ),
+            Tooltip(
+              message: 'Убрать',
+              child: Semantics(
+                button: true,
+                label: 'Убрать ${person.displayName}',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onRemove,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(4.w, 4.h, 2.w, 4.h),
+                    child: DdtIcon(
+                      DdtIcons.close,
+                      size: 11.sp,
+                      color: DdtTheme.textMuted(context),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

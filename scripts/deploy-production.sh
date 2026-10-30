@@ -42,9 +42,62 @@ compose=(
 )
 
 previous_release=""
+previous_release_id=""
 if [[ -L "$current_link" ]]; then
   previous_release="$(readlink "$current_link")"
+  previous_release_id="$(basename "$previous_release")"
 fi
+
+backup_file=""
+backup_complete=false
+
+prune_old_backups() {
+  local file
+  while IFS= read -r -d '' file; do
+    if [[ -n "$backup_file" && "$file" == "$backup_file" && "$backup_complete" == true ]]; then
+      continue
+    fi
+    if [[ "$(find "$file" -mtime +14 -print)" == "$file" ]] \
+      || [[ ! -s "$file" ]] \
+      || ! gzip -t "$file" 2>/dev/null; then
+      echo "Removing old or unreadable backup $file"
+      rm -f "$file"
+    fi
+  done < <(find "$backup_dir" -type f -name 'ddt-*.sql.gz' -print0)
+}
+
+prune_docker_snapshots() {
+  local keep=",${1:-},${2:-},"
+  local repo tag
+
+  for repo in ddt-backend ddt-frontend; do
+    while IFS= read -r tag; do
+      [[ -z "$tag" || "$tag" == "<none>" ]] && continue
+      if [[ "$keep" == *",$tag,"* ]]; then
+        continue
+      fi
+      echo "Removing old Docker image $repo:$tag"
+      docker rmi "$repo:$tag" || true
+    done < <(docker images "$repo" --format '{{.Tag}}')
+  done
+
+  docker image prune -f || true
+  docker builder prune -af || true
+}
+
+prune_old_releases() {
+  local dir id
+  shopt -s nullglob
+  for dir in "$deploy_root"/releases/*/; do
+    id="$(basename "$dir")"
+    if [[ "$id" == "$release_id" || ( -n "$previous_release_id" && "$id" == "$previous_release_id" ) ]]; then
+      continue
+    fi
+    echo "Removing old release $dir"
+    rm -rf "$dir"
+  done
+  shopt -u nullglob
+}
 
 rollback() {
   exit_code=$?
@@ -53,8 +106,11 @@ rollback() {
   fi
 
   echo "Deployment failed; attempting to restore the previous application release" >&2
+  if [[ "$backup_complete" != true && -n "$backup_file" && -f "$backup_file" ]]; then
+    echo "Removing incomplete backup $backup_file" >&2
+    rm -f "$backup_file"
+  fi
   if [[ -n "$previous_release" && -f "$previous_release/compose.production.yml" ]]; then
-    previous_release_id="$(basename "$previous_release")"
     previous_compose=(
       docker compose
       --project-name ddt
@@ -71,9 +127,14 @@ rollback() {
   else
     "${compose[@]}" stop backend frontend caddy || true
   fi
+  prune_docker_snapshots "$previous_release_id" || true
   exit "$exit_code"
 }
 trap rollback EXIT
+
+prune_old_backups
+prune_docker_snapshots "$previous_release_id"
+prune_old_releases
 
 "${compose[@]}" config --quiet
 "${compose[@]}" build --pull backend frontend
@@ -84,6 +145,7 @@ backup_file="$backup_dir/ddt-$timestamp.sql.gz"
 "${compose[@]}" exec -T mysql sh -c \
   'exec mysqldump --user=root --password="$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers "$MYSQL_DATABASE"' \
   | gzip -9 > "$backup_file"
+backup_complete=true
 
 "${compose[@]}" --profile migration run --rm migrate
 "${compose[@]}" up -d --remove-orphans mysql backend frontend caddy
@@ -93,7 +155,9 @@ backup_file="$backup_dir/ddt-$timestamp.sql.gz"
 "${compose[@]}" exec -T frontend wget -qO- http://127.0.0.1/api/health >/dev/null
 
 ln -sfn "$release_dir" "$current_link"
-find "$backup_dir" -type f -name 'ddt-*.sql.gz' -mtime +14 -delete
+prune_old_backups
+prune_docker_snapshots "$release_id" "$previous_release_id"
+prune_old_releases
 
 trap - EXIT
 echo "Deployment $release_id completed successfully"

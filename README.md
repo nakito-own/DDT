@@ -244,7 +244,7 @@ V3__next_change.sql
 При локальном `docker compose up` используется тот же migration runner.
 Миграции больше не выполняются неявно при запуске FastAPI.
 
-Backup хранится 14 дней:
+Backup хранится 14 дней. Пустые и повреждённые дампы удаляются сразу. Образы `ddt-backend` и `ddt-frontend` и каталоги в `/opt/ddt/releases` остаются только для текущего и предыдущего релиза: предыдущий нужен для отката.
 
 ```text
 /opt/ddt/shared/backups/ddt-YYYYMMDDTHHMMSSZ.sql.gz
@@ -291,5 +291,6 @@ curl -fsS https://YOUR_DOMAIN/api/health
 ```
 
 Rollback кода можно выполнить запуском Compose из предыдущей директории
-`/opt/ddt/releases/<commit>`. Перед rollback убедитесь, что старая версия
-backend совместима с уже применённой схемой.
+`/opt/ddt/releases/<commit>`. Более старые релизы deployment удаляет. Перед
+rollback убедитесь, что старая версия backend совместима с уже применённой
+схемой.

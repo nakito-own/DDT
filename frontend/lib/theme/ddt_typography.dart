@@ -1,15 +1,24 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// The single typography scale used by the DDT interface.
 ///
 /// Values are design pixels. ScreenUtil scale factors are disabled, so `.sp`
 /// resolves 1:1 to logical (CSS) pixels and browser page zoom can magnify them.
 abstract final class DdtTypography {
-  /// Loads Golos Text before the first frame (avoids a Roboto flash on web).
-  static Future<void> ensureLoaded() {
-    return GoogleFonts.pendingFonts([GoogleFonts.golosText()]);
+  static const String fontFamily = 'Golos Text';
+
+  /// Registers the OFL license. The faces themselves are bundled and do not
+  /// need a network fetch.
+  static Future<void> ensureLoaded() async {
+    LicenseRegistry.addLicense(() async* {
+      final license = await rootBundle.loadString(
+        'assets/fonts/golos_text/OFL.txt',
+      );
+      yield LicenseEntryWithLineBreaks([fontFamily], license);
+    });
   }
 
   static const double micro = 10;
@@ -43,7 +52,8 @@ abstract final class DdtTypography {
     double? height,
     TextDecoration? decoration,
   }) {
-    return GoogleFonts.golosText(
+    return TextStyle(
+      fontFamily: fontFamily,
       fontSize: size,
       fontWeight: fontWeight,
       color: color,
@@ -53,7 +63,7 @@ abstract final class DdtTypography {
   }
 
   static TextTheme textTheme(TextTheme base) {
-    final theme = GoogleFonts.golosTextTextTheme(base);
+    final theme = base.apply(fontFamily: fontFamily);
     return theme.copyWith(
       displayLarge: theme.displayLarge?.copyWith(
         fontSize: displaySize,

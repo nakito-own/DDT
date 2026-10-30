@@ -19,7 +19,6 @@ dependencies:
   get_storage: ^2.1.1
   flutter_bloc: ^9.1.1
   equatable: ^2.0.7
-  google_fonts: ^6.3.3
   flutter_screenutil: ^5.9.3
   flutter_secure_storage: ^10.3.1
   intl: ^0.20.2
@@ -89,3 +88,20 @@ flutter:
     - assets/images/иконка_зум.png
     - assets/images/иконка_телемост.png
     - assets/images/иконка_дит.png
+    - assets/fonts/golos_text/OFL.txt
+
+  fonts:
+    - family: Golos Text
+      fonts:
+        - asset: assets/fonts/golos_text/GolosText-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/golos_text/GolosText-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/golos_text/GolosText-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/golos_text/GolosText-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/golos_text/GolosText-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/golos_text/GolosText-Black.ttf
+          weight: 900
