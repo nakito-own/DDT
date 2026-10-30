@@ -119,6 +119,19 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     ),
                   ),
                   GoRoute(
+                    path: ':taskKey/edit',
+                    name: RoutePaths.nameTaskEdit,
+                    pageBuilder: (context, state) {
+                      final taskKey = state.pathParameters['taskKey'] ?? '';
+                      return _buildRevealPage(
+                        key: state.pageKey,
+                        child: taskKey.isEmpty
+                            ? const _NotFoundPage()
+                            : TaskEditPage(taskKey: taskKey),
+                      );
+                    },
+                  ),
+                  GoRoute(
                     path: 'new',
                     name: RoutePaths.nameTaskCreate,
                     pageBuilder: (context, state) => _buildRevealPage(
@@ -248,6 +261,28 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                             TasksBloc(api: TasksApi(spaceKey: spaceKey))
                               ..add(const TasksBoardLoadRequested()),
                         child: TaskDetailsPage(
+                          taskKey: taskKey,
+                          spaceKey: spaceKey,
+                        ),
+                      )
+                    : const _NotFoundPage(),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/space/:taskKey/edit',
+            name: RoutePaths.nameSpaceTaskEdit,
+            pageBuilder: (context, state) {
+              final taskKey = state.pathParameters['taskKey'] ?? '';
+              final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
+              return _buildRevealPage(
+                key: state.pageKey,
+                child: RoutePaths.isTaskKey(taskKey)
+                    ? BlocProvider(
+                        create: (_) =>
+                            TasksBloc(api: TasksApi(spaceKey: spaceKey))
+                              ..add(const TasksBoardLoadRequested()),
+                        child: TaskEditPage(
                           taskKey: taskKey,
                           spaceKey: spaceKey,
                         ),

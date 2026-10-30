@@ -76,13 +76,9 @@ class _TasksGanttPageState extends State<TasksGanttPage> {
   }
 
   void _openTask(Task task) {
-    openTaskDetailsPage(
-      context,
-      task,
-      onSheetClosed: () {
-        if (mounted) _ganttController.update();
-      },
-    );
+    openTaskDetailsPage(context, task).whenComplete(() {
+      if (mounted) _ganttController.update();
+    });
   }
 
   Future<void> _onActivityChanged(

@@ -79,8 +79,8 @@ class DdtMarkdownLiveController extends MarkdownLiveController {
     final block = current.substring(bounds.$1, bounds.$2);
     final lines = block.split('\n');
     final contentLines = lines.where((line) => line.isNotEmpty);
-    final remove = contentLines.isNotEmpty &&
-        contentLines.every(pattern.hasMatch);
+    final remove =
+        contentLines.isNotEmpty && contentLines.every(pattern.hasMatch);
     final nextLines = <String>[];
     var index = 0;
     if (lines.length == 1 && lines.first.isEmpty && !remove) {
@@ -114,11 +114,14 @@ class DdtMarkdownLiveController extends MarkdownLiveController {
 
   (int, int) _lineBounds(String current, int start, int end) {
     final from = start.clamp(0, current.length);
-    final to = end.clamp(0, current.length);
-    var lineStart = current.lastIndexOf('\n', from > 0 ? from - 1 : 0);
-    lineStart = lineStart == -1 ? 0 : lineStart + 1;
+    final to = end.clamp(from, current.length);
+    // A caret at offset 0 sits before the first character. Searching at index
+    // 0 would treat a leading newline as already passed and produce an empty
+    // range that substring rejects.
+    final newline = from == 0 ? -1 : current.lastIndexOf('\n', from - 1);
+    final lineStart = newline == -1 ? 0 : newline + 1;
     var lineEnd = current.indexOf('\n', to);
-    if (lineEnd == -1) lineEnd = current.length;
+    if (lineEnd == -1 || lineEnd < lineStart) lineEnd = current.length;
     return (lineStart, lineEnd);
   }
 
@@ -143,7 +146,10 @@ class DdtMarkdownLiveController extends MarkdownLiveController {
     for (final token in parsedTokens) {
       if (token.isSyntax) {
         children.add(
-          TextSpan(text: token.text, style: baseStyle.merge(_hiddenSyntaxStyle)),
+          TextSpan(
+            text: token.text,
+            style: baseStyle.merge(_hiddenSyntaxStyle),
+          ),
         );
       } else {
         children.add(

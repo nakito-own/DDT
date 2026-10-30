@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +21,7 @@ import '../utils/task_formatters.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_user_chip.dart';
 import '../widgets/task_comments_section.dart';
-import '../widgets/task_side_panel.dart';
+import 'task_create_page.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_markdown_body.dart';
@@ -120,12 +118,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     final task = _task;
     if (task == null) return;
 
-    final updated = await showTaskSidePanel(
-      context,
-      mode: TaskSidePanelMode.view,
-      task: task,
-      taskTypes: context.read<TasksBloc>().state.taskTypes,
-    );
+    final updated = await openTaskEditPage(context, task);
     if (updated == null || !mounted) return;
 
     setState(() => _task = updated);
@@ -811,26 +804,17 @@ class _TaskMarkButton extends StatelessWidget {
   }
 }
 
-void openTaskDetailsPage(
-  BuildContext context,
-  Task task, {
-  VoidCallback? onSheetClosed,
-}) {
-  if (DdtAdaptive.isCompact(context)) {
-    unawaited(_openTaskSheet(context, task, onSheetClosed));
-    return;
-  }
-
+Future<void> openTaskDetailsPage(BuildContext context, Task task) {
   final taskKey = task.key.isNotEmpty
       ? task.key
       : (task.id > 0 ? task.id.toString() : '');
-  if (taskKey.isEmpty) return;
+  if (taskKey.isEmpty) return Future.value();
 
   final taskSpace = task.spaceKey;
   final spaceKey = taskSpace != null && taskSpace.isNotEmpty
       ? taskSpace
       : context.read<TasksBloc>().spaceKey;
-  context.push(
+  return context.push(
     RoutePaths.forTask(
       taskKey: taskKey,
       spaceId: task.spaceId,
@@ -838,58 +822,6 @@ void openTaskDetailsPage(
     ),
     extra: task,
   );
-}
-
-Future<void> _openTaskSheet(
-  BuildContext context,
-  Task task,
-  VoidCallback? onSheetClosed,
-) async {
-  final chrome = DdtFloatingChrome.read(context);
-  chrome?.hold();
-  final tasksBloc = context.read<TasksBloc>();
-  final surface = Theme.of(context).brightness == Brightness.dark
-      ? DdtTheme.darkSurface
-      : DdtTheme.lightSurface;
-
-  final updated = await showModalBottomSheet<Task>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
-    backgroundColor: surface,
-    builder: (sheetContext) {
-      final keyboard = MediaQuery.viewInsetsOf(sheetContext).bottom;
-      return Padding(
-        padding: EdgeInsets.only(bottom: keyboard),
-        child: BlocProvider.value(
-          value: tasksBloc,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SizedBox(
-                height: constraints.maxHeight * 0.94,
-                child: TaskSidePanel(
-                  mode: TaskSidePanelMode.view,
-                  task: task,
-                  taskTypes: tasksBloc.state.taskTypes,
-                  personal: tasksBloc.spaceKey == null,
-                  relatedTasks: tasksBloc.state.allTasks,
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    },
-  ).whenComplete(() => chrome?.release());
-  if (!context.mounted) return;
-  if (updated != null) {
-    context.read<TasksBloc>().add(
-      TaskUpdateRequested(original: task, updated: updated),
-    );
-  }
-  onSheetClosed?.call();
 }
 
 void _leaveTask(BuildContext context, Task task) {

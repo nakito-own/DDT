@@ -30,6 +30,7 @@ abstract final class DdtIcons {
   static const FaIconData chevronDown = FontAwesomeIcons.chevronDown;
   static const FaIconData check = FontAwesomeIcons.check;
   static const FaIconData checkCircle = FontAwesomeIcons.circleCheck;
+  static const FaIconData question = FontAwesomeIcons.question;
   static const FaIconData edit = FontAwesomeIcons.penToSquare;
   static const FaIconData search = FontAwesomeIcons.magnifyingGlass;
   static const FaIconData refresh = FontAwesomeIcons.arrowRotateRight;

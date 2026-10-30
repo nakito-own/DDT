@@ -4,8 +4,6 @@ import 'dart:ui';
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import 'ddt_typography.dart';
 
 class DdtTheme {
@@ -873,8 +871,7 @@ class DdtTheme {
           outlineVariant: lightBorderSubtle,
         ),
         appBarTheme: theme.appBarTheme.copyWith(
-          titleTextStyle: GoogleFonts.golosText(
-            textStyle: typography.titleLarge,
+          titleTextStyle: typography.titleLarge?.copyWith(
             color: lightTextPrimary,
             fontWeight: FontWeight.w600,
           ),
@@ -1009,8 +1006,7 @@ class DdtTheme {
         ),
         appBarTheme: theme.appBarTheme.copyWith(
           backgroundColor: darkSurface,
-          titleTextStyle: GoogleFonts.golosText(
-            textStyle: typography.titleLarge,
+          titleTextStyle: typography.titleLarge?.copyWith(
             color: darkTextPrimary,
             fontWeight: FontWeight.w600,
           ),
