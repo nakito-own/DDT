@@ -1,0 +1,226 @@
+import '../utils/api_date_time.dart';
+import 'task_comment.dart';
+import 'task_link.dart';
+import 'task_priority.dart';
+import 'task_ref.dart';
+import 'task_status.dart';
+import 'task_type.dart';
+
+class Task {
+  Task({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.timeSet,
+    this.key = '',
+    this.typeId,
+    this.type,
+    this.description = '',
+    this.executorId,
+    this.authorId,
+    this.responsibleId,
+    this.ownerId,
+    this.spaceId,
+    this.spaceKey,
+    this.parentId,
+    this.parent,
+    this.children = const [],
+    this.timeStart,
+    this.timeEnd,
+    this.deadline,
+    this.priority,
+    this.deleted = false,
+    this.archive = false,
+    this.links,
+    this.comments = const [],
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final int id;
+  final String key;
+  final String title;
+  final TaskStatus status;
+  final int? typeId;
+  final TaskType? type;
+  final String description;
+  final int? executorId;
+  final int? authorId;
+  final int? responsibleId;
+  final int? ownerId;
+  final int? spaceId;
+  final String? spaceKey;
+  final int? parentId;
+  final TaskRef? parent;
+  final List<TaskRef> children;
+  final DateTime timeSet;
+  final DateTime? timeStart;
+  final DateTime? timeEnd;
+  final DateTime? deadline;
+  final TaskPriority? priority;
+  final bool deleted;
+  final bool archive;
+  final List<TaskLink>? links;
+  final List<TaskComment> comments;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  String get apiRef => key.isNotEmpty ? key : id.toString();
+
+  String get displayKey => key.isNotEmpty ? key : '#$id';
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    final rawLinks = json['links'] as List<dynamic>?;
+    final rawComments = json['comments'] as List<dynamic>?;
+    final rawChildren = json['children'] as List<dynamic>?;
+
+    return Task(
+      id: json['id'] as int,
+      key: json['key'] as String? ?? '',
+      title: json['title'] as String,
+      status: TaskStatus.fromValue(json['status'] as String),
+      typeId: json['type_id'] as int?,
+      type: json['type'] != null
+          ? TaskType.fromJson(json['type'] as Map<String, dynamic>)
+          : null,
+      description: json['description'] as String? ?? '',
+      executorId: json['executor_id'] as int?,
+      authorId: json['author_id'] as int?,
+      responsibleId: json['responsible_id'] as int?,
+      ownerId: json['owner_id'] as int?,
+      spaceId: json['space_id'] as int?,
+      spaceKey: json['space_key'] as String?,
+      parentId: json['parent_id'] as int?,
+      parent: json['parent'] != null
+          ? TaskRef.fromJson(json['parent'] as Map<String, dynamic>)
+          : null,
+      children:
+          rawChildren
+              ?.map((item) => TaskRef.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      timeSet: parseApiDateTime(json['time_set'] as String),
+      timeStart: json['time_start'] != null
+          ? parseApiDateTime(json['time_start'] as String)
+          : null,
+      timeEnd: json['time_end'] != null
+          ? parseApiDateTime(json['time_end'] as String)
+          : null,
+      deadline: json['deadline'] != null
+          ? parseApiDateTime(json['deadline'] as String)
+          : null,
+      priority: TaskPriority.fromValue(json['priority'] as String?),
+      deleted: json['deleted'] == true || json['deleted'] == 1,
+      archive: json['archive'] == true || json['archive'] == 1,
+      links: rawLinks
+          ?.map((item) => TaskLink.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      comments:
+          rawComments
+              ?.map(
+                (item) => TaskComment.fromJson(item as Map<String, dynamic>),
+              )
+              .toList() ??
+          const [],
+      createdAt: json['created_at'] != null
+          ? parseApiDateTime(json['created_at'] as String)
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? parseApiDateTime(json['updated_at'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      if (key.isNotEmpty) 'key': key,
+      'title': title,
+      'status': status.value,
+      if (typeId != null) 'type_id': typeId,
+      if (type != null) 'type': type!.toJson(),
+      'description': description,
+      if (executorId != null) 'executor_id': executorId,
+      if (authorId != null) 'author_id': authorId,
+      if (responsibleId != null) 'responsible_id': responsibleId,
+      if (ownerId != null) 'owner_id': ownerId,
+      if (spaceId != null) 'space_id': spaceId,
+      if (spaceKey != null) 'space_key': spaceKey,
+      if (parentId != null) 'parent_id': parentId,
+      if (parent != null) 'parent': parent!.toJson(),
+      'children': children.map((child) => child.toJson()).toList(),
+      'time_set': timeSet.toIso8601String(),
+      if (timeStart != null) 'time_start': timeStart!.toIso8601String(),
+      if (timeEnd != null) 'time_end': timeEnd!.toIso8601String(),
+      if (deadline != null) 'deadline': deadline!.toIso8601String(),
+      if (priority != null) 'priority': priority!.value,
+      'deleted': deleted,
+      'archive': archive,
+      if (links != null) 'links': links!.map((link) => link.toJson()).toList(),
+      'comments': comments.map((comment) => comment.toJson()).toList(),
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
+    };
+  }
+
+  Task copyWith({
+    int? id,
+    String? key,
+    String? title,
+    TaskStatus? status,
+    int? typeId,
+    TaskType? type,
+    String? description,
+    int? executorId,
+    int? authorId,
+    int? responsibleId,
+    int? ownerId,
+    int? spaceId,
+    String? spaceKey,
+    int? parentId,
+    TaskRef? parent,
+    bool clearParent = false,
+    List<TaskRef>? children,
+    DateTime? timeSet,
+    DateTime? timeStart,
+    bool clearTimeStart = false,
+    DateTime? timeEnd,
+    bool clearTimeEnd = false,
+    DateTime? deadline,
+    TaskPriority? priority,
+    bool? deleted,
+    bool? archive,
+    List<TaskLink>? links,
+    List<TaskComment>? comments,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      key: key ?? this.key,
+      title: title ?? this.title,
+      status: status ?? this.status,
+      typeId: typeId ?? this.typeId,
+      type: type ?? this.type,
+      description: description ?? this.description,
+      executorId: executorId ?? this.executorId,
+      authorId: authorId ?? this.authorId,
+      responsibleId: responsibleId ?? this.responsibleId,
+      ownerId: ownerId ?? this.ownerId,
+      spaceId: spaceId ?? this.spaceId,
+      spaceKey: spaceKey ?? this.spaceKey,
+      parentId: clearParent ? null : (parentId ?? this.parentId),
+      parent: clearParent ? null : (parent ?? this.parent),
+      children: children ?? this.children,
+      timeSet: timeSet ?? this.timeSet,
+      timeStart: clearTimeStart ? null : (timeStart ?? this.timeStart),
+      timeEnd: clearTimeEnd ? null : (timeEnd ?? this.timeEnd),
+      deadline: deadline ?? this.deadline,
+      priority: priority ?? this.priority,
+      deleted: deleted ?? this.deleted,
+      archive: archive ?? this.archive,
+      links: links ?? this.links,
+      comments: comments ?? this.comments,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+}

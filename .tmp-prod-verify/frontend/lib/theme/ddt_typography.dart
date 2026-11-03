@@ -1,0 +1,121 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+
+/// The single typography scale used by the DDT interface.
+///
+/// Values are design pixels. ScreenUtil scale factors are disabled, so `.sp`
+/// resolves 1:1 to logical (CSS) pixels and browser page zoom can magnify them.
+abstract final class DdtTypography {
+  static const String fontFamily = 'Golos Text';
+
+  /// Registers the OFL license. The faces themselves are bundled and do not
+  /// need a network fetch.
+  static Future<void> ensureLoaded() async {
+    LicenseRegistry.addLicense(() async* {
+      final license = await rootBundle.loadString(
+        'assets/fonts/golos_text/OFL.txt',
+      );
+      yield LicenseEntryWithLineBreaks([fontFamily], license);
+    });
+  }
+
+  static const double micro = 10;
+  static const double caption = 11;
+  static const double labelSmall = 12;
+  static const double label = 13;
+  static const double body = 14;
+  static const double bodyLarge = 15;
+  static const double sectionTitle = 16;
+  static const double panelTitle = 18;
+  static const double pageTitle = 20;
+  static const double entityTitle = 22;
+  static const double display = 24;
+
+  static double get microSize => micro.sp;
+  static double get captionSize => caption.sp;
+  static double get labelSmallSize => labelSmall.sp;
+  static double get labelSize => label.sp;
+  static double get bodySize => body.sp;
+  static double get bodyLargeSize => bodyLarge.sp;
+  static double get sectionTitleSize => sectionTitle.sp;
+  static double get panelTitleSize => panelTitle.sp;
+  static double get pageTitleSize => pageTitle.sp;
+  static double get entityTitleSize => entityTitle.sp;
+  static double get displaySize => display.sp;
+
+  static TextStyle style({
+    required double size,
+    FontWeight? fontWeight,
+    Color? color,
+    double? height,
+    TextDecoration? decoration,
+  }) {
+    return TextStyle(
+      fontFamily: fontFamily,
+      fontSize: size,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      decoration: decoration,
+    );
+  }
+
+  static TextTheme textTheme(TextTheme base) {
+    final theme = base.apply(fontFamily: fontFamily);
+    return theme.copyWith(
+      displayLarge: theme.displayLarge?.copyWith(
+        fontSize: displaySize,
+        fontWeight: FontWeight.w700,
+      ),
+      displayMedium: theme.displayMedium?.copyWith(
+        fontSize: displaySize,
+        fontWeight: FontWeight.w700,
+      ),
+      displaySmall: theme.displaySmall?.copyWith(
+        fontSize: displaySize,
+        fontWeight: FontWeight.w700,
+      ),
+      headlineLarge: theme.headlineLarge?.copyWith(
+        fontSize: entityTitleSize,
+        fontWeight: FontWeight.w700,
+      ),
+      headlineMedium: theme.headlineMedium?.copyWith(
+        fontSize: pageTitleSize,
+        fontWeight: FontWeight.w700,
+      ),
+      headlineSmall: theme.headlineSmall?.copyWith(
+        fontSize: panelTitleSize,
+        fontWeight: FontWeight.w700,
+      ),
+      titleLarge: theme.titleLarge?.copyWith(
+        fontSize: sectionTitleSize,
+        fontWeight: FontWeight.w700,
+      ),
+      titleMedium: theme.titleMedium?.copyWith(
+        fontSize: bodyLargeSize,
+        fontWeight: FontWeight.w600,
+      ),
+      titleSmall: theme.titleSmall?.copyWith(
+        fontSize: bodySize,
+        fontWeight: FontWeight.w600,
+      ),
+      bodyLarge: theme.bodyLarge?.copyWith(fontSize: bodyLargeSize),
+      bodyMedium: theme.bodyMedium?.copyWith(fontSize: bodySize),
+      bodySmall: theme.bodySmall?.copyWith(fontSize: labelSmallSize),
+      labelLarge: theme.labelLarge?.copyWith(
+        fontSize: labelSize,
+        fontWeight: FontWeight.w600,
+      ),
+      labelMedium: theme.labelMedium?.copyWith(
+        fontSize: labelSmallSize,
+        fontWeight: FontWeight.w600,
+      ),
+      labelSmall: theme.labelSmall?.copyWith(
+        fontSize: captionSize,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}

@@ -1,0 +1,189 @@
+import 'package:bolt_ui_kit/bolt_kit.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../theme/ddt_icons.dart';
+
+import '../blocs/contacts/contacts_bloc.dart';
+import '../models/contact.dart';
+import '../theme/ddt_theme.dart';
+import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
+import '../theme/ddt_typography.dart';
+import '../widgets/ddt_user_avatar.dart';
+
+class ContactsPage extends StatefulWidget {
+  const ContactsPage({super.key});
+
+  @override
+  State<ContactsPage> createState() => _ContactsPageState();
+}
+
+class _ContactsPageState extends State<ContactsPage> {
+  late final ContactsBloc _bloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = ContactsBloc()..add(const ContactsLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _bloc.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider.value(
+      value: _bloc,
+      child: Column(
+        children: [
+          Padding(
+            padding: DdtShellMetrics.fixedTopPadding(context).copyWith(
+              bottom: 12.h,
+            ),
+            child: DdtAppInput(
+              hint: 'Поиск контактов',
+              type: InputType.search,
+              variant: DdtInputVariant.pill,
+              prefixIcon: DdtIcons.search,
+              onChanged: (value) =>
+                  _bloc.add(ContactsSearchQueryChanged(value)),
+            ),
+          ),
+          Expanded(
+            child: BlocBuilder<ContactsBloc, ContactsState>(
+              builder: (context, state) {
+                if (state.isLoading && state.contacts.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (state.errorMessage != null && state.contacts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(state.errorMessage!),
+                        SizedBox(height: 12.h),
+                        Button(
+                          text: 'Повторить',
+                          onPressed: () =>
+                              _bloc.add(const ContactsLoadRequested()),
+                          borderRadius: DdtTheme.radius,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final bottomPad = DdtScrollEdgeFade.listBottomPadding(context);
+
+                return DdtScrollEdgeFade(
+                  child: RefreshIndicator(
+                    onRefresh: () async =>
+                        _bloc.add(const ContactsLoadRequested()),
+                    child: state.contacts.isEmpty
+                        ? ListView(
+                            padding: EdgeInsets.only(bottom: bottomPad),
+                            children: [
+                              SizedBox(height: 120.h),
+                              Center(
+                                child: Text(
+                                  'Контакты не найдены',
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.bodyLargeSize,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            padding: EdgeInsets.only(bottom: bottomPad),
+                            itemCount: state.contacts.length,
+                            separatorBuilder: (_, _) =>
+                                SizedBox(height: 8.h),
+                            itemBuilder: (context, index) {
+                              return ContactListItem(
+                                contact: state.contacts[index],
+                              );
+                            },
+                          ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ContactListItem extends StatelessWidget {
+  const ContactListItem({super.key, required this.contact});
+
+  final Contact contact;
+
+  @override
+  Widget build(BuildContext context) {
+    return DdtTheme.taskCardGlass(
+      context: context,
+      padding: EdgeInsets.all(14.w),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DdtUserAvatar(
+            size: 38.w,
+            name: contact.displayName,
+            email: contact.emails.isEmpty ? null : contact.emails.first,
+            borderRadius: BorderRadius.circular(8.r),
+            showBorder: true,
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  contact.displayName,
+                  style: DdtTheme.style(
+                    fontSize: DdtTypography.bodyLargeSize,
+                    fontWeight: FontWeight.w600,
+                    color: DdtTheme.taskCardTextPrimary(context),
+                  ),
+                ),
+                if (contact.emails.isNotEmpty) ...[
+                  SizedBox(height: 4.h),
+                  ...contact.emails.map(
+                    (email) => Text(
+                      email,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: DdtTheme.textSecondary(context),
+                      ),
+                    ),
+                  ),
+                ],
+                if (contact.phones.isNotEmpty) ...[
+                  SizedBox(height: 4.h),
+                  ...contact.phones.map(
+                    (phone) => Text(
+                      phone,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSize,
+                        color: DdtTheme.textMuted(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

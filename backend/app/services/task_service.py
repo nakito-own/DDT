@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -28,6 +29,9 @@ class TaskNotFoundError(Exception):
 
 class TaskRelationError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 class TaskService:
@@ -563,11 +567,19 @@ class TaskService:
                 if payload.child_keys:
                     self._set_children(cursor, row, payload.child_keys)
 
-        return self._get_task(
+        created = self._get_task(
             task_id,
             owner_id,
             space_id=space_id,
         )
+        self._notify(
+            lambda: self._task_notifications().notify_created(
+                actor_id=author_id,
+                task=created,
+                comment=payload.initial_comment,
+            )
+        )
+        return created
 
     def add_comment(
         self,
@@ -588,6 +600,7 @@ class TaskService:
                 )
                 if not row:
                     raise TaskNotFoundError
+                notice = dict(row)
 
                 comment_id = self._insert_comment(
                     cursor, task_id, author_id, text
@@ -602,6 +615,13 @@ class TaskService:
                 )
                 comment = cursor.fetchone()
 
+        self._notify(
+            lambda: self._task_notifications().notify_comment(
+                actor_id=author_id,
+                task=notice,
+                text=text,
+            )
+        )
         return map_task_comment_row(comment)
 
     def add_comment_by_ref(
@@ -612,6 +632,7 @@ class TaskService:
                 row = self._fetch_task_row(cursor, task_ref=task_ref)
                 if not row or not self._can_mutate(row, user_id):
                     raise TaskNotFoundError
+                notice = dict(row)
                 comment_id = self._insert_comment(cursor, row["id"], user_id, text)
                 cursor.execute(
                     """
@@ -622,6 +643,13 @@ class TaskService:
                     (comment_id,),
                 )
                 comment = cursor.fetchone()
+        self._notify(
+            lambda: self._task_notifications().notify_comment(
+                actor_id=user_id,
+                task=notice,
+                text=text,
+            )
+        )
         return map_task_comment_row(comment)
 
     def update_task(
@@ -677,6 +705,7 @@ class TaskService:
                 ):
                     raise TaskNotFoundError
 
+                before = dict(row)
                 resolved_id = row["id"]
                 if row["space_id"] is None:
                     updates["author_id"] = user_id
@@ -712,9 +741,18 @@ class TaskService:
                 if children_specified:
                     self._set_children(cursor, row, payload.child_keys or [])
 
-                return self._serialize_rows(
+                updated = self._serialize_rows(
                     cursor, [self._fetch_task_row(cursor, resolved_id)]
                 )[0]
+
+        self._notify(
+            lambda: self._task_notifications().notify_updated(
+                actor_id=user_id,
+                before=before,
+                after=updated,
+            )
+        )
+        return updated
 
     def delete_task(
         self,
@@ -755,12 +793,30 @@ class TaskService:
                     task_ref is not None and not self._can_mutate(row, user_id)
                 ):
                     raise TaskNotFoundError
+                notice = dict(row)
                 cursor.execute(
                     "UPDATE tasks SET deleted = TRUE WHERE id = %s AND deleted = FALSE",
                     (row["id"],),
                 )
                 if cursor.rowcount == 0:
                     raise TaskNotFoundError
+        self._notify(
+            lambda: self._task_notifications().notify_deleted(
+                actor_id=user_id,
+                task=notice,
+            )
+        )
+
+    def _task_notifications(self):
+        from app.services.task_notification_service import task_notification_service
+
+        return task_notification_service
+
+    def _notify(self, action) -> None:
+        try:
+            action()
+        except Exception:
+            logger.warning("Task notification failed", exc_info=True)
 
 
 task_service = TaskService()
