@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <!-- Viewport: Flutter Web injects its own meta[name=viewport] (see full_page_embedding_strategy). -->
+  <meta name="description" content="Ctatyc — задачи, пространство и автоматизации">
+  <meta name="theme-color" content="#ffffff">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Ctatyc">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png?v=5">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=5"/>
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon.png?v=5"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/Icon-192.png?v=5"/>
+
+  <title>Ctatyc</title>
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    (function () {
+      function resolveTheme() {
+        try {
+          var raw = localStorage.getItem('ddt_storage');
+          if (raw) {
+            var data = JSON.parse(raw);
+            if (data.theme_mode === 'dark') return 'dark';
+            if (data.theme_mode === 'light') return 'light';
+          }
+        } catch (error) {
+          console.warn('DDT splash: unable to read saved theme', error);
+        }
+        return 'light';
+      }
+
+      var theme = resolveTheme();
+      document.documentElement.setAttribute('data-theme', theme);
+      var themeColor = theme === 'dark' ? '#050508' : '#ffffff';
+      var metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        metaTheme.setAttribute('content', themeColor);
+      }
+    })();
+  </script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --ddt-bg: #ffffff;
+      --ddt-loader-bar: #00a8ff;
+    }
+
+    html[data-theme='dark'] {
+      color-scheme: dark;
+      --ddt-bg: #050508;
+      --ddt-loader-bar: #00a8ff;
+    }
+
+    html {
+      margin: 0;
+      min-height: 100%;
+      background-color: var(--ddt-bg);
+    }
+
+    body {
+      width: 100%;
+      min-height: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      overflow: hidden;
+      background-color: var(--ddt-bg);
+    }
+
+    flutter-view,
+    flt-glass-pane,
+    flt-scene-host,
+    .flt-scene-host,
+    flt-scene-host canvas {
+      background-color: var(--ddt-bg) !important;
+    }
+
+    /* The render surface inside <flutter-view> is sized by the engine in CSS
+       pixels derived from the device pixel ratio. Never override it: that is
+       what keeps the frame sharp and correctly scaled at fractional browser
+       zoom levels. */
+
+    .flutter-loader {
+      display: none !important;
+    }
+
+    .ddt-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      background-color: var(--ddt-bg);
+      transition: opacity 350ms ease;
+    }
+
+    .ddt-splash--hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ddt-splash__bars {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      height: 36px;
+    }
+
+    .ddt-splash__bar {
+      --ddt-bar-cycle: 0.9s;
+      --ddt-bar-stagger: 0.15s;
+      width: 10px;
+      height: 12px;
+      border-radius: 5px;
+      background: var(--ddt-loader-bar);
+      animation: ddt-bar-pulse var(--ddt-bar-cycle) ease-in-out infinite;
+    }
+
+    .ddt-splash__bar:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .ddt-splash__bar:nth-child(2) {
+      animation-delay: var(--ddt-bar-stagger);
+    }
+
+    .ddt-splash__bar:nth-child(3) {
+      animation-delay: calc(var(--ddt-bar-stagger) * 2);
+    }
+
+    @keyframes ddt-bar-pulse {
+      0%,
+      100% {
+        height: 12px;
+      }
+
+      50% {
+        height: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="ddt-splash" class="ddt-splash" aria-live="polite" aria-busy="true">
+    <div class="ddt-splash__bars" role="progressbar" aria-label="Загрузка приложения">
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
+      <span class="ddt-splash__bar" aria-hidden="true"></span>
+    </div>
+  </div>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

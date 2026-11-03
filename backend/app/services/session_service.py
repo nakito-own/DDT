@@ -195,6 +195,15 @@ class SessionService:
             user=user,
         )
 
+    def token_hashes_for_user(self, user_id: int) -> list[str]:
+        now = datetime.utcnow()
+        with self._lock:
+            return [
+                token_hash
+                for token_hash, context in self._memory_sessions.items()
+                if context.user_id == user_id and context.expires_at >= now
+            ]
+
     def get_session(self, token: str) -> SessionContext | None:
         token_hash = crypto_service.hash_token(token)
         return self.get_session_by_hash(token_hash)
