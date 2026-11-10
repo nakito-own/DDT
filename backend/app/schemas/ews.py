@@ -17,10 +17,10 @@ class UserProfileResponse(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(min_length=1)
-    password: str = Field(min_length=1)
     email: EmailStr
-    remember_me: bool = False
+    password: str = Field(min_length=1)
+    username: str | None = None
+    remember_me: bool = True
 
 
 class LoginResponse(BaseModel):

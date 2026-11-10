@@ -134,6 +134,21 @@ class EwsApi {
     }
   }
 
+  Future<EwsSession?> refreshSession() async {
+    final token = await _client.getSessionToken();
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+
+    final response = await _client.post('/api/ews/auth/refresh');
+    if (response.statusCode != 200) {
+      return null;
+    }
+    final data = ApiClient.decodeMap(response);
+    _accountEmail = data['email'] as String?;
+    return EwsSession.fromJson(data);
+  }
+
   Future<EwsSession> fetchMe() async {
     final response = await _client.get('/api/ews/auth/me');
     if (response.statusCode != 200) {
