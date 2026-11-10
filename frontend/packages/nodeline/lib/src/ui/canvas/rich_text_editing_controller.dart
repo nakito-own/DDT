@@ -361,7 +361,7 @@ class _RunStyle {
 
   TextStyle resolve(TextStyle base) {
     return base.copyWith(
-      fontFamily: fontFamily ?? base.fontFamily,
+      fontFamily: canvasFontFamily(fontFamily ?? base.fontFamily),
       fontSize: fontSize ?? base.fontSize,
       fontWeight: bold == null
           ? base.fontWeight
@@ -369,7 +369,9 @@ class _RunStyle {
       fontStyle: italic == null
           ? base.fontStyle
           : (italic! ? FontStyle.italic : FontStyle.normal),
-      color: color != null ? Color(color!) : base.color,
+      color: color != null && !followsCanvasInk(Color(color!))
+          ? Color(color!)
+          : base.color,
     );
   }
 }

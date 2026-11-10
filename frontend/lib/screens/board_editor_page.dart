@@ -12,6 +12,7 @@ import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/board_toolbar.dart';
+import '../widgets/ddt_dialog.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_shell_metrics.dart';
 
@@ -169,9 +170,9 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
     final board = _board!;
     final project = board.project;
 
-    return Stack(
-      children: [
-        FlowDraw(
+    return NodelinePromptHost(
+      prompt: _canvasPrompt,
+      child: FlowDraw(
           key: ValueKey(board.id),
           onControllerCreated: (controller) {
             _controller = controller;
@@ -213,7 +214,27 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
             ],
           ),
         ),
-      ],
+    );
+  }
+
+  Future<String?> _canvasPrompt({
+    required String title,
+    required String initial,
+    required String hint,
+    required String confirmLabel,
+    String cancelLabel = 'Отмена',
+    String? clearLabel,
+    bool allowEmpty = false,
+  }) {
+    return showDdtTextPrompt(
+      context,
+      title: title,
+      initial: initial,
+      hint: hint,
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
+      clearLabel: clearLabel,
+      allowEmpty: allowEmpty,
     );
   }
 }

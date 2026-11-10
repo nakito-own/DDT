@@ -23,6 +23,7 @@ export 'package:nodeline/src/models/drawing_entities.dart'
         DiamondObject,
         ArrowObject,
         ArrowHeadType,
+        LinkPathType,
         LineObject,
         PencilStrokeObject,
         FigureObject,
@@ -56,4 +57,6 @@ export 'package:nodeline/src/core/utils/png_exporter.dart';
 export 'package:nodeline/src/ui/shared/color_picker.dart';
 export 'package:nodeline/src/ui/shared/snap_guides.dart';
 export 'package:nodeline/src/ui/shared/floating_toolbar.dart';
+export 'package:nodeline/src/ui/shared/prompt_dialog.dart'
+    show NodelinePromptHost, NodelineTextPrompt;
 export 'package:nodeline/src/ui/shared/keyboard_shortcuts.dart';

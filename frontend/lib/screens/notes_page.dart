@@ -14,6 +14,7 @@ import '../theme/ddt_typography.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_dialog.dart';
 import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_icon.dart';
@@ -1545,119 +1546,24 @@ void _showNoteError(BuildContext context, String message) {
   DdtToast.show(message: message, type: ToastType.error);
 }
 
-Color _dialogFill(BuildContext context) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  return dark ? DdtTheme.darkSurface : DdtTheme.lightSurface;
-}
-
 Future<String?> _askTitle(
   BuildContext context, {
   required String title,
   required String confirmLabel,
   String initial = '',
 }) {
-  return showDialog<String>(
-    context: context,
-    builder: (context) => _NoteTitleDialog(
-      title: title,
-      confirmLabel: confirmLabel,
-      initial: initial,
-    ),
+  return showDdtTextPrompt(
+    context,
+    title: title,
+    confirmLabel: confirmLabel,
+    initial: initial,
   );
 }
 
 Future<bool?> _confirmDelete(BuildContext context, {required String message}) {
-  return showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: _dialogFill(context),
-      title: Text(
-        'Удалить?',
-        style: DdtTheme.style(
-          fontSize: DdtTypography.panelTitleSize,
-          fontWeight: FontWeight.w600,
-          color: DdtTheme.textPrimary(context),
-        ),
-      ),
-      content: Text(
-        message,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.bodySize,
-          color: DdtTheme.textSecondary(context),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Отмена'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text('Удалить', style: TextStyle(color: DdtTheme.dangerColor)),
-        ),
-      ],
-    ),
+  return showDdtConfirm(
+    context,
+    title: 'Удалить?',
+    message: message,
   );
-}
-
-class _NoteTitleDialog extends StatefulWidget {
-  const _NoteTitleDialog({
-    required this.title,
-    required this.confirmLabel,
-    required this.initial,
-  });
-
-  final String title;
-  final String confirmLabel;
-  final String initial;
-
-  @override
-  State<_NoteTitleDialog> createState() => _NoteTitleDialogState();
-}
-
-class _NoteTitleDialogState extends State<_NoteTitleDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final title = _controller.text.trim();
-    if (title.isEmpty) return;
-    Navigator.of(context).pop(title);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: _dialogFill(context),
-      title: Text(
-        widget.title,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.panelTitleSize,
-          fontWeight: FontWeight.w600,
-          color: DdtTheme.textPrimary(context),
-        ),
-      ),
-      content: DdtAppInput(
-        controller: _controller,
-        hint: 'Название',
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Отмена'),
-        ),
-        TextButton(onPressed: _submit, child: Text(widget.confirmLabel)),
-      ],
-    );
-  }
 }

@@ -26,3 +26,21 @@ final class LineStyleSelected extends ToolEvent {
   @override
   List<Object> get props => [lineStyle];
 }
+
+final class PathTypeSelected extends ToolEvent {
+  final LinkPathType pathType;
+
+  const PathTypeSelected(this.pathType);
+
+  @override
+  List<Object> get props => [pathType];
+}
+
+final class ArrowHeadSelected extends ToolEvent {
+  final ArrowHeadType arrowHead;
+
+  const ArrowHeadSelected(this.arrowHead);
+
+  @override
+  List<Object> get props => [arrowHead];
+}

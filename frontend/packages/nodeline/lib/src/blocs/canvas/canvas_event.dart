@@ -438,6 +438,36 @@ final class ObjectsArrowHeadChanged extends CanvasEvent {
   List<Object> get props => [selectedIds, arrowHead];
 }
 
+final class ObjectsPathTypeChanged extends CanvasEvent {
+  final Set<String> selectedIds;
+  final LinkPathType pathType;
+
+  const ObjectsPathTypeChanged(this.selectedIds, this.pathType)
+      : super(isUndoable: true);
+
+  @override
+  String get description => pathType == LinkPathType.orthogonal
+      ? 'Made arrows orthogonal'
+      : 'Made arrows straight';
+
+  @override
+  List<Object> get props => [selectedIds, pathType];
+}
+
+final class ObjectLinkChanged extends CanvasEvent {
+  final String objectId;
+  final String? link;
+
+  const ObjectLinkChanged(this.objectId, this.link) : super(isUndoable: true);
+
+  @override
+  String get description =>
+      link == null || link!.isEmpty ? 'Removed link' : 'Set link';
+
+  @override
+  List<Object?> get props => [objectId, link];
+}
+
 /// Changes the global default font for shape text.
 ///
 /// Updates [CanvasState.defaultFontFamily]/[defaultFontSize] and, by extension,

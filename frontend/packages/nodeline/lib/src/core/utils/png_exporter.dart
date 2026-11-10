@@ -341,7 +341,7 @@ class PngExporter {
     if (text == null || text.isEmpty) return;
 
     const defaultStyle =
-        TextStyle(fontSize: 14, color: _textColor, fontFamily: 'sans-serif');
+        TextStyle(fontSize: 14, color: _textColor, fontFamily: kEditorDefaultFontFamily);
     final tp = TextPainter(
       text: TextSpan(text: text, style: style ?? defaultStyle),
       textDirection: TextDirection.ltr,
@@ -360,7 +360,7 @@ class PngExporter {
       text: TextSpan(
         text: label,
         style: const TextStyle(
-            fontSize: 12, color: _textColor, fontFamily: 'sans-serif'),
+            fontSize: 12, color: _textColor, fontFamily: kEditorDefaultFontFamily),
       ),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,

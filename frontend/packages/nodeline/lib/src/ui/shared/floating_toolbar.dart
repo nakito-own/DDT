@@ -60,6 +60,9 @@ class FloatingToolbar extends StatelessWidget {
   /// Called when the user resets the selection's font to the global default.
   final VoidCallback? onFontReset;
 
+  final String? currentLink;
+  final ValueChanged<String?>? onLinkChanged;
+
   const FloatingToolbar({
     super.key,
     required this.selectedIds,
@@ -82,6 +85,8 @@ class FloatingToolbar extends StatelessWidget {
     this.fontCustomized = false,
     this.onFontChanged,
     this.onFontReset,
+    this.currentLink,
+    this.onLinkChanged,
   });
 
   @override
@@ -117,6 +122,13 @@ class FloatingToolbar extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (onLinkChanged != null)
+                _ToolbarButton(
+                  icon: Icons.link,
+                  tooltip: 'Ссылка',
+                  active: currentLink != null && currentLink!.isNotEmpty,
+                  onPressed: () => _editLink(context),
+                ),
               _ToolbarButton(
                 icon: Icons.copy,
                 tooltip: 'Duplicate',
@@ -176,6 +188,46 @@ class FloatingToolbar extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _editLink(BuildContext context) async {
+    final controller = TextEditingController(text: currentLink ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Ссылка'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'https://',
+              labelText: 'Адрес',
+            ),
+            onSubmitted: (value) => Navigator.pop(dialogContext, value),
+          ),
+          actions: [
+            if (currentLink != null && currentLink!.isNotEmpty)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, ''),
+                child: const Text('Удалить'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (result == null) return;
+    final value = result.trim();
+    onLinkChanged?.call(value.isEmpty ? null : value);
+  }
 }
 
 /// Alias for contextual toolbar (used by evaluator).
@@ -186,11 +238,13 @@ class _ToolbarButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  final bool active;
 
   const _ToolbarButton({
     required this.icon,
     required this.tooltip,
     this.onPressed,
+    this.active = false,
   });
 
   @override
@@ -205,9 +259,11 @@ class _ToolbarButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 18,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white70
-                : const Color(0xFF243044),
+            color: active
+                ? const Color(0xFF2563EB)
+                : Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : const Color(0xFF243044),
           ),
         ),
       ),

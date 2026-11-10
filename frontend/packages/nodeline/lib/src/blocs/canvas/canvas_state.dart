@@ -20,6 +20,9 @@ final class CanvasState extends Equatable {
   /// The global default font size applied to non-customized shape text.
   final double defaultFontSize;
 
+  /// URLs attached to shapes, keyed by drawing-object id.
+  final Map<String, String> shapeLinks;
+
   // History stacks
   final List<HistoryEntry> undoStack;
   final List<HistoryEntry> redoStack;
@@ -33,6 +36,7 @@ final class CanvasState extends Equatable {
     this.showGrid = true,
     this.defaultFontFamily = kEditorDefaultFontFamily,
     this.defaultFontSize = kEditorDefaultFontSize,
+    this.shapeLinks = const {},
     this.undoStack = const [],
     this.redoStack = const [],
   });
@@ -47,6 +51,7 @@ final class CanvasState extends Equatable {
     this.showGrid = true,
     this.defaultFontFamily = kEditorDefaultFontFamily,
     this.defaultFontSize = kEditorDefaultFontSize,
+    this.shapeLinks = const {},
   }) : undoStack = [],
        redoStack = [];
 
@@ -59,6 +64,7 @@ final class CanvasState extends Equatable {
     bool? showGrid,
     String? defaultFontFamily,
     double? defaultFontSize,
+    Map<String, String>? shapeLinks,
     List<HistoryEntry>? undoStack,
     List<HistoryEntry>? redoStack,
   }) {
@@ -71,6 +77,7 @@ final class CanvasState extends Equatable {
       showGrid: showGrid ?? this.showGrid,
       defaultFontFamily: defaultFontFamily ?? this.defaultFontFamily,
       defaultFontSize: defaultFontSize ?? this.defaultFontSize,
+      shapeLinks: shapeLinks ?? this.shapeLinks,
       undoStack: undoStack ?? this.undoStack,
       redoStack: redoStack ?? this.redoStack,
     );
@@ -86,6 +93,7 @@ final class CanvasState extends Equatable {
     showGrid,
     defaultFontFamily,
     defaultFontSize,
+    shapeLinks,
     undoStack,
     redoStack,
   ];
