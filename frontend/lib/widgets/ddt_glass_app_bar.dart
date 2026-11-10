@@ -395,6 +395,9 @@ class _NotificationTile extends StatelessWidget {
         return DdtIcons.mail;
       case AppNotificationCategory.calendarUpdated:
         return DdtIcons.calendar;
+      case AppNotificationCategory.taskAssigned:
+      case AppNotificationCategory.taskUpdated:
+        return DdtIcons.tasks;
       case AppNotificationCategory.system:
         return DdtIcons.bell;
     }

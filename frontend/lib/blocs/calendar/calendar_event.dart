@@ -53,6 +53,22 @@ final class CalendarGoNextRequested extends CalendarBlocEvent {
   const CalendarGoNextRequested();
 }
 
+/// Сфокусировать календарь на событии (например из уведомления).
+final class CalendarEventOpenRequested extends CalendarBlocEvent {
+  const CalendarEventOpenRequested({
+    this.eventId,
+    this.subject,
+    this.start,
+  });
+
+  final String? eventId;
+  final String? subject;
+  final DateTime? start;
+
+  @override
+  List<Object?> get props => [eventId, subject, start];
+}
+
 /// Видимый месяц изменился (calendar widget callback).
 final class CalendarVisibleMonthChanged extends CalendarBlocEvent {
   const CalendarVisibleMonthChanged(this.date);

@@ -169,6 +169,9 @@ class _DdtAppState extends State<DdtApp> {
                   _scheduleMailBackgroundRefresh(context);
                 case AppNotificationCategory.calendarUpdated:
                   _scheduleCalendarBackgroundRefresh(context);
+                case AppNotificationCategory.taskAssigned:
+                case AppNotificationCategory.taskUpdated:
+                  break;
                 case AppNotificationCategory.system:
                   break;
               }

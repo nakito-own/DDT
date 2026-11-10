@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_glass_fab.dart';
 import 'ddt_mobile_navigation_bar.dart';
 
@@ -16,9 +17,14 @@ class DdtScrollToTopOverlay extends StatefulWidget {
   final Widget child;
   final bool enabled;
 
-  /// Bottom edge of the button: one gap above the 48px create button.
+  /// Bottom edge of the scroll-to-top button above the primary FAB stack.
   static double bottomOf(BuildContext context) {
-    return DdtGlassFab.bottomOffset(context) + DdtGlassFab.size + 12;
+    const primaryFabSize = 48.0;
+    const gap = 12.0;
+    final navClearance = DdtAdaptive.floatingBottomBar(context)
+        ? DdtMobileNavigationBar.clearance(context)
+        : 0.0;
+    return navClearance + gap + primaryFabSize + gap;
   }
 
   @override
@@ -108,7 +114,7 @@ class _DdtScrollToTopOverlayState extends State<DdtScrollToTopOverlay> {
           widget.child,
           if (widget.enabled)
             Positioned(
-              right: DdtMobileNavigationBar.horizontalMargin,
+              right: DdtMobileNavigationBar.horizontalMargin(context),
               bottom: DdtScrollToTopOverlay.bottomOf(context),
               child: IgnorePointer(
                 ignoring: !_show,
@@ -120,10 +126,12 @@ class _DdtScrollToTopOverlayState extends State<DdtScrollToTopOverlay> {
                     opacity: _show ? 1 : 0,
                     duration: DdtTheme.selectionAnimationDuration,
                     curve: DdtTheme.selectionAnimationCurve,
-                    child: DdtGlassFab(
-                      icon: DdtIcons.arrowUp,
-                      tooltip: 'Наверх',
-                      onPressed: _scrollToTop,
+                    child: Tooltip(
+                      message: 'Наверх',
+                      child: DdtGlassFab(
+                        icon: DdtIcons.arrowUp,
+                        onPressed: _scrollToTop,
+                      ),
                     ),
                   ),
                 ),

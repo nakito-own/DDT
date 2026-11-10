@@ -22,6 +22,7 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     on<CalendarGoToTodayRequested>(_onGoToTodayRequested);
     on<CalendarGoPreviousRequested>(_onGoPreviousRequested);
     on<CalendarGoNextRequested>(_onGoNextRequested);
+    on<CalendarEventOpenRequested>(_onEventOpenRequested);
     on<CalendarVisibleMonthChanged>(_onVisibleMonthChanged);
     on<CalendarPlannerDayChanged>(_onPlannerDayChanged);
     on<CalendarEventCreateRequested>(_onEventCreateRequested);
@@ -426,6 +427,15 @@ class CalendarBloc extends Bloc<CalendarBlocEvent, CalendarState> {
     };
     emit(state.copyWith(focusedDate: () => next));
     add(const CalendarEventsLoadRequested());
+  }
+
+  void _onEventOpenRequested(
+    CalendarEventOpenRequested event,
+    Emitter<CalendarState> emit,
+  ) {
+    final focus = event.start ?? state.effectiveFocusedDate;
+    emit(state.copyWith(focusedDate: () => focus));
+    add(const CalendarEventsRefreshRequested());
   }
 
   void _onVisibleMonthChanged(
