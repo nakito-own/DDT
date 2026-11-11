@@ -8,18 +8,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:perfect_freehand/perfect_freehand.dart';
 
-/// Font families offered by the editor. Limited to families that are
-/// guaranteed to render (the platform's built-in generic families plus the
-/// historical default), so a picked font never silently falls back.
+/// Font families offered by the editor. [kEditorDefaultFontFamily] is the
+/// application face; the rest are generic fallbacks.
 const List<String> kEditorFontFamilies = <String>[
-  'Courier',
+  kEditorDefaultFontFamily,
   'sans-serif',
   'serif',
   'monospace',
 ];
 
-/// The font family applied to shape text when nothing else has been chosen.
-const String kEditorDefaultFontFamily = 'Courier';
+/// The font family applied to canvas text when nothing else has been chosen.
+/// Matches the application typeface registered by the host app.
+const String kEditorDefaultFontFamily = 'Golos Text';
 
 /// The font size applied to shape text when nothing else has been chosen.
 const double kEditorDefaultFontSize = 16.0;
@@ -30,7 +30,7 @@ const double kEditorDefaultFontSize = 16.0;
 /// current global family and scale off the global size: a "Body" preset is the
 /// global size (scale 1.0), a "Title" is larger, a "Leaf node" smaller. This
 /// keeps the whole type hierarchy tied to the global style — change the global
-/// font to Courier 36 and Title/Heading/etc. all become Courier, scaled from 36.
+/// font to Golos Text 36 and Title/Heading/etc. all become Golos Text, scaled from 36.
 class TextStylePreset {
   final String label;
 
@@ -81,7 +81,10 @@ const Color kDefaultTextColor = Colors.white;
 /// Whether [color] should track the canvas instead of staying fixed.
 bool followsCanvasInk(Color? color) {
   if (color == null) return true;
-  return color.toARGB32() == kDefaultTextColor.toARGB32();
+  final argb = color.toARGB32();
+  return argb == kDefaultTextColor.toARGB32() ||
+      argb == 0xFF1A2332 ||
+      argb == 0xFFE6E8EE;
 }
 
 /// Ink that stays readable on [background].
@@ -100,6 +103,15 @@ Color resolvedTextColor(Color? color, Color ink) {
 /// action leaves around a shape's text, on top of the per-shape base padding.
 const double kDefaultFitMargin = 20.0;
 
+/// Family used when painting canvas text. Null, empty, and the old default
+/// Courier follow [kEditorDefaultFontFamily] (Golos Text).
+String canvasFontFamily(String? family) {
+  if (family == null || family.isEmpty || family == 'Courier') {
+    return kEditorDefaultFontFamily;
+  }
+  return family;
+}
+
 /// Resolves the [TextStyle] a shape should paint with.
 ///
 /// When the shape has been individually customized ([customized] true and a
@@ -115,13 +127,13 @@ TextStyle effectiveShapeTextStyle({
 }) {
   if (customized && style != null) {
     return TextStyle(
-      fontFamily: style.fontFamily ?? defaultFamily,
+      fontFamily: canvasFontFamily(style.fontFamily ?? defaultFamily),
       fontSize: style.fontSize ?? defaultSize,
       color: resolvedTextColor(style.color, ink),
     );
   }
   return TextStyle(
-    fontFamily: defaultFamily,
+    fontFamily: canvasFontFamily(defaultFamily),
     fontSize: defaultSize,
     color: resolvedTextColor(style?.color, ink),
   );
@@ -190,7 +202,7 @@ class TextRun extends Equatable {
   /// concrete [TextStyle] for painting/editing.
   TextStyle resolve(TextStyle base) {
     return base.copyWith(
-      fontFamily: fontFamily ?? base.fontFamily,
+      fontFamily: canvasFontFamily(fontFamily ?? base.fontFamily),
       fontSize: fontSize ?? base.fontSize,
       fontWeight: bold == null
           ? base.fontWeight
@@ -198,7 +210,9 @@ class TextRun extends Equatable {
       fontStyle: italic == null
           ? base.fontStyle
           : (italic! ? FontStyle.italic : FontStyle.normal),
-      color: color != null ? Color(color!) : base.color,
+      color: color != null && !followsCanvasInk(Color(color!))
+          ? Color(color!)
+          : base.color,
     );
   }
 
@@ -388,6 +402,17 @@ enum ArrowHeadType { none, triangle, diamond, dot, bar }
 ///
 /// Workflow mode limits the palette to boxes, connections, forks, and
 /// decision diamonds — perfect for building flowcharts and workflows.
+/// Center of the link badge inside the shape's top-right corner, in the
+/// shape's local (unrotated) coordinates.
+Offset linkBadgeCenter(Rect rect, double zoom) {
+  final inset = linkBadgeRadius(zoom) + 4.0 / zoom;
+  final dx = inset.clamp(0.0, rect.width / 2);
+  final dy = inset.clamp(0.0, rect.height / 2);
+  return Offset(rect.right - dx, rect.top + dy);
+}
+
+double linkBadgeRadius(double zoom) => 11.0 / zoom;
+
 const Set<EditorTool> workflowTools = {
   EditorTool.arrow,
   EditorTool.square,
@@ -1632,6 +1657,7 @@ class TempDrawingObject {
   final LinkPathType pathType;
   final List<PointVector> points;
   final List<Offset>? waypoints;
+  final ArrowHeadType arrowHead;
 
   TempDrawingObject({
     required this.tool,
@@ -1640,6 +1666,7 @@ class TempDrawingObject {
     this.points = const [],
     this.pathType = LinkPathType.straight,
     this.waypoints,
+    this.arrowHead = ArrowHeadType.triangle,
   });
 
   TempDrawingObject copyWith({
@@ -1647,6 +1674,7 @@ class TempDrawingObject {
     List<PointVector>? points,
     LinkPathType? pathType,
     List<Offset>? waypoints,
+    ArrowHeadType? arrowHead,
   }) {
     return TempDrawingObject(
       tool: tool,
@@ -1655,6 +1683,7 @@ class TempDrawingObject {
       points: points ?? this.points,
       pathType: pathType ?? this.pathType,
       waypoints: waypoints ?? this.waypoints,
+      arrowHead: arrowHead ?? this.arrowHead,
     );
   }
 }

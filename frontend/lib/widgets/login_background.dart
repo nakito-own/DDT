@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -12,13 +14,17 @@ class LoginBackground extends StatefulWidget {
 }
 
 class _LoginBackgroundState extends State<LoginBackground> {
-  late final String? _networkUrl;
+  late final String? _lightNetworkUrl;
+  late final String? _darkNetworkUrl;
 
   @override
   void initState() {
     super.initState();
-    _networkUrl = _resolveNetworkUrl(
-      LoginBackgroundConfig.pickRandomNetworkUrl(),
+    _lightNetworkUrl = _resolveNetworkUrl(
+      LoginBackgroundConfig.pickRandomNetworkUrl(isDark: false),
+    );
+    _darkNetworkUrl = _resolveNetworkUrl(
+      LoginBackgroundConfig.pickRandomNetworkUrl(isDark: true),
     );
   }
 
@@ -51,16 +57,18 @@ class _LoginBackgroundState extends State<LoginBackground> {
     final assetPath = LoginBackgroundConfig.assetPath;
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
+    final networkUrl = isDark ? _darkNetworkUrl : _lightNetworkUrl;
+
+    final photo = networkUrl != null
+        ? _NetworkBackgroundImage(url: networkUrl)
+        : assetPath.isNotEmpty
+        ? _AssetBackgroundImage(path: assetPath)
+        : _GradientFallback(isDark: isDark);
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (_networkUrl != null)
-          _NetworkBackgroundImage(url: _networkUrl)
-        else if (assetPath.isNotEmpty)
-          _AssetBackgroundImage(path: assetPath)
-        else
-          _GradientFallback(isDark: isDark),
+        _BlurredBackground(child: photo),
         if (isDark)
           ColoredBox(
             color: Colors.black.withValues(
@@ -74,6 +82,30 @@ class _LoginBackgroundState extends State<LoginBackground> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _BlurredBackground extends StatelessWidget {
+  const _BlurredBackground({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final sigma = LoginBackgroundConfig.backgroundBlurSigma;
+    return ClipRect(
+      child: Transform.scale(
+        scale: 1.06,
+        child: ImageFiltered(
+          imageFilter: ImageFilter.blur(
+            sigmaX: sigma,
+            sigmaY: sigma,
+            tileMode: TileMode.clamp,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }

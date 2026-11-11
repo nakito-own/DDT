@@ -28,15 +28,13 @@ class SvgExporter {
   static String _exportDefaultFontFamily = kEditorDefaultFontFamily;
   static double _exportDefaultFontSize = kEditorDefaultFontSize;
 
-  /// Maps a Flutter generic font family name to a CSS-friendly equivalent.
-  /// 'Courier' renders as a monospace; the generic names pass through.
+  /// Maps a canvas font family to a CSS font-family list.
   static String _cssFontFamily(String family) {
-    switch (family) {
-      case 'Courier':
-        return "'Courier New', Courier, monospace";
-      default:
-        return family;
+    final resolved = canvasFontFamily(family);
+    if (resolved == kEditorDefaultFontFamily) {
+      return "'Golos Text', sans-serif";
     }
+    return resolved;
   }
 
   /// Emits the `font-size`/`font-family` SVG attributes for a shape's text,
@@ -427,7 +425,7 @@ class SvgExporter {
           'width="$estWidth" height="$estHeight" '
           'rx="3" ry="3" fill="$_bg" fill-opacity="0.88"/>');
       svg.add('  <text x="${labelCenter.dx}" y="${labelCenter.dy}" '
-          'fill="$_textColor" font-size="12" font-family="sans-serif" '
+          'fill="$_textColor" font-size="12" font-family="\'Golos Text\', sans-serif" '
           'text-anchor="middle" dominant-baseline="central">'
           '$escaped</text>');
     }
@@ -496,7 +494,7 @@ class SvgExporter {
 
     if (obj.label.isNotEmpty) {
       svg.add('  <text x="${rect.left + 6}" y="${rect.top + 14}" '
-          'fill="$_figureStroke" font-size="12" font-family="sans-serif">'
+          'fill="$_figureStroke" font-size="12" font-family="\'Golos Text\', sans-serif">'
           '${_escapeXml(obj.label)}</text>');
     }
 

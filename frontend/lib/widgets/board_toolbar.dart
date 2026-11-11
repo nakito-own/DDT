@@ -11,6 +11,8 @@ import 'package:nodeline/src/ui/shared/active_text_editing.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import 'ddt_app_input.dart';
+import 'ddt_dialog.dart';
 import 'ddt_icon.dart';
 
 /// Glass toolbar with every drawing control the board editor can run.
@@ -144,10 +146,6 @@ class _BoardToolbarState extends State<BoardToolbar> {
     final arrowIds = _arrowIds(selection, canvas);
     final hasSelection = selection.selectedNodeIds.isNotEmpty ||
         selection.selectedDrawingObjectIds.isNotEmpty;
-    final anyDirected = arrowIds.any((id) {
-      final object = canvas.drawingObjects[id];
-      return object is ArrowObject && object.arrowHead != ArrowHeadType.none;
-    });
     final rich = editor?.selectionStyle();
 
     final edge = DdtTheme.shellSizeOf(context, 8);
@@ -200,20 +198,12 @@ class _BoardToolbarState extends State<BoardToolbar> {
               : () => _openColor(anchor, canvas, colorIds),
         ),
       ),
-      _BoardBarButton(
-        icon: anyDirected
-            ? FontAwesomeIcons.arrowRight
-            : FontAwesomeIcons.minus,
-        tooltip: anyDirected ? 'Сделать линией' : 'Сделать стрелкой',
-        enabled: arrowIds.isNotEmpty,
-        onPressed: arrowIds.isEmpty
-            ? null
-            : () => context.read<CanvasBloc>().add(
-                  ObjectsArrowHeadChanged(
-                    arrowIds,
-                    anyDirected ? ArrowHeadType.none : ArrowHeadType.triangle,
-                  ),
-                ),
+      Builder(
+        builder: (anchor) => _BoardBarButton(
+          icon: FontAwesomeIcons.arrowRight,
+          tooltip: 'Форма стрелки',
+          onPressed: () => _openArrowForm(anchor, tool, canvas, arrowIds),
+        ),
       ),
     ];
     final layoutButtons = <Widget>[
@@ -387,6 +377,70 @@ class _BoardToolbarState extends State<BoardToolbar> {
     );
   }
 
+  void _openArrowForm(
+    BuildContext anchor,
+    ToolState tool,
+    CanvasState canvas,
+    Set<String> arrowIds,
+  ) {
+    var path = tool.pathType;
+    var head = tool.arrowHead;
+    for (final id in arrowIds) {
+      final object = canvas.drawingObjects[id];
+      if (object is ArrowObject) {
+        path = object.pathType;
+        head = object.arrowHead;
+        break;
+      }
+    }
+    _openMenu(
+      anchor,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final item in LinkPathType.values)
+            _MenuRow(
+              label: item == LinkPathType.straight
+                  ? 'Прямая (тянуть за середину)'
+                  : 'Ломаная',
+              selected: item == path,
+              onTap: () {
+                context.read<ToolBloc>().add(PathTypeSelected(item));
+                if (arrowIds.isNotEmpty) {
+                  context.read<CanvasBloc>().add(
+                        ObjectsPathTypeChanged(arrowIds, item),
+                      );
+                }
+                _closeMenu();
+              },
+            ),
+          Divider(height: DdtTheme.shellSizeOf(anchor, 12)),
+          for (final item in ArrowHeadType.values)
+            _MenuRow(
+              label: switch (item) {
+                ArrowHeadType.none => 'Без наконечника',
+                ArrowHeadType.triangle => 'Треугольник',
+                ArrowHeadType.diamond => 'Ромб',
+                ArrowHeadType.dot => 'Круг',
+                ArrowHeadType.bar => 'Черта',
+              },
+              selected: item == head,
+              onTap: () {
+                context.read<ToolBloc>().add(ArrowHeadSelected(item));
+                if (arrowIds.isNotEmpty) {
+                  context.read<CanvasBloc>().add(
+                        ObjectsArrowHeadChanged(arrowIds, item),
+                      );
+                }
+                _closeMenu();
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   void _applyLineStyle(LineStyle style) {
     final canvas = context.read<CanvasBloc>();
     final selected =
@@ -500,8 +554,10 @@ class _BoardToolbarState extends State<BoardToolbar> {
   Future<void> _openMermaid(BuildContext context) async {
     final canvas = context.read<CanvasBloc>();
     final selection = context.read<SelectionBloc>();
-    await showDialog<void>(
+    await showDdtDialog<void>(
       context: context,
+      width: DdtDialog.wideWidth,
+      height: DdtDialog.formHeight,
       builder: (dialogContext) => _MermaidDialog(
         canvas: canvas,
         selection: selection,
@@ -1165,116 +1221,65 @@ class _MermaidDialogState extends State<_MermaidDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.all(24),
-      child: DdtTheme.contextMenuGlass(
-        context: context,
-        padding: EdgeInsets.all(DdtTheme.shellSizeOf(context, 16)),
-        child: SizedBox(
-          width: 420,
-          child: _exporting ? _exportBody(context) : _importBody(context),
-        ),
-      ),
-    );
+    if (_exporting) return _exportBody(context);
+    return _importBody(context);
   }
 
   Widget _importBody(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Mermaid',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.sectionTitleSize,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.textPrimary(context),
-          ),
+    return DdtDialog(
+      title: 'Mermaid',
+      message: 'Вставьте flowchart, чтобы заменить доску',
+      body: DdtAppInput(
+        controller: _import,
+        hint: 'graph TD\n  A[Старт] --> B[Конец]',
+        maxLines: 8,
+        minLines: 6,
+        style: DdtTheme.style(
+          fontSize: DdtTypography.bodySize,
+          color: DdtTheme.textPrimary(context),
+        ).copyWith(fontFamily: 'monospace'),
+      ),
+      actions: [
+        DdtDialogAction(label: 'Экспортировать', onPressed: _showExport),
+        DdtDialogAction(
+          label: 'Показать',
+          kind: DdtDialogActionKind.primary,
+          onPressed: _importDiagram,
         ),
-        SizedBox(height: DdtTheme.shellSizeOf(context, 4)),
-        Text(
-          'Вставьте flowchart, чтобы заменить доску',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.labelSize,
-            color: DdtTheme.textSecondary(context),
-          ),
-        ),
-        SizedBox(height: DdtTheme.shellSizeOf(context, 10)),
-        _mermaidField(context, _import, readOnly: false),
-        SizedBox(height: DdtTheme.shellSizeOf(context, 10)),
-        _MenuRow(label: 'Показать на доске', onTap: _importDiagram),
-        _MenuRow(label: 'Экспортировать текущую', onTap: _showExport),
       ],
     );
   }
 
   Widget _exportBody(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Экспорт Mermaid',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.sectionTitleSize,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.textPrimary(context),
-          ),
+    return DdtDialog(
+      title: 'Экспорт Mermaid',
+      body: DdtAppInput(
+        controller: _export,
+        readOnly: true,
+        maxLines: 8,
+        minLines: 6,
+        style: DdtTheme.style(
+          fontSize: DdtTypography.bodySize,
+          color: DdtTheme.textPrimary(context),
+        ).copyWith(fontFamily: 'monospace'),
+      ),
+      actions: [
+        DdtDialogAction(
+          label: 'Назад',
+          onPressed: () => setState(() => _exporting = false),
         ),
-        SizedBox(height: DdtTheme.shellSizeOf(context, 10)),
-        _mermaidField(context, _export, readOnly: true),
-        SizedBox(height: DdtTheme.shellSizeOf(context, 10)),
-        _MenuRow(
+        DdtDialogAction(
           label: 'Копировать',
-          onTap: () {
+          kind: DdtDialogActionKind.primary,
+          onPressed: () {
             Clipboard.setData(ClipboardData(text: _export.text));
             Navigator.of(context).pop();
             _toast(context, 'Mermaid скопирован');
           },
         ),
-        _MenuRow(
-          label: 'Назад',
-          onTap: () => setState(() => _exporting = false),
-        ),
       ],
     );
   }
-}
-
-Widget _mermaidField(
-  BuildContext context,
-  TextEditingController controller, {
-  required bool readOnly,
-}) {
-  return TextField(
-    controller: controller,
-    readOnly: readOnly,
-    maxLines: 8,
-    style: DdtTheme.style(
-      fontSize: DdtTypography.labelSize,
-      color: DdtTheme.textPrimary(context),
-    ).copyWith(fontFamily: 'monospace'),
-    decoration: InputDecoration(
-      isDense: true,
-      hintText: readOnly ? null : 'graph TD\n  A[Старт] --> B[Конец]',
-      hintStyle: DdtTheme.style(
-        fontSize: DdtTypography.labelSize,
-        color: DdtTheme.textMuted(context),
-      ),
-      filled: true,
-      fillColor: DdtTheme.borderSubtle(context).withValues(alpha: 0.25),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DdtTheme.shellSizeOf(context, 8)),
-        borderSide: BorderSide(color: DdtTheme.borderSubtle(context)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DdtTheme.shellSizeOf(context, 8)),
-        borderSide: BorderSide(color: DdtTheme.borderSubtle(context)),
-      ),
-    ),
-  );
 }
 
 void _toast(BuildContext context, String message) {

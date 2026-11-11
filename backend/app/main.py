@@ -22,6 +22,7 @@ from app.routers import (
     tasks,
     users,
 )
+from app.services.ews_keepalive import ews_keepalive_service
 from app.services.ews_notification_service import ews_notification_service
 from app.services.ews_runtime import shutdown_ews_executor
 from app.services.notification_hub import notification_hub
@@ -32,7 +33,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     notification_hub.set_loop(asyncio.get_running_loop())
+    ews_keepalive_service.start()
     yield
+    ews_keepalive_service.stop()
     ews_notification_service.shutdown_all()
     shutdown_ews_executor()
 

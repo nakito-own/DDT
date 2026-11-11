@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_native/liquid_glass_native.dart';
@@ -57,6 +58,23 @@ void main() {
     expect(selected, AppSection.more);
   });
 
+  test('iphone native app uses liquid glass instead of the material bar', () {
+    expect(
+      DdtAdaptive.liquidGlassNavigation(
+        web: false,
+        platform: TargetPlatform.iOS,
+      ),
+      isTrue,
+    );
+    expect(
+      DdtAdaptive.materialBottomNavigation(
+        web: false,
+        platform: TargetPlatform.iOS,
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets('iphone uses the native glass tab bar', (tester) async {
     expect(DdtAdaptive.usesLiquidGlassNavigation, isTrue);
     expect(
@@ -78,7 +96,7 @@ void main() {
 
     expect(find.byType(LiquidGlassTabBar), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS), skip: kIsWeb);
 
   testWidgets('narrow desktop app keeps the drawer decision', (tester) async {
     expect(DdtAdaptive.usesLiquidGlassNavigation, isFalse);

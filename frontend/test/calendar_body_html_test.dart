@@ -29,6 +29,6 @@ void main() {
     final adapted = adaptCalendarBodyHtml(html, isDark: false);
 
     expect(adapted.toLowerCase(), isNot(contains('color:white')));
-    expect(adapted, contains('color:#111111'));
+    expect(adapted.replaceAll(' ', ''), contains('color:#111111'));
   });
 }

@@ -46,7 +46,8 @@ void main() {
     await tester.pumpWidget(buildTestApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Запланировано'), findsOneWidget);
+    // Column headers plus the status chip on the card share the same labels.
+    expect(find.text('Запланировано'), findsAtLeastNWidgets(1));
     expect(find.text('В работе'), findsOneWidget);
     expect(find.text('Готово'), findsOneWidget);
     expect(find.text('Тестовая задача'), findsOneWidget);

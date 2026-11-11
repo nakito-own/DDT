@@ -104,10 +104,28 @@ class FlowDrawCanvas extends StatelessWidget {
                   final fontInfo =
                       _selectionFontInfo(allSelected, canvasState);
 
+                  final linkTarget = allSelected.length == 1
+                      ? canvasState.drawingObjects[allSelected.first]
+                      : null;
+                  final canLink = linkTarget != null &&
+                      linkTarget is! ArrowObject &&
+                      linkTarget is! LineObject &&
+                      linkTarget is! PencilStrokeObject;
+
                   return FloatingToolbar(
                     selectedIds: allSelected,
                     drawingObjects: canvasState.drawingObjects,
                     position: pos,
+                    currentLink: canLink
+                        ? canvasState.shapeLinks[linkTarget.id]
+                        : null,
+                    onLinkChanged: canLink
+                        ? (value) {
+                            context.read<CanvasBloc>().add(
+                                  ObjectLinkChanged(linkTarget.id, value),
+                                );
+                          }
+                        : null,
                     onDelete: () {
                       context.read<CanvasBloc>().add(ObjectsRemoved(
                             nodeIds: selectionState.selectedNodeIds,

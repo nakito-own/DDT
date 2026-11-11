@@ -662,97 +662,9 @@ class FlowDrawEditorRenderBox extends RenderBox
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0 * iz;
 
-    // ── Pre-pass: redistribute attachment points that share the same object+side ──
-    // Groups all arrow endpoints by (objectId, side) and spreads them evenly,
-    // so crowded ports are fixed dynamically regardless of stored relativePosition.
-    final relOverrides = <String, Offset>{}; // key = 'arrowId:start|end'
+    // Endpoints stay where they were dropped, so several arrows can share one point.
+    final relOverrides = <String, Offset>{};
 
-    Rect? _attachedRect(ObjectAttachment att) {
-      final node = canvasState.nodes[att.objectId];
-      return node != null
-          ? getNodeBoundsInWorld(node)
-          : canvasState.drawingObjects[att.objectId]?.rect;
-    }
-
-    int _sideOf(Offset relPos) {
-      final dx = relPos.dx, dy = relPos.dy;
-      final dists = [dx, 1 - dx, dy, 1 - dy]; // left, right, top, bottom
-      var minI = 0;
-      for (int i = 1; i < 4; i++) if (dists[i] < dists[minI]) minI = i;
-      return minI; // 0=left,1=right,2=top,3=bottom
-    }
-
-    // The free coordinate along a side (0..1): dx for top/bottom, dy for
-    // left/right. This is the position the user dropped at.
-    double _alongSide(int side, Offset rel) =>
-        (side == 2 || side == 3) ? rel.dx : rel.dy;
-
-    // Build a relativePosition on [side] at raw along-side coordinate [t]
-    // (no compression — keeps the endpoint exactly where computed).
-    Offset _sideRelativeRaw(int side, double t) {
-      switch (side) {
-        case 0: return Offset(0.0, t); // left
-        case 1: return Offset(1.0, t); // right
-        case 2: return Offset(t, 0.0); // top
-        case 3: return Offset(t, 1.0); // bottom
-        default: return const Offset(0.5, 0.5);
-      }
-    }
-
-    // Collect endpoints per (objectId, side), keeping each one's stored
-    // along-side position so we can RESPECT where the user placed it.
-    final sideGroups = <String, List<(String end, double t)>>{};
-    void addEndpoint(String arrowId, String which, ObjectAttachment att) {
-      if (_attachedRect(att) == null) return;
-      final side = _sideOf(att.relativePosition);
-      final t = _alongSide(side, att.relativePosition);
-      sideGroups
-          .putIfAbsent('${att.objectId}:$side', () => [])
-          .add(('$arrowId:$which', t));
-    }
-
-    for (final obj in drawingObjects.values) {
-      if (obj is! ArrowObject) continue;
-      if (obj.startAttachment != null) {
-        addEndpoint(obj.id, 'start', obj.startAttachment!);
-      }
-      if (obj.endAttachment != null) {
-        addEndpoint(obj.id, 'end', obj.endAttachment!);
-      }
-    }
-
-    // Respect dropped positions; only nudge endpoints that genuinely OVERLAP.
-    // Sort each side's endpoints by their stored position, then walk left→right
-    // pushing any that are closer than [minGap] just far enough apart. Endpoints
-    // with enough room keep exactly where the user put them.
-    const double minGap = 0.12; // min spacing along a side (fraction)
-    for (final entry in sideGroups.entries) {
-      final side = int.parse(entry.key.split(':').last);
-      final members = [...entry.value]..sort((a, b) => a.$2.compareTo(b.$2));
-      if (members.length < 2) continue;
-
-      final adjusted = <double>[];
-      var prev = double.negativeInfinity;
-      for (final m in members) {
-        var t = m.$2;
-        if (t < prev + minGap) t = prev + minGap; // overlapping → push along
-        adjusted.add(t);
-        prev = t;
-      }
-      // If pushing ran past the end, shift the whole run back to fit in [0,1].
-      final overflow = adjusted.last - 1.0;
-      if (overflow > 0) {
-        for (var i = 0; i < adjusted.length; i++) {
-          adjusted[i] = (adjusted[i] - overflow).clamp(0.0, 1.0);
-        }
-      }
-      // Only emit overrides for endpoints we actually moved.
-      for (var i = 0; i < members.length; i++) {
-        if ((adjusted[i] - members[i].$2).abs() > 1e-4) {
-          relOverrides[members[i].$1] = _sideRelativeRaw(side, adjusted[i]);
-        }
-      }
-    }
 
     // Accumulate routed segments so later arrows avoid overlapping earlier ones.
     final List<(Offset, Offset)> routedSegments = [];
@@ -804,7 +716,8 @@ class FlowDrawEditorRenderBox extends RenderBox
           final textStyle = TextStyle(
               color: paint.color,
               fontSize: 14.0 / zoom,
-              fontWeight: FontWeight.bold);
+              fontWeight: FontWeight.bold,
+              fontFamily: kEditorDefaultFontFamily);
           final textSpan = TextSpan(text: obj.label, style: textStyle);
           final textPainter =
           TextPainter(text: textSpan, textDirection: TextDirection.ltr)
@@ -818,6 +731,7 @@ class FlowDrawEditorRenderBox extends RenderBox
                 text: obj.text,
                 style: obj.style.copyWith(
                   color: resolvedTextColor(obj.style.color, ink),
+                  fontFamily: canvasFontFamily(obj.style.fontFamily),
                 ),
               ),
               textDirection: TextDirection.ltr,
@@ -956,6 +870,8 @@ class FlowDrawEditorRenderBox extends RenderBox
              obj is ParallelogramObject || obj is ForkJoinObject)) {
           _paintConnectionPortIndicators(canvas, obj);
         }
+
+        _paintLinkBadge(canvas, obj);
 
         canvas.restore();
         continue;
@@ -1235,10 +1151,24 @@ class FlowDrawEditorRenderBox extends RenderBox
         if (obj.arrowHead != ArrowHeadType.none) {
           if (pathType == LinkPathType.orthogonal) {
             if (arrowControl != null) {
-              _paintArrowHead(canvas, arrowControl, lineEnd, paint, lineStyle: obj.lineStyle);
+              _paintArrowHead(
+                canvas,
+                arrowControl,
+                lineEnd,
+                paint,
+                lineStyle: obj.lineStyle,
+                head: obj.arrowHead,
+              );
             }
           } else {
-            _paintArrowHead(canvas, controlPoint, lineEnd, paint, lineStyle: obj.lineStyle);
+            _paintArrowHead(
+              canvas,
+              controlPoint,
+              lineEnd,
+              paint,
+              lineStyle: obj.lineStyle,
+              head: obj.arrowHead,
+            );
           }
         }
 
@@ -1263,7 +1193,7 @@ class FlowDrawEditorRenderBox extends RenderBox
             ui.ParagraphStyle(
               textAlign: TextAlign.center,
               fontSize: labelFontSize,
-              fontFamily: 'sans-serif',
+              fontFamily: kEditorDefaultFontFamily,
             ),
           )
             ..pushStyle(ui.TextStyle(color: ink))
@@ -1554,6 +1484,45 @@ class FlowDrawEditorRenderBox extends RenderBox
       canvas.drawCircle(port.portPosition, portRadius, portFillPaint);
       canvas.drawCircle(port.portPosition, portRadius, portBorderPaint);
     }
+  }
+
+  void _paintLinkBadge(Canvas canvas, DrawingObject obj) {
+    final url = canvasState.shapeLinks[obj.id];
+    if (url == null || url.isEmpty) return;
+    if (obj is ArrowObject || obj is LineObject || obj is PencilStrokeObject) {
+      return;
+    }
+    final center = linkBadgeCenter(obj.rect, zoom);
+    final radius = linkBadgeRadius(zoom);
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xFF2563EB));
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2 / zoom,
+    );
+    final fontSize = radius * 1.15;
+    final paragraph = ui.ParagraphBuilder(
+      ui.ParagraphStyle(
+        fontFamily: 'MaterialIcons',
+        fontSize: fontSize,
+        textAlign: TextAlign.center,
+      ),
+    )
+      ..pushStyle(ui.TextStyle(
+        fontFamily: 'MaterialIcons',
+        fontSize: fontSize,
+        color: Colors.white,
+      ))
+      ..addText(String.fromCharCode(Icons.link.codePoint));
+    final built = paragraph.build()
+      ..layout(ui.ParagraphConstraints(width: radius * 2));
+    canvas.drawParagraph(
+      built,
+      Offset(center.dx - radius, center.dy - built.height / 2),
+    );
   }
 
   void _paintQuickActionArrows(Canvas canvas, Rect rect, String objectId) {
@@ -2004,48 +1973,67 @@ class FlowDrawEditorRenderBox extends RenderBox
     Offset end,
     Paint paint, {
     LineStyle lineStyle = LineStyle.solid,
+    ArrowHeadType head = ArrowHeadType.triangle,
   }) {
+    if (head == ArrowHeadType.none) return;
     final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-    // Arrowheads are constant in screen pixels at normal/zoomed-in levels
-    // (factor = 1/zoom). But when zoomed OUT past [headConstantZoom], we cap the
-    // factor so the head size stops growing in world units — i.e. it shrinks on
-    // screen along with the diagram, instead of looking oversized.
     const double headConstantZoom = 0.6;
     final double headZoomFactor = 1.0 / max(zoom, headConstantZoom);
     final double arrowSize = 7.0 * dpr * headZoomFactor;
-    const double arrowAngle = 25 * (pi / 180);
 
     final lineVector = end - controlPoint;
-    if (lineVector.distanceSquared == 0)
-      return; // Avoid errors if start and end are the same
+    if (lineVector.distanceSquared == 0) return;
     final angle = lineVector.direction;
+    final tip = end;
 
-    final p2 = end - Offset.fromDirection(angle - arrowAngle, arrowSize);
-    final p3 = end - Offset.fromDirection(angle + arrowAngle, arrowSize);
-
-    final headPaint = Paint()
+    final fill = Paint()
       ..color = paint.color
-      ..strokeWidth = paint.strokeWidth
+      ..style = PaintingStyle.fill;
+    final stroke = Paint()
+      ..color = paint.color
+      ..strokeWidth = max(paint.strokeWidth, 1.25 * headZoomFactor)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final Path path = Path();
-    if (lineStyle == LineStyle.rough) {
-      // Quadratic bezier only bends toward the control point, doesn't pass
-      // through it. Push the control point beyond `end` so the curve apex
-      // lands at the actual tip.
-      final mid = (p2 + p3) / 2;
-      final cp = end * 2 - mid;
-      path.moveTo(p2.dx, p2.dy);
-      path.quadraticBezierTo(cp.dx, cp.dy, p3.dx, p3.dy);
-    } else {
-      path.moveTo(p2.dx, p2.dy);
-      path.lineTo(end.dx, end.dy);
-      path.lineTo(p3.dx, p3.dy);
+    switch (head) {
+      case ArrowHeadType.none:
+        return;
+      case ArrowHeadType.triangle:
+        const arrowAngle = 25 * (pi / 180);
+        final p2 = tip - Offset.fromDirection(angle - arrowAngle, arrowSize);
+        final p3 = tip - Offset.fromDirection(angle + arrowAngle, arrowSize);
+        final path = Path()
+          ..moveTo(p2.dx, p2.dy)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(p3.dx, p3.dy)
+          ..close();
+        if (lineStyle == LineStyle.rough) {
+          canvas.drawPath(path, stroke);
+        } else {
+          canvas.drawPath(path, fill);
+        }
+      case ArrowHeadType.diamond:
+        final tail = tip + Offset.fromDirection(angle + pi, arrowSize);
+        final mid = tip + Offset.fromDirection(angle + pi, arrowSize * 0.55);
+        final wing = Offset.fromDirection(angle + pi / 2, arrowSize * 0.38);
+        final path = Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo(mid.dx + wing.dx, mid.dy + wing.dy)
+          ..lineTo(tail.dx, tail.dy)
+          ..lineTo(mid.dx - wing.dx, mid.dy - wing.dy)
+          ..close();
+        canvas.drawPath(path, fill);
+      case ArrowHeadType.dot:
+        canvas.drawCircle(
+          tip - Offset.fromDirection(angle, arrowSize * 0.45),
+          arrowSize * 0.42,
+          fill,
+        );
+      case ArrowHeadType.bar:
+        final side = Offset.fromDirection(angle + pi / 2, arrowSize * 0.55);
+        canvas.drawLine(tip - side, tip + side, stroke);
     }
-
-    canvas.drawPath(path, headPaint);
   }
 
   /// Builds the orthogonal path without drawing it.
@@ -2287,7 +2275,13 @@ class FlowDrawEditorRenderBox extends RenderBox
             }
           }
         }
-        _paintArrowHead(canvas, arrowHeadControl, end, tempPaint);
+        _paintArrowHead(
+          canvas,
+          arrowHeadControl,
+          end,
+          tempPaint,
+          head: tempDrawingObject!.arrowHead,
+        );
         break;
       case EditorTool.line:
         canvas.drawLine(start, end, tempPaint);

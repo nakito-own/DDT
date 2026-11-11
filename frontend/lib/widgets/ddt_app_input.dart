@@ -40,6 +40,7 @@ class DdtAppInput extends StatefulWidget {
     this.fillColor,
     this.borderColor,
     this.focusedBorderColor,
+    this.iconColor,
     this.textColor,
     this.style,
     this.labelStyle,
@@ -47,11 +48,13 @@ class DdtAppInput extends StatefulWidget {
     this.suffixIconOnPressed,
     this.suffix,
     this.prefix,
+    this.autofillHints,
     this.errorText,
     this.borderRadius,
     this.borderWidth = 1.0,
     this.textAlign = TextAlign.start,
     this.obscureText,
+    this.filled = true,
   });
 
   final String? label;
@@ -81,6 +84,7 @@ class DdtAppInput extends StatefulWidget {
   final Color? fillColor;
   final Color? borderColor;
   final Color? focusedBorderColor;
+  final Color? iconColor;
   final Color? textColor;
   final TextStyle? style;
   final TextStyle? labelStyle;
@@ -88,11 +92,13 @@ class DdtAppInput extends StatefulWidget {
   final VoidCallback? suffixIconOnPressed;
   final Widget? suffix;
   final Widget? prefix;
+  final Iterable<String>? autofillHints;
   final String? errorText;
   final BorderRadius? borderRadius;
   final double borderWidth;
   final TextAlign textAlign;
   final bool? obscureText;
+  final bool filled;
 
   @override
   State<DdtAppInput> createState() => _DdtAppInputState();
@@ -175,6 +181,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
   }
 
   Color _fillColor(BuildContext context) {
+    if (!widget.filled) return Colors.transparent;
     if (widget.fillColor != null) return widget.fillColor!;
     if (!widget.enabled) {
       return DdtTheme.inputFillColor(context).withValues(alpha: 0.55);
@@ -195,11 +202,16 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (_hovering) {
       return widget.borderColor ?? DdtTheme.borderStrong(context);
     }
-    return widget.borderColor ?? DdtTheme.borderSubtle(context);
+    return widget.borderColor ??
+        (widget.filled
+            ? DdtTheme.borderSubtle(context)
+            : DdtTheme.borderStrong(context));
   }
 
   List<BoxShadow>? _boxShadow(BuildContext context, {required bool hasError}) {
-    if (!_isFocused || hasError || !widget.enabled) return null;
+    if (!widget.filled || !_isFocused || hasError || !widget.enabled) {
+      return null;
+    }
     return DdtTheme.inputFocusShadow(context);
   }
 
@@ -213,7 +225,9 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (widget.prefixIcon == null) return null;
 
     final iconColor =
-        DdtTheme.inputHintStyle(context).color ?? DdtTheme.textMuted(context);
+        widget.iconColor ??
+        DdtTheme.inputHintStyle(context).color ??
+        DdtTheme.textMuted(context);
 
     return SizedBox(
       width: _minControlHeight,
@@ -235,6 +249,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
               : DdtIcons.visibilityOff,
           size: 18,
           color:
+              widget.iconColor ??
               DdtTheme.inputHintStyle(context).color ??
               DdtTheme.textMuted(context),
         ),
@@ -255,6 +270,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
         widget.suffixIcon!,
         size: 18,
         color:
+            widget.iconColor ??
             DdtTheme.inputHintStyle(context).color ??
             DdtTheme.textMuted(context),
       ),
@@ -346,6 +362,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
           },
           onSubmitted: widget.onSubmitted,
           onTap: widget.onTap,
+          autofillHints: widget.autofillHints,
           inputFormatters: _formatters(),
           style:
               widget.style ??

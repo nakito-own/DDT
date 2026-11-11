@@ -9,6 +9,7 @@ import '../blocs/auth/auth_bloc.dart';
 import '../services/api_client.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
+import '../utils/ews_login.dart';
 import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_checkbox.dart';
 import '../widgets/login_background.dart';
@@ -22,24 +23,28 @@ class EwsLoginScreen extends StatefulWidget {
 }
 
 class _EwsLoginScreenState extends State<EwsLoginScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _rememberMe = true;
   String? _validationMessage;
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
   void _submit() {
+    final email = _emailController.text.trim();
+    final username = usernameFromEmail(email);
     final errors = [
-      if (_usernameController.text.trim().isEmpty) 'Введите логин',
-      if (_emailController.text.trim().isEmpty) 'Введите email',
+      if (email.isEmpty) 'Введите почту',
+      if (email.isNotEmpty && username == null) 'Почта должна содержать логин до @',
       if (_passwordController.text.isEmpty) 'Введите пароль',
     ];
 
@@ -53,11 +58,11 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
       return;
     }
     setState(() => _validationMessage = null);
+    FocusManager.instance.primaryFocus?.unfocus();
     context.read<AuthBloc>().add(
       AuthLoginRequested(
-        username: _usernameController.text.trim(),
+        email: email,
         password: _passwordController.text,
-        email: _emailController.text.trim(),
         rememberMe: _rememberMe,
       ),
     );
@@ -66,6 +71,7 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -73,6 +79,8 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: 440.w),
@@ -90,95 +98,120 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                     },
                     builder: (context, state) {
                       final isBusy = state is AuthLoading;
+                      final fieldChrome = Theme.of(context).brightness ==
+                              Brightness.dark
+                          ? const Color(0xFFC5CBD4)
+                          : const Color(0xFF4B5563);
 
                       return DdtTheme.glass(
                         context: context,
                         padding: EdgeInsets.all(28.w),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Вход',
-                              style: DdtTheme.style(
-                                fontSize: DdtTypography.displaySize,
-                                fontWeight: FontWeight.w700,
-                                color: DdtTheme.loginTitleColor(context),
-                              ),
-                            ),
-                            SizedBox(height: 8.h),
-                            Text(
-                              'Корпоративные учётные данные Exchange',
-                              style: DdtTheme.style(
-                                fontSize: DdtTypography.bodySize,
-                                fontWeight: FontWeight.w500,
-                                color: DdtTheme.textSecondary(context),
-                              ),
-                            ),
-                            SizedBox(height: 24.h),
-                            if (kDebugMode && apiUrl.isEmpty) ...[
+                        blurSigma: 8,
+                        backgroundOpacity: Theme.of(context).brightness ==
+                                Brightness.dark
+                            ? 0.48
+                            : 0.38,
+                        child: AutofillGroup(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
                               Text(
-                                'Не задан API_URL. Запускайте с '
-                                '--dart-define=API_URL=http://localhost:3000',
+                                'Вход',
                                 style: DdtTheme.style(
-                                  fontSize: DdtTypography.labelSize,
-                                  color: AppColors.error,
+                                  fontSize: DdtTypography.displaySize,
+                                  fontWeight: FontWeight.w700,
+                                  color: DdtTheme.loginTitleColor(context),
                                 ),
                               ),
-                              SizedBox(height: 12.h),
-                            ],
-                            if (_validationMessage != null) ...[
+                              SizedBox(height: 8.h),
                               Text(
-                                _validationMessage!,
+                                'Корпоративные учётные данные Exchange',
                                 style: DdtTheme.style(
-                                  fontSize: DdtTypography.labelSize,
-                                  color: AppColors.error,
+                                  fontSize: DdtTypography.bodySize,
+                                  fontWeight: FontWeight.w500,
+                                  color: DdtTheme.textSecondary(context),
                                 ),
                               ),
-                              SizedBox(height: 12.h),
-                            ],
-                            DdtAppInput(
-                              hint: 'Login',
-                              prefixIcon: DdtIcons.user,
-                              controller: _usernameController,
-                              enabled: !isBusy,
-                            ),
-                            SizedBox(height: 12.h),
-                            DdtAppInput(
-                              hint: 'Email',
-                              prefixIcon: DdtIcons.mail,
-                              controller: _emailController,
-                              enabled: !isBusy,
-                              type: InputType.email,
-                            ),
-                            SizedBox(height: 12.h),
-                            DdtAppInput(
-                              hint: 'Password',
-                              prefixIcon: DdtIcons.lock,
-                              controller: _passwordController,
-                              enabled: !isBusy,
-                              type: InputType.password,
-                            ),
-                            SizedBox(height: 12.h),
-                            Padding(
-                              padding: EdgeInsets.only(left: 4),
-                              child: DdtCheckbox(
-                                value: _rememberMe,
+                              SizedBox(height: 24.h),
+                              if (kDebugMode && apiUrl.isEmpty) ...[
+                                Text(
+                                  'Не задан API_URL. Запускайте с '
+                                  '--dart-define=API_URL=http://localhost:3000',
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.labelSize,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                                SizedBox(height: 12.h),
+                              ],
+                              if (_validationMessage != null) ...[
+                                Text(
+                                  _validationMessage!,
+                                  style: DdtTheme.style(
+                                    fontSize: DdtTypography.labelSize,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                                SizedBox(height: 12.h),
+                              ],
+                              DdtAppInput(
+                                hint: 'Почта',
+                                prefixIcon: DdtIcons.mail,
+                                controller: _emailController,
+                                focusNode: _emailFocus,
                                 enabled: !isBusy,
-                                label: 'Запомнить меня',
-                                onChanged: (value) =>
-                                    setState(() => _rememberMe = value),
+                                filled: false,
+                                borderColor: fieldChrome,
+                                focusedBorderColor: fieldChrome,
+                                iconColor: fieldChrome,
+                                type: InputType.email,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [
+                                  AutofillHints.email,
+                                  AutofillHints.username,
+                                ],
+                                onSubmitted: (_) =>
+                                    _passwordFocus.requestFocus(),
                               ),
-                            ),
-
-                            SizedBox(height: 16.h),
-                            Button(
-                              text: isBusy ? 'Подключение...' : 'Войти',
-                              isLoading: isBusy,
-                              onPressed: isBusy ? null : _submit,
-                              borderRadius: DdtTheme.inputControlBorderRadius,
-                            ),
-                          ],
+                              SizedBox(height: 12.h),
+                              DdtAppInput(
+                                hint: 'Пароль',
+                                prefixIcon: DdtIcons.lock,
+                                controller: _passwordController,
+                                focusNode: _passwordFocus,
+                                enabled: !isBusy,
+                                filled: false,
+                                borderColor: fieldChrome,
+                                focusedBorderColor: fieldChrome,
+                                iconColor: fieldChrome,
+                                type: InputType.password,
+                                textInputAction: TextInputAction.done,
+                                autofillHints: const [AutofillHints.password],
+                                onSubmitted: (_) {
+                                  if (!isBusy) _submit();
+                                },
+                              ),
+                              SizedBox(height: 12.h),
+                              Padding(
+                                padding: EdgeInsets.only(left: 4),
+                                child: DdtCheckbox(
+                                  value: _rememberMe,
+                                  enabled: !isBusy,
+                                  label: 'Запомнить меня',
+                                  onChanged: (value) =>
+                                      setState(() => _rememberMe = value),
+                                ),
+                              ),
+                              SizedBox(height: 16.h),
+                              Button(
+                                text: isBusy ? 'Подключение...' : 'Войти',
+                                isLoading: isBusy,
+                                onPressed: isBusy ? null : _submit,
+                                borderRadius: DdtTheme.inputControlBorderRadius,
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

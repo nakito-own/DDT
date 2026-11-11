@@ -1,6 +1,7 @@
+import logging
 import secrets
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import TypeVar
@@ -18,6 +19,8 @@ from app.services.ews_service import (
 )
 from app.services.user_service import UserProfile, user_service, user_profile_to_dict
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar("T")
 
 
@@ -33,6 +36,7 @@ class SessionContext:
     user_id: int
     user: UserProfile
     ews_account_id: int | None = None
+    ews_refreshed_at: datetime = field(default_factory=datetime.utcnow)
 
 
 class SessionService:
@@ -141,6 +145,7 @@ class SessionService:
             ews_account_id=ews_account_id,
             user_id=user.id,
             user=user,
+            ews_refreshed_at=datetime.utcnow(),
         )
 
         with self._lock:
@@ -193,6 +198,7 @@ class SessionService:
             ews_account_id=row["ews_account_id"],
             user_id=user.id,
             user=user,
+            ews_refreshed_at=datetime.utcnow(),
         )
 
     def token_hashes_for_user(self, user_id: int) -> list[str]:
@@ -295,6 +301,50 @@ class SessionService:
                 raise
         finally:
             lock.release()
+
+    def refresh_exchange_connection(self, context: SessionContext) -> SessionContext:
+        """Re-login to Exchange/OWA with stored credentials and keep the app token."""
+        from app.services.owa_transport import owa_transport
+
+        account = ews_service.connect_account(
+            context.username, context.password, context.email
+        )
+        self._drop_cached_account(context.token_hash)
+        context.ews_refreshed_at = datetime.utcnow()
+        with self._lock:
+            self._account_cache[context.token_hash] = account
+            self._memory_sessions[context.token_hash] = context
+        owa_transport.refresh_login(context)
+        return context
+
+    def refresh_live_exchange_sessions(self) -> None:
+        interval = timedelta(hours=max(1, settings.ews_refresh_interval_hours))
+        now = datetime.utcnow()
+        from app.services.owa_transport import owa_transport
+
+        with self._lock:
+            contexts = list(self._memory_sessions.values())
+            cached_accounts = set(self._account_cache)
+
+        live = [
+            context
+            for context in contexts
+            if context.token_hash in cached_accounts
+            or owa_transport.has_session(context.token_hash)
+        ]
+
+        for context in live:
+            last = context.ews_refreshed_at or now
+            if now - last < interval:
+                continue
+            try:
+                self.refresh_exchange_connection(context)
+            except Exception:
+                logger.warning(
+                    "Silent EWS refresh failed for %s",
+                    context.email,
+                    exc_info=True,
+                )
 
     def refresh_user_profile(self, context: SessionContext) -> UserProfile:
         account = self.get_account(context)
