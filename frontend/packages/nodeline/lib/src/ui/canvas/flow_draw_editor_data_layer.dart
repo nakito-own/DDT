@@ -16,10 +16,12 @@ import 'package:nodeline/src/core/utils/swap_layout.dart';
 import 'package:nodeline/src/core/utils/snap_utils.dart';
 import 'package:nodeline/src/core/utils/renderbox.dart';
 import 'package:nodeline/src/models/drawing_entities.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:nodeline/src/ui/canvas/flow_draw_editor_render_object.dart';
 import 'package:nodeline/src/ui/canvas/rich_text_editing_controller.dart';
 import 'package:nodeline/src/ui/shared/active_text_editing.dart';
 import 'package:nodeline/src/ui/shared/context_menu.dart';
+import 'package:nodeline/src/ui/shared/prompt_dialog.dart';
 import 'package:nodeline/src/ui/shared/snap_guides.dart';
 import 'package:nodeline/src/ui/shared/improved_listener.dart';
 import 'package:flutter/gestures.dart';
@@ -91,6 +93,16 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
   bool _isPanning = false;
   bool _isAreaSelecting = false;
   bool _isDraggingSelection = false;
+
+  /// Bounds at drag start, plus how far the pointer and the snapped shapes
+  /// have each moved. The pointer offset is not read back from the canvas, so
+  /// a guide can hold a shape without eating the next small move.
+  Rect? _dragOriginRect;
+  Offset _dragFreeDelta = Offset.zero;
+  Offset _dragAppliedDelta = Offset.zero;
+
+  bool _hoveringPort = false;
+  bool _hoveringLink = false;
   bool _isDrawing = false;
   bool _isEditingText = false;
 
@@ -508,7 +520,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
 
     // Prefer any non-frame target; only snap to a frame when nothing else is
     // in range.
-    final SnapPoint? newSnapPoint = bestNonFrame ?? bestFrame;
+    final rawSnap = bestNonFrame ?? bestFrame;
+    final SnapPoint? newSnapPoint =
+        rawSnap == null ? null : _shareAttachmentPoint(rawSnap, worldPos);
 
     if (newSnapPoint != _hoveredSnapPoint) {
       // Always track the CURRENT nearest snap point (or null when the cursor
@@ -535,6 +549,50 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       point.dx.clamp(rect.left, rect.right),
       point.dy.clamp(rect.top, rect.bottom),
     );
+  }
+
+  SnapPoint _shareAttachmentPoint(SnapPoint snap, Offset worldPos) {
+    final canvasState = _canvasBloc.state;
+    final target = canvasState.drawingObjects[snap.objectId];
+    Rect? rect = target?.rect;
+    if (rect == null) {
+      final node = canvasState.nodes[snap.objectId];
+      rect = node == null ? null : getNodeBoundsInWorld(node);
+    }
+    if (rect == null) return snap;
+    final angle = target?.angle ?? 0.0;
+    final tolerance = 16.0 / canvasState.viewportZoom;
+    SnapPoint? shared;
+    var best = tolerance;
+    for (final obj in canvasState.drawingObjects.values) {
+      final List<ObjectAttachment?> attachments;
+      if (obj is ArrowObject) {
+        attachments = [obj.startAttachment, obj.endAttachment];
+      } else if (obj is LineObject) {
+        attachments = [obj.startAttachment, obj.endAttachment];
+      } else {
+        continue;
+      }
+      for (final attachment in attachments) {
+        if (attachment == null || attachment.objectId != snap.objectId) {
+          continue;
+        }
+        final rel = attachment.relativePosition;
+        var point = rect.topLeft +
+            Offset(rect.width * rel.dx, rect.height * rel.dy);
+        if (angle.abs() > 0.05) point = point.rotate(rect.center, angle);
+        final distance = (worldPos - point).distance;
+        if (distance < best) {
+          best = distance;
+          shared = (
+            objectId: snap.objectId,
+            worldPosition: point,
+            relativePosition: rel,
+          );
+        }
+      }
+    }
+    return shared ?? snap;
   }
 
   void _onPanStart() {
@@ -731,6 +789,91 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
     return false;
   }
 
+  ({String objectId, Offset world, Offset relative})? _connectionPortAt(
+    Offset worldPos,
+  ) {
+    if (_toolBloc.state.activeTool != EditorTool.arrow) return null;
+    final canvasState = _canvasBloc.state;
+    final hit = 14.0 / canvasState.viewportZoom;
+    final hovered = _selectionBloc.state.hoveredDrawingObjectId;
+    final selected = _selectionBloc.state.selectedDrawingObjectIds;
+    ({String objectId, Offset world, Offset relative})? best;
+    var bestDist = hit;
+    for (final obj in canvasState.drawingObjects.values) {
+      if (obj is! RectangleObject &&
+          obj is! CircleObject &&
+          obj is! DiamondObject &&
+          obj is! ParallelogramObject &&
+          obj is! ForkJoinObject) {
+        continue;
+      }
+      if (obj.id != hovered && !selected.contains(obj.id)) continue;
+      final width = obj.rect.width.abs().clamp(0.001, double.infinity);
+      final height = obj.rect.height.abs().clamp(0.001, double.infinity);
+      for (final port in obj.getConnectionPorts()) {
+        final pos = port.portPosition.rotate(obj.rect.center, obj.angle);
+        final distance = (worldPos - pos).distance;
+        if (distance >= bestDist) continue;
+        bestDist = distance;
+        best = (
+          objectId: obj.id,
+          world: pos,
+          relative: Offset(
+            (port.portPosition.dx - obj.rect.left) / width,
+            (port.portPosition.dy - obj.rect.top) / height,
+          ),
+        );
+      }
+    }
+    return best;
+  }
+
+  String? _linkAt(Offset worldPos) {
+    final zoom = _canvasBloc.state.viewportZoom;
+    final radius = linkBadgeRadius(zoom);
+    for (final obj in _canvasBloc.state.drawingObjects.values.toList().reversed) {
+      final url = _canvasBloc.state.shapeLinks[obj.id];
+      if (url == null || url.isEmpty) continue;
+      if (obj is ArrowObject || obj is LineObject || obj is PencilStrokeObject) {
+        continue;
+      }
+      final center =
+          linkBadgeCenter(obj.rect, zoom).rotate(obj.rect.center, obj.angle);
+      if ((worldPos - center).distance <= radius) return url;
+    }
+    return null;
+  }
+
+  Future<void> _openShapeLink(String raw) async {
+    var text = raw.trim();
+    if (text.isEmpty) return;
+    if (!text.contains('://')) text = 'https://$text';
+    final uri = Uri.tryParse(text);
+    if (uri == null || !uri.hasScheme) return;
+    await launchUrl(uri, webOnlyWindowName: '_blank');
+  }
+
+  void _beginArrowFromPort(
+    ({String objectId, Offset world, Offset relative}) port,
+  ) {
+    _isDrawing = true;
+    _drawingStart = port.world;
+    _startSnapPoint = (
+      objectId: port.objectId,
+      worldPosition: port.world,
+      relativePosition: port.relative,
+    );
+    setState(() {
+      _tempDrawingObject = TempDrawingObject(
+        tool: EditorTool.arrowTopRight,
+        start: port.world,
+        end: port.world,
+        pathType: _toolBloc.state.pathType,
+        arrowHead: _toolBloc.state.arrowHead,
+      );
+    });
+  }
+
   /// True when a text input currently holds the keyboard focus — including
   /// inputs we don't own (e.g. the flan annotation overlay, dialogs, the
   /// Mermaid/Text-to-Diagram fields). When one is focused the canvas must NOT
@@ -878,6 +1021,11 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
         _openCommentPopup(pinComment, event.position);
         return;
       }
+      final link = _linkAt(worldPos);
+      if (link != null) {
+        unawaited(_openShapeLink(link));
+        return;
+      }
     }
 
     // Update hovered handle from tap position before checking —
@@ -899,6 +1047,14 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
 
     if (_checkAndHandleQuickAction(worldPos)) {
       return;
+    }
+
+    if (tool == EditorTool.arrow) {
+      final port = _connectionPortAt(worldPos);
+      if (port != null) {
+        _beginArrowFromPort(port);
+        return;
+      }
     }
 
     if (tool == EditorTool.comment) {
@@ -968,6 +1124,17 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
     if (worldPos == null) return;
 
     _updateSnapHandle(worldPos);
+    final overLink = _linkAt(worldPos) != null;
+    if (overLink != _hoveringLink) {
+      setState(() => _hoveringLink = overLink);
+    }
+    final overPort = !_isDraggingSelection &&
+        !_isDrawing &&
+        _isResizing.handle == Handle.none &&
+        _connectionPortAt(worldPos) != null;
+    if (overPort != _hoveringPort) {
+      setState(() => _hoveringPort = overPort);
+    }
 
     if (_isRotating) {
       _handleObjectRotation(worldPos);
@@ -979,10 +1146,13 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
         _selectionBloc.state.selectedDrawingObjectIds,
       );
 
-      // Compute bounding rect of all selected objects for snap guide detection.
       final movingRect = _getSelectionBoundingRect(selectedIds);
       if (movingRect != null) {
-        // Build node rects so nodes also serve as snap references.
+        _dragOriginRect ??= movingRect;
+        _dragFreeDelta += dragDelta;
+        final freeRect = _dragOriginRect!.shift(_dragFreeDelta);
+        final snapSuppressed = HardwareKeyboard.instance.isShiftPressed;
+
         final nodeRects = <String, Rect>{};
         for (final node in _canvasBloc.state.nodes.values) {
           if (selectedIds.contains(node.id)) continue;
@@ -990,59 +1160,58 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           if (bounds != null) nodeRects[node.id] = bounds;
         }
 
-        final guides = AlignmentGuide.findGuides(
-          movingRect,
-          _canvasBloc.state.drawingObjects,
-          selectedIds,
-          additionalRects: nodeRects,
-        );
+        final guides = snapSuppressed
+            ? const <SnapGuide>[]
+            : AlignmentGuide.findGuides(
+                freeRect,
+                _canvasBloc.state.drawingObjects,
+                selectedIds,
+                additionalRects: nodeRects,
+                threshold: AlignmentGuide.snapThreshold /
+                    _canvasBloc.state.viewportZoom,
+              );
 
-        // Find the closest snap per axis and apply correction.
-        double? bestDx;
-        double bestDxAbs = double.infinity;
-        double? bestDy;
-        double bestDyAbs = double.infinity;
-        final appliedGuides = <SnapGuide>[];
-
-        for (final guide in guides) {
-          if (guide.axis == SnapGuideAxis.vertical) {
-            final leftDiff = movingRect.left - guide.position;
-            final rightDiff = movingRect.right - guide.position;
-            final centerDiff = movingRect.center.dx - guide.position;
-            final minDiff = [leftDiff, rightDiff, centerDiff]
-                .reduce((a, b) => a.abs() < b.abs() ? a : b);
-            if (minDiff.abs() < bestDxAbs) {
-              bestDxAbs = minDiff.abs();
-              bestDx = minDiff;
-            }
-          } else {
-            final topDiff = movingRect.top - guide.position;
-            final bottomDiff = movingRect.bottom - guide.position;
-            final centerDiff = movingRect.center.dy - guide.position;
-            final minDiff = [topDiff, bottomDiff, centerDiff]
-                .reduce((a, b) => a.abs() < b.abs() ? a : b);
-            if (minDiff.abs() < bestDyAbs) {
-              bestDyAbs = minDiff.abs();
-              bestDy = minDiff;
+        double? correctionOn(SnapGuideAxis axis) {
+          double? best;
+          var bestAbs = double.infinity;
+          for (final guide in guides) {
+            if (guide.axis != axis) continue;
+            final diffs = axis == SnapGuideAxis.vertical
+                ? [
+                    freeRect.left - guide.position,
+                    freeRect.right - guide.position,
+                    freeRect.center.dx - guide.position,
+                  ]
+                : [
+                    freeRect.top - guide.position,
+                    freeRect.bottom - guide.position,
+                    freeRect.center.dy - guide.position,
+                  ];
+            final minDiff = diffs.reduce((a, b) => a.abs() < b.abs() ? a : b);
+            if (minDiff.abs() < bestAbs) {
+              bestAbs = minDiff.abs();
+              best = minDiff;
             }
           }
+          return best;
         }
 
-        var snappedDelta = dragDelta;
-        if (bestDx != null) snappedDelta = Offset(snappedDelta.dx - bestDx, snappedDelta.dy);
-        if (bestDy != null) snappedDelta = Offset(snappedDelta.dx, snappedDelta.dy - bestDy);
-
-        // Only show guides whose axis was actually snapped.
-        for (final guide in guides) {
-          if (guide.axis == SnapGuideAxis.vertical && bestDx != null) {
-            appliedGuides.add(guide);
-          } else if (guide.axis == SnapGuideAxis.horizontal && bestDy != null) {
-            appliedGuides.add(guide);
-          }
-        }
+        final bestDx = correctionOn(SnapGuideAxis.vertical);
+        final bestDy = correctionOn(SnapGuideAxis.horizontal);
+        final desired = freeRect.shift(Offset(-(bestDx ?? 0), -(bestDy ?? 0)));
+        final desiredDelta = desired.topLeft - _dragOriginRect!.topLeft;
+        final appliedGuides = <SnapGuide>[
+          for (final guide in guides)
+            if ((guide.axis == SnapGuideAxis.vertical && bestDx != null) ||
+                (guide.axis == SnapGuideAxis.horizontal && bestDy != null))
+              guide,
+        ];
 
         setState(() => _activeSnapGuides = appliedGuides);
-        _canvasBloc.add(ObjectsDragged(selectedIds, snappedDelta));
+        _canvasBloc.add(
+          ObjectsDragged(selectedIds, desiredDelta - _dragAppliedDelta),
+        );
+        _dragAppliedDelta = desiredDelta;
       } else {
         _canvasBloc.add(ObjectsDragged(selectedIds, dragDelta));
       }
@@ -1105,6 +1274,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
     }
     _pendingDeselect = null;
     _reportDragNodeIds = const {};
+    _dragOriginRect = null;
+    _dragFreeDelta = Offset.zero;
+    _dragAppliedDelta = Offset.zero;
     _isRotating = false;
     _isDraggingSelection = false;
     _isResizing = (objectId: '', handle: Handle.none);
@@ -1123,6 +1295,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       _selectionArea = Rect.zero;
       _isResizing = (objectId: '', handle: Handle.none);
       _isDraggingSelection = false;
+      _dragOriginRect = null;
+      _dragFreeDelta = Offset.zero;
+      _dragAppliedDelta = Offset.zero;
       _isRotating = false;
       _activeSnapGuides = const [];
     });
@@ -1203,37 +1378,14 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
 
   /// Prompts for [arrow]'s label text and commits the change (empty clears it).
   Future<void> _editArrowLabel(ArrowObject arrow) async {
-    final controller = TextEditingController(text: arrow.arrowLabel ?? '');
-    final newLabel = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edge label'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Label (leave empty to remove)'),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+    final newLabel = await askNodelinePrompt(
+      context,
+      title: 'Подпись',
+      initial: arrow.arrowLabel ?? '',
+      hint: 'Текст на линии',
+      confirmLabel: 'Сохранить',
+      allowEmpty: true,
     );
-    // Defer disposal until after the dialog's dismiss animation finishes. The
-    // showDialog future completes the instant Navigator.pop is called, but the
-    // route (and its TextField) is still in the tree fading out over the next
-    // frames — disposing the controller now makes the still-rebuilding TextField
-    // call addListener on a disposed controller ("used after being disposed").
-    // A delay past the dialog's transition duration lets the route leave the
-    // tree first.
-    Future.delayed(const Duration(milliseconds: 350), controller.dispose);
     if (newLabel == null) return; // cancelled
     final trimmed = newLabel.trim();
     final updated = (trimmed.isEmpty
@@ -1472,6 +1624,10 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           tool: tool,
           start: _drawingStart,
           end: _drawingStart,
+          pathType: tool == EditorTool.arrowTopRight
+              ? _toolBloc.state.pathType
+              : LinkPathType.straight,
+          arrowHead: _toolBloc.state.arrowHead,
         );
       }
     });
@@ -1755,7 +1911,10 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
   }
 
   void _handleObjectDrawing(Offset worldPos, double pressure) {
-    final tool = _toolBloc.state.activeTool;
+    var tool = _toolBloc.state.activeTool;
+    if (_tempDrawingObject?.tool == EditorTool.arrowTopRight) {
+      tool = EditorTool.arrowTopRight;
+    }
     final endPos = _hoveredSnapPoint?.worldPosition ?? worldPos;
     if (tool == EditorTool.pencil) {
       setState(() {
@@ -1774,7 +1933,7 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
       final bool isCtrlPressed = HardwareKeyboard.instance.isControlPressed;
       Offset finalPos = endPos;
       LinkPathType pathType = tool == EditorTool.arrowTopRight
-          ? LinkPathType.orthogonal
+          ? _toolBloc.state.pathType
           : LinkPathType.straight;
 
       if (isShiftPressed) {
@@ -1793,9 +1952,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           );
         } else if (tool == EditorTool.line) {
           finalPos = _snapPointToAngle(_drawingStart, worldPos);
-        } else if (tool == EditorTool.arrowTopRight) {
-          pathType = LinkPathType.orthogonal;
-          finalPos = worldPos;
+        } else if (tool == EditorTool.arrowTopRight &&
+            pathType == LinkPathType.straight) {
+          finalPos = _snapPointToAngle(_drawingStart, worldPos);
         }
       }
       if (_tempDrawingObject != null) {
@@ -1836,6 +1995,9 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           pathType: pathType,
           points: _tempDrawingObject!.points,
           waypoints: waypoints,
+          arrowHead: tool == EditorTool.arrowTopRight
+              ? _toolBloc.state.arrowHead
+              : ArrowHeadType.none,
         );
       }
       setState(() {});
@@ -2248,6 +2410,7 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           endAttachment: endAttachment,
           waypoints: _tempDrawingObject!.waypoints,
           lineStyle: lineStyle,
+          arrowHead: _toolBloc.state.arrowHead,
           creationZoom: _canvasBloc.state.viewportZoom,
         );
       }
@@ -3310,6 +3473,7 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
                         focusNode: focusNode,
                         style: object.style.copyWith(
                           fontSize: object.style.fontSize! * zoom,
+                          fontFamily: canvasFontFamily(object.style.fontFamily),
                           color: resolvedTextColor(object.style.color, _canvasInk),
                         ),
                         maxLines: null,
@@ -3580,12 +3744,12 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
   DrawingObject? _editingShapeObject;
   RichTextEditingController? _shapeTextController;
   FocusNode? _shapeTextFocusNode;
-  TextStyle _shapeTextStyle = const TextStyle(fontSize: 16, color: Colors.white, fontFamily: 'Courier');
+  TextStyle _shapeTextStyle = const TextStyle(fontSize: 16, color: Colors.white, fontFamily: kEditorDefaultFontFamily);
 
   DateTime? _shapeEditOpenedAt;
 
   void _beginShapeTextEditing(DrawingObject shapeObject) {
-    const defaultStyle = TextStyle(fontSize: 16, color: Colors.white, fontFamily: 'Courier');
+    const defaultStyle = TextStyle(fontSize: 16, color: Colors.white, fontFamily: kEditorDefaultFontFamily);
     final canvasState = _canvasBloc.state;
 
     String? existingText;
@@ -4301,6 +4465,8 @@ class _FlowDrawEditorDataLayerState extends State<FlowDrawEditorDataLayer>
           return SystemMouseCursors.basic;
       }
     }
+    if (_hoveringLink) return SystemMouseCursors.click;
+    if (_hoveringPort) return SystemMouseCursors.precise;
     if (_isPanning) return SystemMouseCursors.move;
 
     switch (currentTool) {

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     ews_credentials_key: str = ""
     ews_session_ttl_hours: int = 24
     ews_remember_ttl_days: int = 30
+    ews_refresh_interval_hours: int = 12
+    ews_refresh_check_seconds: int = 300
     ews_timezone: str = "Europe/Moscow"
 
     ews_notification_mode: Literal["streaming", "pull"] = "pull"

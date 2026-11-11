@@ -10,6 +10,7 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_dialog.dart';
 import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_icon.dart';
@@ -143,39 +144,10 @@ class _BoardsPageState extends State<BoardsPage> {
   }
 
   Future<void> _delete(DiagramBoard board) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _dialogFill(context),
-        title: Text(
-          'Удалить доску?',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.panelTitleSize,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.textPrimary(context),
-          ),
-        ),
-        content: Text(
-          '«${board.title}» исчезнет из общего списка.',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.bodySize,
-            color: DdtTheme.textSecondary(context),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'Удалить',
-              style: TextStyle(color: DdtTheme.dangerColor),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showDdtConfirm(
+      context,
+      title: 'Удалить доску?',
+      message: '«${board.title}» исчезнет из общего списка.',
     );
     if (confirmed != true) return;
     try {
@@ -540,77 +512,10 @@ Future<String?> showBoardTitleDialog(
   required String confirmLabel,
   String initial = '',
 }) {
-  return showDialog<String>(
-    context: context,
-    builder: (context) => _BoardTitleDialog(
-      title: title,
-      confirmLabel: confirmLabel,
-      initial: initial,
-    ),
+  return showDdtTextPrompt(
+    context,
+    title: title,
+    confirmLabel: confirmLabel,
+    initial: initial,
   );
-}
-
-class _BoardTitleDialog extends StatefulWidget {
-  const _BoardTitleDialog({
-    required this.title,
-    required this.confirmLabel,
-    required this.initial,
-  });
-
-  final String title;
-  final String confirmLabel;
-  final String initial;
-
-  @override
-  State<_BoardTitleDialog> createState() => _BoardTitleDialogState();
-}
-
-class _BoardTitleDialogState extends State<_BoardTitleDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final title = _controller.text.trim();
-    if (title.isEmpty) return;
-    Navigator.of(context).pop(title);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: _dialogFill(context),
-      title: Text(
-        widget.title,
-        style: DdtTheme.style(
-          fontSize: DdtTypography.panelTitleSize,
-          fontWeight: FontWeight.w600,
-          color: DdtTheme.textPrimary(context),
-        ),
-      ),
-      content: DdtAppInput(
-        controller: _controller,
-        hint: 'Название',
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Отмена'),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: Text(widget.confirmLabel),
-        ),
-      ],
-    );
-  }
 }

@@ -42,6 +42,9 @@ class DdtMobileNavigationBar extends StatelessWidget {
   static const double _bodyHeight = 56;
   static const double _bottomGap = 10;
   static const double _horizontalMargin = 12;
+
+  /// Outer horizontal inset of the floating bar (matches [Padding] in [build]).
+  static double horizontalMargin(BuildContext context) => _horizontalMargin;
   static const double _innerHorizontalPadding = 10;
   static const double _radius = 28;
 

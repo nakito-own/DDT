@@ -7,6 +7,7 @@ import '../../models/user_profile.dart';
 import '../../services/api_client.dart';
 import '../../services/avatar_api.dart';
 import '../../services/ews_api.dart';
+import '../../utils/ews_login.dart';
 
 part 'auth_event.dart';
 part 'auth_state.dart';
@@ -24,6 +25,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthSessionExpired>(_onSessionExpired);
     on<AuthUserUpdated>(_onUserUpdated);
+    on<AuthExchangeRefreshRequested>(_onExchangeRefreshRequested);
 
     // Перехват 401 — весь UI переходит в AuthUnauthenticated.
     apiClient.onUnauthorized = () => add(const AuthSessionExpired());
@@ -34,9 +36,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   /// Пока идёт restore, пользователь может отправить login — увеличиваем счётчик,
   /// чтобы устаревший restore не перезаписал состояние после входа.
   int _sessionRestoreGeneration = 0;
+  Timer? _exchangeRefreshTimer;
+  DateTime? _nextExchangeRefreshAt;
+  static const _exchangeRefreshPeriod = Duration(hours: 12);
+  static const _exchangeRefreshTick = Duration(minutes: 15);
 
   @override
   Future<void> close() {
+    _stopExchangeRefresh();
     apiClient.onUnauthorized = null;
     return super.close();
   }
@@ -67,6 +74,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
       _notifyAuthenticated();
+      _scheduleExchangeRefresh();
       emit(
         AuthAuthenticated(
           user: session.user,
@@ -90,13 +98,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _sessionRestoreGeneration++;
     emit(const AuthLoading());
     try {
+      final username = usernameFromEmail(event.email);
+      if (username == null) {
+        emit(
+          const AuthFailure(
+            message: 'Почта должна содержать логин до @',
+          ),
+        );
+        return;
+      }
       final session = await _api.login(
-        username: event.username,
+        username: username,
         password: event.password,
         email: event.email,
         rememberMe: event.rememberMe,
       );
       _notifyAuthenticated();
+      _scheduleExchangeRefresh();
       emit(
         AuthAuthenticated(
           user: session.user,
@@ -141,6 +159,52 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthUnauthenticated());
   }
 
+  Future<void> _onExchangeRefreshRequested(
+    AuthExchangeRefreshRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state is! AuthAuthenticated) {
+      return;
+    }
+    try {
+      final session = await _api.refreshSession();
+      if (session == null || state is! AuthAuthenticated) {
+        return;
+      }
+      _scheduleExchangeRefresh();
+      emit(
+        AuthAuthenticated(
+          user: session.user,
+          email: session.email,
+          connected: session.connected,
+        ),
+      );
+    } catch (_) {
+      // 401 обрабатывается onUnauthorized. Остальные ошибки не выкидывают
+      // пользователя на логин — следующая попытка через тик таймера.
+    }
+  }
+
+  void _scheduleExchangeRefresh() {
+    _nextExchangeRefreshAt = DateTime.now().add(_exchangeRefreshPeriod);
+    _exchangeRefreshTimer?.cancel();
+    _exchangeRefreshTimer = Timer.periodic(_exchangeRefreshTick, (_) {
+      final dueAt = _nextExchangeRefreshAt;
+      if (dueAt == null || DateTime.now().isBefore(dueAt)) {
+        return;
+      }
+      if (state is AuthAuthenticated) {
+        add(const AuthExchangeRefreshRequested());
+      }
+    });
+  }
+
+  void _stopExchangeRefresh() {
+    _exchangeRefreshTimer?.cancel();
+    _exchangeRefreshTimer = null;
+    _nextExchangeRefreshAt = null;
+  }
+
   void _onUserUpdated(AuthUserUpdated event, Emitter<AuthState> emit) {
     final current = state;
     if (current is! AuthAuthenticated) return;
@@ -158,6 +222,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _handleSignOut() async {
+    _stopExchangeRefresh();
     clearAvatarCache();
   }
 

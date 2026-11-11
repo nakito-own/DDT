@@ -69,6 +69,16 @@ class OwaTransport:
         self._sessions: dict[str, _OwaSession] = {}
         self._locks: dict[str, Lock] = {}
 
+    def has_session(self, token_hash: str) -> bool:
+        with self._guard:
+            return token_hash in self._sessions
+
+    def refresh_login(self, context: SessionContext) -> None:
+        lock = self._lock_for(context.token_hash)
+        with lock:
+            self._discard(context.token_hash)
+            self._ensure_session(context)
+
     def drop_session(self, token_hash: str) -> None:
         with self._guard:
             session = self._sessions.pop(token_hash, None)

@@ -12,15 +12,17 @@ class ToolBloc extends Bloc<ToolEvent, ToolState> {
       return (switch (event) {
         ToolSelected e => _onToolSelected(e, emit),
         LineStyleSelected e => _onLineStyleSelected(e, emit),
+        PathTypeSelected e => emit(state.copyWith(pathType: e.pathType)),
+        ArrowHeadSelected e => emit(state.copyWith(arrowHead: e.arrowHead)),
       });
     });
   }
 
   void _onToolSelected(ToolSelected event, Emitter<ToolState> emit) {
-    emit(ToolState(activeTool: event.tool, lineStyle: state.lineStyle));
+    emit(state.copyWith(activeTool: event.tool));
   }
 
   void _onLineStyleSelected(LineStyleSelected event, Emitter<ToolState> emit) {
-    emit(ToolState(activeTool: state.activeTool, lineStyle: event.lineStyle));
+    emit(state.copyWith(lineStyle: event.lineStyle));
   }
 }

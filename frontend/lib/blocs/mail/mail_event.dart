@@ -93,6 +93,17 @@ final class MailMessageSelected extends MailEvent {
   List<Object?> get props => [message];
 }
 
+/// Открыть письмо по id (например из push-уведомления).
+final class MailOpenByIdRequested extends MailEvent {
+  const MailOpenByIdRequested({required this.messageId, this.subject});
+
+  final String messageId;
+  final String? subject;
+
+  @override
+  List<Object?> get props => [messageId, subject];
+}
+
 /// Закрыть открытое письмо и вернуться к списку.
 final class MailDetailClosed extends MailEvent {
   const MailDetailClosed();

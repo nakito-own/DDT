@@ -63,6 +63,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       showGrid: src.showGrid,
       defaultFontFamily: src.defaultFontFamily,
       defaultFontSize: src.defaultFontSize,
+      shapeLinks: Map<String, String>.from(src.shapeLinks),
     );
   }
 
@@ -105,6 +106,8 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
         ObjectColorsChanged e => _onObjectColorsChanged(e, emit),
         ObjectsLineStyleChanged e => _onObjectsLineStyleChanged(e, emit),
         ObjectsArrowHeadChanged e => _onObjectsArrowHeadChanged(e, emit),
+        ObjectsPathTypeChanged e => _onObjectsPathTypeChanged(e, emit),
+        ObjectLinkChanged e => _onObjectLinkChanged(e, emit),
         GlobalFontChanged e => _onGlobalFontChanged(e, emit),
         ObjectFontChanged e => _onObjectFontChanged(e, emit),
         ObjectFontReset e => _onObjectFontReset(e, emit),
@@ -156,6 +159,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
         showGrid: state.showGrid,
         defaultFontFamily: state.defaultFontFamily,
         defaultFontSize: state.defaultFontSize,
+        shapeLinks: Map<String, String>.from(state.shapeLinks),
       );
 
       final newUndoStack = List<HistoryEntry>.from(state.undoStack)
@@ -177,6 +181,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
         showGrid: state.showGrid,
         defaultFontFamily: state.defaultFontFamily,
         defaultFontSize: state.defaultFontSize,
+        shapeLinks: Map<String, String>.from(state.shapeLinks),
       );
       emit(
         newState.copyWith(
@@ -210,6 +215,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       showGrid: currentState.showGrid,
       defaultFontFamily: currentState.defaultFontFamily,
       defaultFontSize: currentState.defaultFontSize,
+      shapeLinks: Map<String, String>.from(currentState.shapeLinks),
     );
     _preOperationSnapshot = null;
 
@@ -294,6 +300,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       drawingObjects: Map<String, DrawingObject>.from(state.drawingObjects),
       viewportOffset: state.viewportOffset,
       viewportZoom: state.viewportZoom,
+      shapeLinks: Map<String, String>.from(state.shapeLinks),
     );
     final newDrawingObjects = Map<String, DrawingObject>.from(
       state.drawingObjects,
@@ -537,6 +544,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       showGrid: state.showGrid,
       defaultFontFamily: state.defaultFontFamily,
       defaultFontSize: state.defaultFontSize,
+      shapeLinks: Map<String, String>.from(state.shapeLinks),
     );
 
     final newRedoStack = List<HistoryEntry>.from(state.redoStack)
@@ -569,6 +577,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       showGrid: state.showGrid,
       defaultFontFamily: state.defaultFontFamily,
       defaultFontSize: state.defaultFontSize,
+      shapeLinks: Map<String, String>.from(state.shapeLinks),
     );
 
     final newUndoStack = List<HistoryEntry>.from(state.undoStack)
@@ -716,6 +725,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       },
       'defaultFontFamily': state.defaultFontFamily,
       'defaultFontSize': state.defaultFontSize,
+      'shapeLinks': state.shapeLinks,
       'nodes': state.nodes.values.map((node) => node.toJson()).toList(),
       'drawingObjects': state.drawingObjects.values
           .map((obj) => obj.toJson())
@@ -759,10 +769,17 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
           nodes: nodes,
           drawingObjects: drawingObjects,
           comments: comments,
-          defaultFontFamily: event.data['defaultFontFamily'] as String? ??
-              kEditorDefaultFontFamily,
+          defaultFontFamily: canvasFontFamily(
+            event.data['defaultFontFamily'] as String?,
+          ),
           defaultFontSize: (event.data['defaultFontSize'] as num?)?.toDouble() ??
               kEditorDefaultFontSize,
+          shapeLinks: {
+            for (final entry
+                in ((event.data['shapeLinks'] as Map?) ?? const {}).entries)
+              if (entry.value is String && (entry.value as String).trim().isNotEmpty)
+                entry.key.toString(): (entry.value as String).trim(),
+          },
         ),
       );
     } catch (e, s) {
@@ -835,6 +852,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     const offset = Offset(16, 16);
     final uuid = const Uuid();
     final newDrawingObjects = Map<String, DrawingObject>.from(state.drawingObjects);
+    final newLinks = Map<String, String>.from(state.shapeLinks);
     final newSelectedIds = <String>{};
 
     for (final id in event.selectedDrawingObjectIds) {
@@ -843,6 +861,8 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
       final newId = uuid.v4();
       newSelectedIds.add(newId);
+      final existingLink = state.shapeLinks[id];
+      if (existingLink != null) newLinks[newId] = existingLink;
 
       if (obj is RectangleObject) {
         newDrawingObjects[newId] = RectangleObject(
@@ -956,7 +976,10 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       }
     }
 
-    emit(state.copyWith(drawingObjects: newDrawingObjects));
+    emit(state.copyWith(
+      drawingObjects: newDrawingObjects,
+      shapeLinks: newLinks,
+    ));
 
     // The caller (data layer) will update selection to the new IDs.
     // We store them in a way the data layer can read them.
@@ -1307,6 +1330,41 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       event,
       emit,
     );
+  }
+
+  void _onObjectsPathTypeChanged(
+      ObjectsPathTypeChanged event, Emitter<CanvasState> emit) {
+    final updatedObjects = Map<String, DrawingObject>.from(state.drawingObjects);
+    for (final id in event.selectedIds) {
+      final obj = updatedObjects[id];
+      if (obj is ArrowObject) {
+        updatedObjects[id] = obj.copyWith(pathType: event.pathType);
+      }
+    }
+    _emitWithHistory(
+      state.copyWith(drawingObjects: updatedObjects),
+      event,
+      emit,
+    );
+  }
+
+  void _onObjectLinkChanged(
+      ObjectLinkChanged event, Emitter<CanvasState> emit) {
+    final obj = state.drawingObjects[event.objectId];
+    if (obj == null ||
+        obj is ArrowObject ||
+        obj is LineObject ||
+        obj is PencilStrokeObject) {
+      return;
+    }
+    final links = Map<String, String>.from(state.shapeLinks);
+    final value = event.link?.trim();
+    if (value == null || value.isEmpty) {
+      links.remove(event.objectId);
+    } else {
+      links[event.objectId] = value;
+    }
+    _emitWithHistory(state.copyWith(shapeLinks: links), event, emit);
   }
 
   /// Whether [obj] is a shape that carries customizable text/font.

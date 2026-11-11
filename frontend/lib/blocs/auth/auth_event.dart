@@ -15,19 +15,22 @@ final class AuthSessionRestoreRequested extends AuthEvent {
 /// Пользователь отправил форму входа.
 final class AuthLoginRequested extends AuthEvent {
   const AuthLoginRequested({
-    required this.username,
-    required this.password,
     required this.email,
+    required this.password,
     required this.rememberMe,
   });
 
-  final String username;
-  final String password;
   final String email;
+  final String password;
   final bool rememberMe;
 
   @override
-  List<Object?> get props => [username, password, email, rememberMe];
+  List<Object?> get props => [email, password, rememberMe];
+}
+
+/// Тихое обновление сессии Exchange по сохранённым на сервере учётным данным.
+final class AuthExchangeRefreshRequested extends AuthEvent {
+  const AuthExchangeRefreshRequested();
 }
 
 /// Пользователь нажал «Выйти».

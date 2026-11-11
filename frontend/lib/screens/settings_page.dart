@@ -18,6 +18,7 @@ import '../theme/ddt_typography.dart';
 import '../theme/ddt_icons.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/avatar_crop_dialog.dart';
+import '../widgets/ddt_dialog.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
@@ -483,53 +484,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
   }
 
   Future<void> _removePhoto() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? DdtTheme.darkSurface
-              : DdtTheme.lightSurface,
-          title: Text(
-            'Удалить фотографию?',
-            style: DdtTheme.style(
-              fontSize: DdtTypography.bodyLargeSize,
-              fontWeight: FontWeight.w600,
-              color: DdtTheme.taskCardTextPrimary(context),
-            ),
-          ),
-          content: Text(
-            'Вместо неё снова будет показана иконка.',
-            style: DdtTheme.style(
-              fontSize: DdtTypography.bodySize,
-              color: DdtTheme.taskCardTextSecondary(context),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Отмена',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.bodySize,
-                  color: DdtTheme.taskCardTextSecondary(context),
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(
-                'Удалить',
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.bodySize,
-                  fontWeight: FontWeight.w600,
-                  color: DdtTheme.dangerColor,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    final confirmed = await showDdtConfirm(
+      context,
+      title: 'Удалить фотографию?',
+      message: 'Вместо неё снова будет показана иконка.',
     );
     if (confirmed != true || !mounted) return;
     await _run(deleteMyAvatar, success: 'Фотография удалена');
