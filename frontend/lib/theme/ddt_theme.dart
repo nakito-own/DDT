@@ -341,12 +341,13 @@ class DdtTheme {
     bool addShadow = true,
     bool showBorder = true,
     double blurSigma = 18,
+    double? backgroundOpacity,
   }) {
     final isDark = _isDark(context);
     final resolvedRadius = BorderRadius.circular(borderRadius.r);
     final fill = isDark
-        ? darkSurface.withValues(alpha: 0.86)
-        : lightSurface.withValues(alpha: 0.74);
+        ? darkSurface.withValues(alpha: backgroundOpacity ?? 0.86)
+        : lightSurface.withValues(alpha: backgroundOpacity ?? 0.74);
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.11)
         : lightBorderSubtle.withValues(alpha: 0.92);

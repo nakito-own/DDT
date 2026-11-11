@@ -98,10 +98,19 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                     },
                     builder: (context, state) {
                       final isBusy = state is AuthLoading;
+                      final fieldChrome = Theme.of(context).brightness ==
+                              Brightness.dark
+                          ? const Color(0xFFC5CBD4)
+                          : const Color(0xFF4B5563);
 
                       return DdtTheme.glass(
                         context: context,
                         padding: EdgeInsets.all(28.w),
+                        blurSigma: 8,
+                        backgroundOpacity: Theme.of(context).brightness ==
+                                Brightness.dark
+                            ? 0.48
+                            : 0.38,
                         child: AutofillGroup(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -152,6 +161,10 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                 controller: _emailController,
                                 focusNode: _emailFocus,
                                 enabled: !isBusy,
+                                filled: false,
+                                borderColor: fieldChrome,
+                                focusedBorderColor: fieldChrome,
+                                iconColor: fieldChrome,
                                 type: InputType.email,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const [
@@ -168,6 +181,10 @@ class _EwsLoginScreenState extends State<EwsLoginScreen> {
                                 controller: _passwordController,
                                 focusNode: _passwordFocus,
                                 enabled: !isBusy,
+                                filled: false,
+                                borderColor: fieldChrome,
+                                focusedBorderColor: fieldChrome,
+                                iconColor: fieldChrome,
                                 type: InputType.password,
                                 textInputAction: TextInputAction.done,
                                 autofillHints: const [AutofillHints.password],

@@ -40,6 +40,7 @@ class DdtAppInput extends StatefulWidget {
     this.fillColor,
     this.borderColor,
     this.focusedBorderColor,
+    this.iconColor,
     this.textColor,
     this.style,
     this.labelStyle,
@@ -53,6 +54,7 @@ class DdtAppInput extends StatefulWidget {
     this.borderWidth = 1.0,
     this.textAlign = TextAlign.start,
     this.obscureText,
+    this.filled = true,
   });
 
   final String? label;
@@ -82,6 +84,7 @@ class DdtAppInput extends StatefulWidget {
   final Color? fillColor;
   final Color? borderColor;
   final Color? focusedBorderColor;
+  final Color? iconColor;
   final Color? textColor;
   final TextStyle? style;
   final TextStyle? labelStyle;
@@ -95,6 +98,7 @@ class DdtAppInput extends StatefulWidget {
   final double borderWidth;
   final TextAlign textAlign;
   final bool? obscureText;
+  final bool filled;
 
   @override
   State<DdtAppInput> createState() => _DdtAppInputState();
@@ -177,6 +181,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
   }
 
   Color _fillColor(BuildContext context) {
+    if (!widget.filled) return Colors.transparent;
     if (widget.fillColor != null) return widget.fillColor!;
     if (!widget.enabled) {
       return DdtTheme.inputFillColor(context).withValues(alpha: 0.55);
@@ -197,11 +202,16 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (_hovering) {
       return widget.borderColor ?? DdtTheme.borderStrong(context);
     }
-    return widget.borderColor ?? DdtTheme.borderSubtle(context);
+    return widget.borderColor ??
+        (widget.filled
+            ? DdtTheme.borderSubtle(context)
+            : DdtTheme.borderStrong(context));
   }
 
   List<BoxShadow>? _boxShadow(BuildContext context, {required bool hasError}) {
-    if (!_isFocused || hasError || !widget.enabled) return null;
+    if (!widget.filled || !_isFocused || hasError || !widget.enabled) {
+      return null;
+    }
     return DdtTheme.inputFocusShadow(context);
   }
 
@@ -215,7 +225,9 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (widget.prefixIcon == null) return null;
 
     final iconColor =
-        DdtTheme.inputHintStyle(context).color ?? DdtTheme.textMuted(context);
+        widget.iconColor ??
+        DdtTheme.inputHintStyle(context).color ??
+        DdtTheme.textMuted(context);
 
     return SizedBox(
       width: _minControlHeight,
@@ -237,6 +249,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
               : DdtIcons.visibilityOff,
           size: 18,
           color:
+              widget.iconColor ??
               DdtTheme.inputHintStyle(context).color ??
               DdtTheme.textMuted(context),
         ),
@@ -257,6 +270,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
         widget.suffixIcon!,
         size: 18,
         color:
+            widget.iconColor ??
             DdtTheme.inputHintStyle(context).color ??
             DdtTheme.textMuted(context),
       ),
@@ -277,29 +291,13 @@ class _DdtAppInputState extends State<DdtAppInput> {
       InputType.text ||
       InputType.search ||
       InputType.custom => TextInputType.text,
-      // visiblePassword on mobile web often fights obscureText and the IME.
-      InputType.password => TextInputType.text,
+      InputType.password => TextInputType.visiblePassword,
       InputType.email => TextInputType.emailAddress,
       InputType.number => TextInputType.number,
       InputType.phone => TextInputType.phone,
       InputType.multiline => TextInputType.multiline,
     };
   }
-
-  Iterable<String>? _autofillHints() {
-    if (widget.autofillHints != null) return widget.autofillHints;
-    return switch (widget.type) {
-      InputType.email => const [AutofillHints.email],
-      InputType.password => const [AutofillHints.password],
-      InputType.phone => const [AutofillHints.telephoneNumber],
-      _ => null,
-    };
-  }
-
-  bool get _isSecretInput => widget.type == InputType.password;
-
-  bool get _isCredentialInput =>
-      widget.type == InputType.password || widget.type == InputType.email;
 
   List<TextInputFormatter>? _formatters() {
     if (widget.inputFormatters != null) return widget.inputFormatters;
@@ -322,188 +320,166 @@ class _DdtAppInputState extends State<DdtAppInput> {
     return 1;
   }
 
-  Widget _buildField(
-    BuildContext context, {
-    required ValueChanged<String>? onChanged,
-    String? validationError,
-  }) {
-    final hasError = validationError?.isNotEmpty == true;
-    final singleLine = _resolvedMaxLines == 1;
-    final prefix = _buildPrefixIcon(context);
-    final suffix = _buildSuffixIcon(context);
-    final prefixControl = prefix == null
-        ? null
-        : GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.enabled ? () => _focusNode.requestFocus() : null,
-            child: SizedBox(
-              width: _minControlHeight,
-              height: _minControlHeight,
-              child: Center(child: prefix),
-            ),
-          );
-    final textField = TextField(
-      controller: _controller,
-      focusNode: _focusNode,
-      obscureText: _obscureText,
-      keyboardType: _keyboardType(),
-      textInputAction: widget.textInputAction,
-      textCapitalization: TextCapitalization.none,
-      textAlign: widget.textAlign,
-      textAlignVertical: TextAlignVertical.center,
-      maxLength: widget.maxLength,
-      maxLines: _resolvedMaxLines,
-      minLines: _resolvedMinLines,
-      autofocus: widget.autofocus,
-      readOnly: widget.readOnly,
-      enabled: widget.enabled,
-      autocorrect: !_isCredentialInput,
-      enableSuggestions: !_isSecretInput,
-      smartDashesType: _isCredentialInput
-          ? SmartDashesType.disabled
-          : SmartDashesType.enabled,
-      smartQuotesType: _isCredentialInput
-          ? SmartQuotesType.disabled
-          : SmartQuotesType.enabled,
-      spellCheckConfiguration: _isCredentialInput
-          ? const SpellCheckConfiguration.disabled()
-          : null,
-      autofillHints: _autofillHints(),
-      enableIMEPersonalizedLearning: !_isSecretInput,
-      onChanged: onChanged,
-      onSubmitted: widget.onSubmitted,
-      onTap: widget.onTap,
-      inputFormatters: _formatters(),
-      style:
-          widget.style ??
-          DdtTheme.style(
-            fontSize: DdtTypography.bodySize,
-            height: 1.3,
-            color: widget.textColor ?? DdtTheme.textPrimary(context),
-          ),
-      cursorColor: AppColors.primary,
-      decoration: InputDecoration(
-        hintText: widget.hint,
-        filled: false,
-        isDense: true,
-        isCollapsed: singleLine,
-        constraints: const BoxConstraints(),
-        contentPadding: singleLine
-            ? EdgeInsets.symmetric(
-                horizontal: prefix == null && suffix == null
-                    ? DdtTheme.inputHorizontalPadding
-                    : 2,
-              )
-            : _contentPadding,
-        prefixIcon: singleLine ? null : prefix,
-        suffixIcon: singleLine ? null : suffix,
-        prefixIconConstraints: _iconConstraints,
-        suffixIconConstraints: widget.suffix == null
-            ? _iconConstraints
-            : const BoxConstraints(),
-        hintStyle: widget.hintStyle ?? DdtTheme.inputHintStyle(context),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        counterText: '',
-      ),
-    );
-    final inputContent = singleLine
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ?prefixControl,
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: textField,
-                ),
-              ),
-              ?suffix,
-            ],
-          )
-        : textField;
-
-    final control = MouseRegion(
-      onEnter: widget.enabled
-          ? (_) => setState(() => _hovering = true)
-          : null,
-      onExit: (_) => setState(() => _hovering = false),
-      cursor: widget.enabled
-          ? SystemMouseCursors.text
-          : SystemMouseCursors.basic,
-      child: AnimatedContainer(
-        duration: DdtTheme.selectionAnimationDuration,
-        curve: DdtTheme.selectionAnimationCurve,
-        width: widget.width,
-        height: widget.height ?? (singleLine ? _minControlHeight : null),
-        constraints: singleLine
-            ? null
-            : BoxConstraints(minHeight: _minControlHeight),
-        decoration: BoxDecoration(
-          color: _fillColor(context),
-          borderRadius: _radius,
-          border: Border.all(
-            color: _borderColor(context, hasError: hasError),
-            width: widget.borderWidth,
-          ),
-          boxShadow: _boxShadow(context, hasError: hasError),
-        ),
-        child: inputContent,
-      ),
-    );
-
-    if (!hasError) return control;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        control,
-        Padding(
-          padding: const EdgeInsets.only(left: 2, top: 5),
-          child: Text(
-            validationError!,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.captionSize,
-              height: 1.25,
-              color: AppColors.error,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final field = widget.validator == null
-        ? _buildField(
-            context,
-            onChanged: widget.onChanged,
-            validationError: widget.errorText,
-          )
-        : FormField<String>(
-            initialValue: _controller.text,
-            enabled: widget.enabled,
-            validator: (_) => widget.validator!(_controller.text),
-            builder: (fieldState) {
-              final validationError = widget.errorText?.isNotEmpty == true
-                  ? widget.errorText
-                  : fieldState.errorText;
-              return _buildField(
-                context,
-                validationError: validationError,
-                onChanged: (value) {
-                  fieldState.didChange(value);
-                  widget.onChanged?.call(value);
-                },
-              );
-            },
-          );
+    final field = FormField<String>(
+      initialValue: _controller.text,
+      enabled: widget.enabled,
+      validator: widget.validator == null
+          ? null
+          : (_) => widget.validator!(_controller.text),
+      builder: (fieldState) {
+        final validationError = widget.errorText?.isNotEmpty == true
+            ? widget.errorText
+            : fieldState.errorText;
+        final hasError = validationError?.isNotEmpty == true;
+        final singleLine = _resolvedMaxLines == 1;
+        final prefix = _buildPrefixIcon(context);
+        final suffix = _buildSuffixIcon(context);
+        final singleLinePadding =
+            widget.contentPadding ??
+            EdgeInsets.only(
+              left: prefix == null ? DdtTheme.inputHorizontalPadding : 2,
+              right: suffix == null ? DdtTheme.inputHorizontalPadding : 2,
+            );
+        final textField = TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          obscureText: _obscureText,
+          keyboardType: _keyboardType(),
+          textInputAction: widget.textInputAction,
+          textAlign: widget.textAlign,
+          textAlignVertical: TextAlignVertical.center,
+          maxLength: widget.maxLength,
+          maxLines: _resolvedMaxLines,
+          minLines: _resolvedMinLines,
+          autofocus: widget.autofocus,
+          readOnly: widget.readOnly,
+          enabled: widget.enabled,
+          onChanged: (value) {
+            fieldState.didChange(value);
+            widget.onChanged?.call(value);
+          },
+          onSubmitted: widget.onSubmitted,
+          onTap: widget.onTap,
+          autofillHints: widget.autofillHints,
+          inputFormatters: _formatters(),
+          style:
+              widget.style ??
+              DdtTheme.style(
+                fontSize: DdtTypography.bodySize,
+                height: 1.3,
+                color: widget.textColor ?? DdtTheme.textPrimary(context),
+              ),
+          cursorColor: AppColors.primary,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            filled: false,
+            isDense: true,
+            isCollapsed: singleLine,
+            constraints: const BoxConstraints(),
+            contentPadding: singleLine ? EdgeInsets.zero : _contentPadding,
+            prefixIcon: singleLine ? null : prefix,
+            suffixIcon: singleLine ? null : suffix,
+            prefixIconConstraints: _iconConstraints,
+            suffixIconConstraints: widget.suffix == null
+                ? _iconConstraints
+                : const BoxConstraints(),
+            hintStyle: widget.hintStyle ?? DdtTheme.inputHintStyle(context),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            counterText: '',
+          ),
+        );
+        final inputContent = singleLine
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (prefix != null)
+                    SizedBox(
+                      width: _minControlHeight,
+                      height: _minControlHeight,
+                      child: Center(child: prefix),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: singleLinePadding,
+                      child: Transform.translate(
+                        offset: const Offset(0, -2),
+                        child: textField,
+                      ),
+                    ),
+                  ),
+                  ?suffix,
+                ],
+              )
+            : textField;
+
+        final control = MouseRegion(
+          onEnter: widget.enabled
+              ? (_) => setState(() => _hovering = true)
+              : null,
+          onExit: (_) => setState(() => _hovering = false),
+          cursor: widget.enabled
+              ? SystemMouseCursors.text
+              : SystemMouseCursors.basic,
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: widget.enabled
+                ? (_) {
+                    if (!_focusNode.hasFocus) {
+                      _focusNode.requestFocus();
+                    }
+                  }
+                : null,
+            child: AnimatedContainer(
+              duration: DdtTheme.selectionAnimationDuration,
+              curve: DdtTheme.selectionAnimationCurve,
+              width: widget.width,
+              height: widget.height ?? (singleLine ? _minControlHeight : null),
+              constraints: singleLine
+                  ? null
+                  : BoxConstraints(minHeight: _minControlHeight),
+              decoration: BoxDecoration(
+                color: _fillColor(context),
+                borderRadius: _radius,
+                border: Border.all(
+                  color: _borderColor(context, hasError: hasError),
+                  width: widget.borderWidth,
+                ),
+                boxShadow: _boxShadow(context, hasError: hasError),
+              ),
+              child: inputContent,
+            ),
+          ),
+        );
+
+        if (!hasError) return control;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            control,
+            Padding(
+              padding: const EdgeInsets.only(left: 2, top: 5),
+              child: Text(
+                validationError!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.captionSize,
+                  height: 1.25,
+                  color: AppColors.error,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
 
     if (widget.label == null) return field;
 
