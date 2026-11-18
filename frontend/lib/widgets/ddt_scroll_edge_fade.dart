@@ -1,7 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import '../theme/ddt_theme.dart';
 import 'ddt_adaptive.dart';
 import 'ddt_mobile_navigation_bar.dart';
 
@@ -16,38 +17,29 @@ const double kDdtScrollEdgeFadeHeightCompact = 26.0;
 
 const double _kDdtScrollEdgeFadeListGap = 4.0;
 
-(int, int, int) _rgbChannels(Color color) {
-  return (
-    (color.r * 255.0).round() & 0xff,
-    (color.g * 255.0).round() & 0xff,
-    (color.b * 255.0).round() & 0xff,
-  );
-}
-
-/// Opaque fill at the screen edge; transparent at the inner edge (same RGB).
-(Color solid, Color clear) _edgeFadePair(Color background) {
-  final (r, g, b) = _rgbChannels(background);
-  return (Color.fromARGB(255, r, g, b), Color.fromARGB(0, r, g, b));
-}
-
 /// Soft top/bottom fades over a scroll viewport (content scrolls beneath).
+///
+/// Content alpha dissolves into whatever is painted behind the viewport, so
+/// the edge follows the app photo instead of a flat fill.
 class DdtScrollEdgeFade extends StatelessWidget {
   const DdtScrollEdgeFade({
     super.key,
     required this.child,
-    this.backgroundColor,
     this.showTop = true,
     this.showBottom = true,
     this.edgeFadeHeight = kDdtScrollEdgeFadeHeight,
+    this.topFadeHeight,
   });
 
   final Widget child;
-  final Color? backgroundColor;
   final bool showTop;
   final bool showBottom;
 
   /// Logical height of each edge gradient before screen scaling.
   final double edgeFadeHeight;
+
+  /// Overrides the top fade. Phone layout otherwise uses a taller top fade.
+  final double? topFadeHeight;
 
   static double fadeHeight(BuildContext context) => kDdtScrollEdgeFadeHeight.h;
 
@@ -61,82 +53,77 @@ class DdtScrollEdgeFade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = backgroundColor ?? DdtTheme.scaffoldBackground(context);
-    final topHeight = DdtAdaptive.floatingBottomBar(context)
-        ? kDdtScrollEdgeFadeHeightTopMobile
-        : edgeFadeHeight;
+    final topHeight =
+        topFadeHeight ??
+        (DdtAdaptive.floatingBottomBar(context)
+            ? kDdtScrollEdgeFadeHeightTopMobile
+            : edgeFadeHeight);
+    final top = showTop ? topHeight.h : 0.0;
+    final hold = showTop && DdtAdaptive.floatingBottomBar(context);
 
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        child,
-        if (showTop)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: DdtScrollEdgeFadeGradient(
-              backgroundColor: bg,
-              atTop: true,
-              fadeHeight: topHeight,
-              hold: DdtAdaptive.floatingBottomBar(context),
-            ),
-          ),
-        if (showBottom)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: DdtScrollEdgeFadeGradient(
-              backgroundColor: bg,
-              atTop: false,
-              fadeHeight: edgeFadeHeight,
-            ),
-          ),
-      ],
+    return DdtContentFadeMask(
+      topHold: hold ? top * 0.5 : 0,
+      topFade: top,
+      bottomFade: showBottom ? edgeFadeHeight.h : 0,
+      child: child,
     );
   }
 }
 
-class DdtScrollEdgeFadeGradient extends StatelessWidget {
-  const DdtScrollEdgeFadeGradient({
+/// Fades a viewport's pixels into the backdrop behind it.
+///
+/// [topHold] stays fully clear, then opacity rises through [topFade].
+/// [bottomFade] dissolves the bottom edge. Zero distances leave that edge solid.
+class DdtContentFadeMask extends StatelessWidget {
+  const DdtContentFadeMask({
     super.key,
-    required this.backgroundColor,
-    required this.atTop,
-    this.fadeHeight = kDdtScrollEdgeFadeHeightCompact,
-    this.hold = false,
+    required this.child,
+    this.topHold = 0,
+    this.topFade = 0,
+    this.bottomFade = 0,
   });
 
-  final Color backgroundColor;
-  final bool atTop;
-  final double fadeHeight;
-
-  /// Keeps the edge opaque for longer before dissolving.
-  final bool hold;
+  final Widget child;
+  final double topHold;
+  final double topFade;
+  final double bottomFade;
 
   @override
   Widget build(BuildContext context) {
-    final (solid, clear) = _edgeFadePair(backgroundColor);
-    final colors = atTop
-        ? (hold ? [solid, solid, clear] : [solid, clear])
-        : [clear, solid];
-    final stops = atTop && hold ? const [0.0, 0.5, 1.0] : const [0.0, 1.0];
+    if (topFade <= 0 && bottomFade <= 0) return child;
 
-    return IgnorePointer(
-      child: SizedBox(
-        height: fadeHeight.h,
-        width: double.infinity,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: stops,
-              colors: colors,
-            ),
-          ),
-        ),
-      ),
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) {
+        final height = math.max(bounds.height, 1.0);
+        double stop(double pixels) => (pixels / height).clamp(0.0, 1.0);
+        final stops = <double>[
+          0,
+          stop(topHold),
+          stop(topFade),
+          stop(height - bottomFade),
+          1,
+        ];
+        for (var i = 1; i < stops.length; i++) {
+          if (stops[i] <= stops[i - 1]) {
+            stops[i] = math.min(1, stops[i - 1] + 0.0001);
+          }
+        }
+        final openTop = topFade <= 0;
+        return LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            openTop ? Colors.white : Colors.transparent,
+            openTop ? Colors.white : Colors.transparent,
+            Colors.white,
+            Colors.white,
+            bottomFade <= 0 ? Colors.white : Colors.transparent,
+          ],
+          stops: stops,
+        ).createShader(bounds);
+      },
+      child: child,
     );
   }
 }

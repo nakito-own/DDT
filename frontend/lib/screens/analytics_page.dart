@@ -13,6 +13,7 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
 import '../widgets/analytics_charts.dart';
+import '../widgets/krr_analytics_dashboard.dart';
 import '../widgets/analytics_filters_panel.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/analytics_tables.dart';
@@ -43,7 +44,7 @@ enum AnalyticsSection {
   }
 
   static List<AnalyticsSection> forDashboard(AnalyticsDashboardKind kind) {
-    if (kind.isTaskDashboard) {
+    if (kind.isTaskDashboard || kind == AnalyticsDashboardKind.krrWorks) {
       return [overview, table];
     }
     return values;
@@ -98,6 +99,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         return AnalyticsDashboardKind.tasksPersonal;
       case 'space':
         return AnalyticsDashboardKind.tasksSpace;
+      case 'krr':
+        return AnalyticsDashboardKind.krrWorks;
       default:
         return AnalyticsDashboardKind.stp;
     }
@@ -131,32 +134,78 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       },
       child: BlocBuilder<AnalyticsBloc, AnalyticsState>(
       builder: (context, state) {
-        if (state.isLoading && state.dashboard == null) {
-          return const Center(child: CircularProgressIndicator());
+        final loaded = state.dashboardKind == AnalyticsDashboardKind.krrWorks
+            ? state.krrDashboard != null
+            : state.dashboard != null;
+        if (state.isLoading && !loaded) {
+          if (state.dashboardKind == AnalyticsDashboardKind.krrWorks) {
+            return KrrAnalyticsView(
+              skeleton: true,
+              filters: state.filters,
+              section: _section,
+              isRefreshing: false,
+              onSectionChanged: _selectSection,
+              onRefresh: () {},
+              onDateColumnChanged: (_) {},
+              onPeriodChanged: (_, _) {},
+              onValueToggled: (_, _) {},
+              onQueryChanged: (_, _) {},
+              onFiltersCleared: () {},
+              onTableMore: () {},
+            );
+          }
+          return _AnalyticsDashboardView(
+            skeleton: true,
+            dashboardKind: state.dashboardKind,
+            filters: state.filters,
+            section: _section,
+            isRefreshing: false,
+            onSectionChanged: _selectSection,
+            onRefresh: () {},
+            onDateColumnChanged: (_) {},
+            onPeriodChanged: (_, _) {},
+            onValueToggled: (_, _) {},
+            onFiltersCleared: () {},
+            onTableMore: () {},
+          );
+        }
+
+        if (state.dashboardKind == AnalyticsDashboardKind.krrWorks) {
+          final krr = state.krrDashboard;
+          if (krr == null) {
+            return KrrFirstSyncPrompt(
+              message: state.errorMessage ?? 'Не удалось загрузить аналитику',
+              onReady: () => bloc.add(const AnalyticsLoadRequested()),
+            );
+          }
+          return KrrAnalyticsView(
+            dashboard: krr,
+            filters: state.filters,
+            section: _section,
+            isRefreshing: state.isRefreshing,
+            errorMessage: state.errorMessage,
+            onSectionChanged: _selectSection,
+            onRefresh: () => bloc.add(const AnalyticsRefreshRequested()),
+            onDateColumnChanged: (key) =>
+                bloc.add(AnalyticsDateColumnChanged(key)),
+            onPeriodChanged: (start, end) =>
+                bloc.add(AnalyticsPeriodChanged(start: start, end: end)),
+            onValueToggled: (column, value) => bloc.add(
+              AnalyticsColumnValueToggled(columnKey: column, valueKey: value),
+            ),
+            onQueryChanged: (column, query) => bloc.add(
+              AnalyticsColumnQueryChanged(columnKey: column, query: query),
+            ),
+            onFiltersCleared: () => bloc.add(const AnalyticsFiltersCleared()),
+            onTableMore: () => bloc.add(const AnalyticsTableMoreRequested()),
+          );
         }
 
         final dashboard = state.dashboard;
         if (dashboard == null) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  state.errorMessage ?? 'Не удалось загрузить аналитику',
-                  textAlign: TextAlign.center,
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.bodyLargeSize,
-                    color: DdtTheme.textSecondary(context),
-                  ),
-                ),
-                SizedBox(height: 12.h),
-                Button(
-                  text: 'Повторить',
-                  onPressed: () => bloc.add(const AnalyticsLoadRequested()),
-                  borderRadius: DdtTheme.radius,
-                ),
-              ],
-            ),
+          return _AnalyticsLoadError(
+            message: state.errorMessage ?? 'Не удалось загрузить аналитику',
+            onRetry: () => bloc.add(const AnalyticsLoadRequested()),
           );
         }
 
@@ -185,9 +234,42 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 }
 
+class _AnalyticsLoadError extends StatelessWidget {
+  const _AnalyticsLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.bodyLargeSize,
+              color: DdtTheme.textSecondary(context),
+            ),
+          ),
+          SizedBox(height: 12.h),
+          Button(
+            text: 'Повторить',
+            onPressed: onRetry,
+            borderRadius: DdtTheme.radius,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AnalyticsDashboardView extends StatefulWidget {
   const _AnalyticsDashboardView({
-    required this.dashboard,
+    this.dashboard,
+    this.skeleton = false,
     required this.dashboardKind,
     required this.filters,
     required this.section,
@@ -202,7 +284,8 @@ class _AnalyticsDashboardView extends StatefulWidget {
     this.errorMessage,
   });
 
-  final AnalyticsDashboard dashboard;
+  final AnalyticsDashboard? dashboard;
+  final bool skeleton;
   final AnalyticsDashboardKind dashboardKind;
   final AnalyticsFilters filters;
   final AnalyticsSection section;
@@ -228,6 +311,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
   @override
   Widget build(BuildContext context) {
     final dashboard = widget.dashboard;
+    final skeleton = widget.skeleton || dashboard == null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -241,8 +325,14 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
           AnalyticsSection.overview => [
             SliverToBoxAdapter(
               child: isTaskDashboard
-                  ? TaskAnalyticsKpiGrid(kpi: dashboard.kpi)
-                  : _StpKpiGrid(kpi: dashboard.kpi),
+                  ? TaskAnalyticsKpiGrid(
+                      kpi: skeleton ? null : dashboard.kpi,
+                      skeleton: skeleton,
+                    )
+                  : _StpKpiGrid(
+                      kpi: skeleton ? null : dashboard.kpi,
+                      skeleton: skeleton,
+                    ),
             ),
             SliverPadding(
               padding: EdgeInsets.only(top: 12.h),
@@ -252,7 +342,8 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
                         wide: wide,
                         chartHeight: chartHeight,
                         tallChartHeight: tallChartHeight,
-                        charts: dashboard.charts,
+                        skeleton: skeleton,
+                        charts: skeleton ? null : dashboard.charts,
                         trendIsLine: _trendIsLine,
                         trendGroupBy: _trendGroupBy,
                         showSpaceCharts:
@@ -267,7 +358,8 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
                         wide: wide,
                         chartHeight: chartHeight,
                         tallChartHeight: tallChartHeight,
-                        charts: dashboard.charts,
+                        skeleton: skeleton,
+                        charts: skeleton ? null : dashboard.charts,
                         trendIsLine: _trendIsLine,
                         trendGroupBy: _trendGroupBy,
                         onTrendTypeChanged: (isLine) =>
@@ -279,9 +371,11 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
             ),
           ],
           AnalyticsSection.summary => [
-            SliverToBoxAdapter(child: _SummarySection(dashboard: dashboard)),
+            if (!skeleton)
+              SliverToBoxAdapter(child: _SummarySection(dashboard: dashboard)),
           ],
           AnalyticsSection.table => [
+            if (!skeleton)
             SliverToBoxAdapter(
               child: _RequestsSection(
                 records: dashboard.records,
@@ -304,7 +398,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
               padding: EdgeInsets.only(bottom: 12.h),
               sliver: SliverToBoxAdapter(
                 child: _DashboardHeader(
-                  dashboard: dashboard,
+                  dashboard: skeleton ? null : dashboard,
                   dashboardKind: widget.dashboardKind,
                   filtered:
                       widget.filters.hasPeriod ||
@@ -333,9 +427,10 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
         );
 
         final filtersPanel = AnalyticsFiltersPanel(
-          columns: dashboard.columns,
-          dateColumn: dashboard.dateColumn,
-          dateBounds: dashboard.dateBounds,
+          loading: skeleton,
+          columns: skeleton ? const [] : dashboard.columns,
+          dateColumn: skeleton ? '' : dashboard.dateColumn,
+          dateBounds: skeleton ? const {} : dashboard.dateBounds,
           filters: widget.filters,
           onDateColumnChanged: widget.onDateColumnChanged,
           onPeriodChanged: widget.onPeriodChanged,
@@ -394,7 +489,7 @@ class _DashboardHeader extends StatelessWidget {
     this.errorMessage,
   });
 
-  final AnalyticsDashboard dashboard;
+  final AnalyticsDashboard? dashboard;
   final AnalyticsDashboardKind dashboardKind;
   final bool filtered;
   final AnalyticsSection section;
@@ -405,13 +500,16 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fetched = DateFormat(
-      'dd.MM.yyyy HH:mm',
-    ).format(dashboard.fetchedAt.toLocal());
+    final loaded = dashboard;
+    final fetched = loaded == null
+        ? ''
+        : DateFormat('dd.MM.yyyy HH:mm').format(loaded.fetchedAt.toLocal());
     final entity = dashboardKind.isTaskDashboard ? 'задач' : 'заявок';
-    final count = filtered
-        ? 'показано ${dashboard.filteredCount} из ${dashboard.totalCount} $entity'
-        : '${dashboard.totalCount} $entity';
+    final count = loaded == null
+        ? ''
+        : filtered
+        ? 'показано ${loaded.filteredCount} из ${loaded.totalCount} $entity'
+        : '${loaded.totalCount} $entity';
     final error = errorMessage;
 
     final controls = Row(
@@ -452,7 +550,7 @@ class _DashboardHeader extends StatelessWidget {
       children: [
         Text(
           dashboardKind.isTaskDashboard
-              ? dashboard.sheetName
+              ? (loaded?.sheetName ?? 'Задачи')
               : 'КРР МР — Аналитика СТП',
           style: DdtTheme.style(
             fontSize: DdtTypography.panelTitleSize,
@@ -461,10 +559,15 @@ class _DashboardHeader extends StatelessWidget {
           ),
         ),
         SizedBox(height: 4.h),
-        Text(
+        loaded == null
+            ? const Align(
+                alignment: Alignment.centerLeft,
+                child: AnalyticsSkeletonFill(height: 14, width: 220),
+              )
+            : Text(
           dashboardKind.isTaskDashboard
               ? '$count · обновлено $fetched'
-              : 'Лист «${dashboard.sheetName}» · $count · обновлено $fetched',
+              : 'Лист «${loaded.sheetName}» · $count · обновлено $fetched',
           style: DdtTheme.style(
             fontSize: DdtTypography.captionSize,
             color: DdtTheme.textMuted(context),
@@ -509,75 +612,101 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 class _StpKpiGrid extends StatelessWidget {
-  const _StpKpiGrid({required this.kpi});
+  const _StpKpiGrid({required this.kpi, this.skeleton = false});
 
-  final AnalyticsKpi kpi;
+  final AnalyticsKpi? kpi;
+  final bool skeleton;
 
-  String _shareOfTotal(int value) =>
+  String _shareOfTotal(AnalyticsKpi kpi, int value) =>
       '${kpi.total == 0 ? 0 : (value / kpi.total * 100).round()}% от всех';
 
   @override
   Widget build(BuildContext context) {
-    final topWaiting = kpi.topWaitingOiv;
+    if (skeleton || kpi == null) {
+      return _kpiWrap(context, [
+        ('Всего заявок', AppColors.primary),
+        ('SLA (в срок)', analyticsPositiveColor),
+        ('Время решения', Color(0xFF7D6BC4)),
+        ('Подтверждено', Color(0xFFD4943A)),
+        ('Просрочено', Color(0xFFD65C5C)),
+        ('Скорость реакции', Color(0xFF4A90C2)),
+        ('Ошибки', Color(0xFF6B7C93)),
+        ('Ожидание от ОИВ', Color(0xFFD4943A)),
+      ]);
+    }
+    final data = kpi!;
+    final topWaiting = data.topWaitingOiv;
     final items = [
       (
         'Всего заявок',
-        '${kpi.total}',
+        '${data.total}',
         AppColors.primary,
-        '${kpi.open} откр. / ${kpi.closed} закр.',
+        '${data.open} откр. / ${data.closed} закр.',
       ),
       (
         'SLA (в срок)',
-        kpi.slaKnown == 0
+        data.slaKnown == 0
             ? '—'
-            : '${(kpi.slaOk / kpi.slaKnown * 100).round()}%',
+            : '${(data.slaOk / data.slaKnown * 100).round()}%',
         analyticsPositiveColor,
-        '${kpi.slaOk} из ${kpi.slaKnown}',
+        '${data.slaOk} из ${data.slaKnown}',
       ),
       (
         'Время решения',
-        formatAnalyticsDuration(kpi.medianResolutionHours),
+        formatAnalyticsDuration(data.medianResolutionHours),
         const Color(0xFF7D6BC4),
         'медиана закрытых',
       ),
       (
         'Подтверждено',
-        '${kpi.confirmed}',
+        '${data.confirmed}',
         const Color(0xFFD4943A),
-        _shareOfTotal(kpi.confirmed),
+        _shareOfTotal(data, data.confirmed),
       ),
       (
         'Просрочено',
-        '${kpi.overdueOpen}',
+        '${data.overdueOpen}',
         const Color(0xFFD65C5C),
         'просрочено открытых',
       ),
       (
         'Скорость реакции',
-        formatAnalyticsReaction(kpi.medianReactionHours),
+        formatAnalyticsReaction(data.medianReactionHours),
         const Color(0xFF4A90C2),
-        'из ${kpi.reactionCount} с 2 комментариями',
+        'из ${data.reactionCount} с 2 комментариями',
       ),
       (
         'Ошибки',
-        '${kpi.errors}',
+        '${data.errors}',
         const Color(0xFF6B7C93),
-        _shareOfTotal(kpi.errors),
+        _shareOfTotal(data, data.errors),
       ),
       (
         'Ожидание от ОИВ',
-        topWaiting != null && kpi.topWaitingOivHours != null
-            ? formatAnalyticsDuration(kpi.topWaitingOivHours)
+        topWaiting != null && data.topWaitingOivHours != null
+            ? formatAnalyticsDuration(data.topWaitingOivHours)
             : '—',
         const Color(0xFFD4943A),
-        topWaiting != null && kpi.topWaitingOivHours != null
-            ? '$topWaiting · ${kpi.topWaitingOivOpen} заявок · ${kpi.waitingOpen} всего'
-            : (kpi.waitingOpen > 0
-                  ? '${kpi.waitingOpen} в ожидании'
+        topWaiting != null && data.topWaitingOivHours != null
+            ? '$topWaiting · ${data.topWaitingOivOpen} заявок · ${data.waitingOpen} всего'
+            : (data.waitingOpen > 0
+                  ? '${data.waitingOpen} в ожидании'
                   : 'нет данных'),
       ),
     ];
 
+    return _kpiWrap(context, [
+      for (final item in items) (item.$1, item.$3),
+    ], values: [
+      for (final item in items) (item.$2, item.$4),
+    ]);
+  }
+
+  Widget _kpiWrap(
+    BuildContext context,
+    List<(String, Color)> cards, {
+    List<(String, String?)>? values,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1200
@@ -592,14 +721,15 @@ class _StpKpiGrid extends StatelessWidget {
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final item in items)
+            for (var index = 0; index < cards.length; index++)
               SizedBox(
                 width: width,
                 child: AnalyticsKpiCard(
-                  label: item.$1,
-                  value: item.$2,
-                  color: item.$3,
-                  hint: item.$4,
+                  label: cards[index].$1,
+                  value: values == null ? '' : values[index].$1,
+                  color: cards[index].$2,
+                  hint: values == null ? null : values[index].$2,
+                  skeleton: values == null,
                 ),
               ),
           ],
@@ -629,6 +759,7 @@ class _AnalyticsChartGrid extends StatelessWidget {
     required this.chartHeight,
     required this.tallChartHeight,
     required this.charts,
+    this.skeleton = false,
     required this.trendIsLine,
     required this.trendGroupBy,
     required this.onTrendTypeChanged,
@@ -638,7 +769,8 @@ class _AnalyticsChartGrid extends StatelessWidget {
   final bool wide;
   final double chartHeight;
   final double tallChartHeight;
-  final AnalyticsCharts charts;
+  final AnalyticsCharts? charts;
+  final bool skeleton;
   final bool trendIsLine;
   final AnalyticsTrendGroupBy trendGroupBy;
   final ValueChanged<bool> onTrendTypeChanged;
@@ -647,6 +779,12 @@ class _AnalyticsChartGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gap = 12.h;
+    final data = charts;
+    Widget plot(Widget Function(AnalyticsCharts charts) build) {
+      if (skeleton || data == null) return const AnalyticsSkeletonFill();
+      return build(data);
+    }
+
     final trendControls = _TrendChartControls(
       isLine: trendIsLine,
       groupBy: trendGroupBy,
@@ -657,15 +795,17 @@ class _AnalyticsChartGrid extends StatelessWidget {
     final trendCard = AnalyticsPanel(
       title: 'Динамика: создание и закрытие',
       headerTrailing: trendControls,
-      child: AnalyticsTrendChart(
-        trend: charts.trendFor(trendGroupBy),
-        isLine: trendIsLine,
+      child: plot(
+        (charts) => AnalyticsTrendChart(
+          trend: charts.trendFor(trendGroupBy),
+          isLine: trendIsLine,
+        ),
       ),
     );
 
     final typeCard = AnalyticsPanel(
       title: 'Тип обращений',
-      child: AnalyticsDonutChart(points: charts.type),
+      child: plot((charts) => AnalyticsDonutChart(points: charts.type)),
     );
 
     final row2 = _ResponsiveRow(
@@ -675,15 +815,15 @@ class _AnalyticsChartGrid extends StatelessWidget {
       children: [
         AnalyticsPanel(
           title: 'Блоки системы',
-          child: AnalyticsHorizontalBarChart(points: charts.block),
+          child: plot((charts) => AnalyticsHorizontalBarChart(points: charts.block)),
         ),
         AnalyticsPanel(
           title: 'ОИВ',
-          child: AnalyticsHorizontalBarChart(points: charts.oiv),
+          child: plot((charts) => AnalyticsHorizontalBarChart(points: charts.oiv)),
         ),
         AnalyticsPanel(
           title: 'Модули / формы',
-          child: AnalyticsBarChart(points: charts.module),
+          child: plot((charts) => AnalyticsBarChart(points: charts.module)),
         ),
       ],
     );
@@ -695,13 +835,17 @@ class _AnalyticsChartGrid extends StatelessWidget {
       children: [
         AnalyticsPanel(
           title: 'Категории проблем (топ-10)',
-          child: AnalyticsHorizontalBarChart(points: charts.problemCategory),
+          child: plot(
+            (charts) => AnalyticsHorizontalBarChart(points: charts.problemCategory),
+          ),
         ),
         AnalyticsPanel(
           title: 'Заявки по статусам',
-          child: AnalyticsDonutChart(
-            points: charts.statusGroup,
-            preferStatusColors: true,
+          child: plot(
+            (charts) => AnalyticsDonutChart(
+              points: charts.statusGroup,
+              preferStatusColors: true,
+            ),
           ),
         ),
       ],
@@ -710,7 +854,7 @@ class _AnalyticsChartGrid extends StatelessWidget {
     final oivWaitingHeight = _oivWaitingPanelHeight(
       wide: wide,
       tallChartHeight: tallChartHeight,
-      rowCount: charts.oivWaiting.length,
+      rowCount: charts?.oivWaiting.length ?? 6,
     );
 
     final oivWaitingPanel = SizedBox(
@@ -719,7 +863,9 @@ class _AnalyticsChartGrid extends StatelessWidget {
         title: 'ОИВ: ожидание ответа клиента',
         subtitle:
             'Среднее время от запроса информации до ответа ОИВ. Для открытых заявок — текущая длительность ожидания.',
-        child: AnalyticsHorizontalBarChart.hours(points: charts.oivWaiting),
+        child: plot(
+          (charts) => AnalyticsHorizontalBarChart.hours(points: charts.oivWaiting),
+        ),
       ),
     );
 
@@ -730,11 +876,13 @@ class _AnalyticsChartGrid extends StatelessWidget {
       children: [
         AnalyticsPanel(
           title: 'Сторона ошибки',
-          child: AnalyticsDonutChart(points: charts.errorSide),
+          child: plot((charts) => AnalyticsDonutChart(points: charts.errorSide)),
         ),
         AnalyticsPanel(
           title: 'Динамика по дням: создание / закрытие / реакция',
-          child: AnalyticsDailyDetailChart(buckets: charts.dailyDetail),
+          child: plot(
+            (charts) => AnalyticsDailyDetailChart(buckets: charts.dailyDetail),
+          ),
         ),
       ],
     );
@@ -743,7 +891,9 @@ class _AnalyticsChartGrid extends StatelessWidget {
       height: tallChartHeight,
       child: AnalyticsPanel(
         title: 'Статусы по топ-категориям',
-        child: AnalyticsStackedStatusChart(data: charts.statusByCategory),
+        child: plot(
+          (charts) => AnalyticsStackedStatusChart(data: charts.statusByCategory),
+        ),
       ),
     );
 
@@ -751,7 +901,7 @@ class _AnalyticsChartGrid extends StatelessWidget {
       height: chartHeight,
       child: AnalyticsPanel(
         title: 'Решено / подтверждение пользователя',
-        child: AnalyticsSolvedChart(data: charts.solved),
+        child: plot((charts) => AnalyticsSolvedChart(data: charts.solved)),
       ),
     );
 

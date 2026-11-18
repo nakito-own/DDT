@@ -156,7 +156,9 @@ class _DdtMarkdownDescriptionInputState
       inactiveColor: DdtTheme.sidePanelTextSecondary(context),
       iconSize: widget.plain ? 14.sp : 16.sp,
       height: widget.plain ? 32.h : 34.h,
-      padding: EdgeInsets.symmetric(horizontal: 4.w),
+      padding: widget.plain
+          ? EdgeInsets.zero
+          : EdgeInsets.symmetric(horizontal: 4.w),
       spacing: widget.plain ? 1 : 0,
       borderRadius: BorderRadius.zero,
       showDividers: true,

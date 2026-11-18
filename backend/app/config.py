@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     google_sheets_credentials_path: str = ""
     google_sheets_credentials_json: str = ""
     google_sheets_cache_ttl_seconds: int = 60
+    google_sheets_timeout_seconds: float = 30.0
+
+    dtw_base_url: str = "https://dtwapi.mos.ru"
+    dtw_login: str = ""
+    dtw_password: str = ""
+    dtw_dataset_id: int = 28107
+    dtw_page_size: int = 1000
+    dtw_timeout_seconds: float = 120.0
+    dtw_offset_param: str = "offset"
+    dtw_limit_param: str = "limit"
 
     avatar_dir: str = ""
 

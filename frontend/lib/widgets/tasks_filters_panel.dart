@@ -152,10 +152,9 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
         ];
         final selectedSort = {state.sortOption.name};
 
-        return DdtSectionSidebarScroll(
-          child: ListView(
-            clipBehavior: Clip.none,
-            padding: DdtSectionSidebar.scrollContentPadding(),
+        return DdtSectionSidebarPane(
+          pinned: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (widget.onCreatePressed != null) ...[
                 DdtSectionSidebarField(
@@ -169,7 +168,9 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                 SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
               ],
               const DdtSectionSidebarTitle(),
-              SizedBox(height: DdtSectionSidebar.afterTitleGap),
+            ],
+          ),
+          children: [
               DdtSectionSidebarField(
                 label: 'Поиск',
                 gapAbove: false,
@@ -363,8 +364,7 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                     borderRadius: DdtTheme.inputControlBorderRadius,
                   ),
                 ),
-            ],
-          ),
+          ],
         );
       },
     );

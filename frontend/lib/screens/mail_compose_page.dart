@@ -19,7 +19,9 @@ import '../theme/ddt_typography.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/mail_compose.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_round_back_button.dart';
 import '../widgets/ddt_markdown_body.dart';
 import '../widgets/ddt_markdown_description_input.dart';
 import '../widgets/ddt_markdown_live_controller.dart';
@@ -209,7 +211,13 @@ class _MailComposePageState extends State<MailComposePage> {
       },
     );
 
-    return LayoutBuilder(
+    return DdtPageShortcuts(
+      onEscape: () {
+        if (ddtPopOverlayIfAny(context)) return;
+        _close();
+      },
+      onCommandEnter: _submit,
+      child: LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760;
         final main = _ComposeMain(
@@ -235,6 +243,7 @@ class _MailComposePageState extends State<MailComposePage> {
           ],
         );
       },
+    ),
     );
   }
 }
@@ -274,27 +283,42 @@ class _ComposeMain extends StatelessWidget {
       behavior: const DdtScrollBehavior(),
       child: ListView(
         primary: false,
-        padding: EdgeInsets.fromLTRB(20.w, top + 12.h, 20.w, bottom),
+        padding: EdgeInsets.fromLTRB(
+          DdtRoundBackButton.screenInset,
+          top + 12.h,
+          20.w,
+          bottom,
+        ),
         children: [
           _ComposeToolbar(label: label, onClose: onClose, onSubmit: onSubmit),
-          SizedBox(height: 16.h),
-          _ComposeTitleField(
-            controller: subjectController,
-            hint: 'Тема',
-            autofocus: autofocusSubject,
-            style: titleStyle,
-            onSubmitted: (_) => bodyFocus.requestFocus(),
+          Padding(
+            padding: EdgeInsets.only(
+              left: 20.w - DdtRoundBackButton.screenInset,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: 16.h),
+                _ComposeTitleField(
+                  controller: subjectController,
+                  hint: 'Тема',
+                  autofocus: autofocusSubject,
+                  style: titleStyle,
+                  onSubmitted: (_) => bodyFocus.requestFocus(),
+                ),
+                SizedBox(height: 8.h),
+                DdtMarkdownDescriptionInput(
+                  controller: bodyController,
+                  focusNode: bodyFocus,
+                  label: null,
+                  hint: 'Текст письма',
+                  minLines: 8,
+                  plain: true,
+                ),
+                if (trailing != null) ...[SizedBox(height: 28.h), trailing!],
+              ],
+            ),
           ),
-          SizedBox(height: 8.h),
-          DdtMarkdownDescriptionInput(
-            controller: bodyController,
-            focusNode: bodyFocus,
-            label: null,
-            hint: 'Текст письма',
-            minLines: 8,
-            plain: true,
-          ),
-          if (trailing != null) ...[SizedBox(height: 28.h), trailing!],
         ],
       ),
     );
@@ -929,23 +953,8 @@ class _ComposeToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Semantics(
-          button: true,
-          label: 'Назад к почте',
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: DdtIcon(
-                DdtIcons.chevronLeft,
-                size: 14 / DdtIcon.visualScale,
-                color: DdtTheme.sidePanelTextSecondary(context),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(width: 8.w),
+        DdtRoundBackButton(tooltip: 'Назад к почте', onPressed: onClose),
+        const SizedBox(width: DdtRoundBackButton.labelGap),
         Expanded(
           child: Text(
             label,

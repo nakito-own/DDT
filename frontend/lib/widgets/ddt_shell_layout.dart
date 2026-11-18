@@ -62,7 +62,7 @@ class DdtShellLayout extends StatelessWidget {
         : 0.0;
 
     return Scaffold(
-      backgroundColor: DdtTheme.scaffoldBackground(context),
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       body: SafeArea(
         child: DdtShellMetrics(
@@ -229,8 +229,15 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
                   ? IconButton(
                       tooltip: showBack ? 'Назад' : 'Разделы',
                       onPressed: showBack ? _bar.onBack : _openDrawer,
+                      alignment: showBack
+                          ? Alignment.centerLeft
+                          : Alignment.center,
+                      padding: showBack ? EdgeInsets.zero : null,
+                      constraints: showBack
+                          ? const BoxConstraints(minWidth: 28, minHeight: 32)
+                          : null,
                       icon: DdtIcon(
-                        showBack ? DdtIcons.back : DdtIcons.dragHandle,
+                        showBack ? DdtIcons.chevronLeft : DdtIcons.dragHandle,
                         size: DdtGlassAppBar.actionIconSizeOf(context),
                         color: foreground,
                       ),
@@ -250,7 +257,7 @@ class _CompactShellLayoutState extends State<_CompactShellLayout>
                 }
               },
               child: Scaffold(
-                backgroundColor: DdtTheme.scaffoldBackground(context),
+                backgroundColor: Colors.transparent,
                 body: Stack(
                   children: [
                     SafeArea(

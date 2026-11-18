@@ -19,8 +19,10 @@ import '../utils/ddt_date_time_picker.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_round_back_button.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_user_avatar.dart';
 import '../widgets/ddt_user_chip.dart';
@@ -326,7 +328,13 @@ class _EventCreatePageState extends State<EventCreatePage> {
       onStartChanged: _moveStart,
     );
 
-    return LayoutBuilder(
+    return DdtPageShortcuts(
+      onEscape: () {
+        if (ddtPopOverlayIfAny(context)) return;
+        _close();
+      },
+      onCommandEnter: _submit,
+      child: LayoutBuilder(
       builder: (context, constraints) {
         final padding = _shellPadding(context);
         final wide = constraints.maxWidth >= 980;
@@ -338,9 +346,19 @@ class _EventCreatePageState extends State<EventCreatePage> {
               children: [
                 _EventToolbar(onClose: _close, onSubmit: _submit),
                 SizedBox(height: 20.h),
-                form,
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: 20.w - DdtRoundBackButton.screenInset,
+                  ),
+                  child: form,
+                ),
                 SizedBox(height: 28.h),
-                SizedBox(height: 560, child: assistant),
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: 20.w - DdtRoundBackButton.screenInset,
+                  ),
+                  child: SizedBox(height: 560, child: assistant),
+                ),
               ],
             ),
           );
@@ -360,7 +378,14 @@ class _EventCreatePageState extends State<EventCreatePage> {
                   children: [
                     SizedBox(
                       width: formWidth,
-                      child: _EventScroll(child: form),
+                      child: _EventScroll(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: 20.w - DdtRoundBackButton.screenInset,
+                          ),
+                          child: form,
+                        ),
+                      ),
                     ),
                     Container(width: 1, color: DdtTheme.borderSubtle(context)),
                     SizedBox(width: 20.w),
@@ -372,6 +397,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
           ),
         );
       },
+    ),
     );
   }
 
@@ -379,7 +405,12 @@ class _EventCreatePageState extends State<EventCreatePage> {
     final top = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
     final bottom = DdtShellMetrics.maybeOf(context)?.contentInsetBottom ?? 24.h;
     final right = DdtShellMetrics.maybeOf(context)?.contentInsetRight ?? 0;
-    return EdgeInsets.fromLTRB(20.w, top + 2.h, 20.w + right, bottom);
+    return EdgeInsets.fromLTRB(
+      DdtRoundBackButton.screenInset,
+      top + 2.h,
+      20.w + right,
+      bottom,
+    );
   }
 }
 
@@ -792,29 +823,8 @@ class _EventToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Semantics(
-          button: true,
-          label: 'Назад к календарю',
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: Transform.translate(
-                offset: Offset(
-                  -(14 / DdtIcon.visualScale) * (1 - DdtIcon.visualScale) / 2,
-                  0,
-                ),
-                child: DdtIcon(
-                  DdtIcons.chevronLeft,
-                  size: 14 / DdtIcon.visualScale,
-                  color: DdtTheme.sidePanelTextSecondary(context),
-                ),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(width: 8.w),
+        DdtRoundBackButton(tooltip: 'Назад к календарю', onPressed: onClose),
+        const SizedBox(width: DdtRoundBackButton.labelGap),
         Expanded(
           child: Text(
             'НОВОЕ СОБЫТИЕ',

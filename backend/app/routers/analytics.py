@@ -26,12 +26,18 @@ def _map_errors(exc: Exception) -> HTTPException:
             detail=str(exc),
         )
     if isinstance(exc, GoogleSheetsAccessError):
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if exc.status_code == 404
-            else status.HTTP_502_BAD_GATEWAY
-        )
+        if exc.status_code == 404:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif exc.status_code == 504:
+            status_code = status.HTTP_504_GATEWAY_TIMEOUT
+        else:
+            status_code = status.HTTP_502_BAD_GATEWAY
         return HTTPException(status_code=status_code, detail=str(exc))
+    if isinstance(exc, TimeoutError):
+        return HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Сервис аналитики не ответил вовремя. Повторите запрос.",
+        )
     raise exc
 
 
@@ -56,7 +62,7 @@ async def query_dashboard(
             refresh=body.refresh,
             allow_stale=body.allow_stale,
         )
-    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError) as exc:
+    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError, TimeoutError) as exc:
         raise _map_errors(exc) from exc
     return payload
 
@@ -71,6 +77,6 @@ async def get_applications(
             analytics_service.get_applications,
             refresh=refresh,
         )
-    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError) as exc:
+    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError, TimeoutError) as exc:
         raise _map_errors(exc) from exc
     return payload

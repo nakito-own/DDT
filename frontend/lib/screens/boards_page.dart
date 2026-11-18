@@ -295,10 +295,9 @@ class _BoardsFiltersPanel extends StatelessWidget {
         DdtFilterOption(key: option.name, label: option.label),
     ];
 
-    return DdtSectionSidebarScroll(
-      child: ListView(
-        clipBehavior: Clip.none,
-        padding: DdtSectionSidebar.scrollContentPadding(),
+    return DdtSectionSidebarPane(
+      pinned: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DdtSectionSidebarField(
             gapAbove: false,
@@ -310,7 +309,9 @@ class _BoardsFiltersPanel extends StatelessWidget {
           ),
           SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
           const DdtSectionSidebarTitle(),
-          SizedBox(height: DdtSectionSidebar.afterTitleGap),
+        ],
+      ),
+      children: [
           DdtSectionSidebarField(
             label: 'Поиск',
             gapAbove: false,
@@ -401,8 +402,7 @@ class _BoardsFiltersPanel extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

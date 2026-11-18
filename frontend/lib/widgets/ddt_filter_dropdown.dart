@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -183,6 +184,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
     this.icon,
     this.badge = 0,
     this.compact = false,
+    this.frosted = false,
   });
 
   final String label;
@@ -191,6 +193,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
   final FaIconData? icon;
   final int badge;
   final bool compact;
+  final bool frosted;
 
   @override
   State<DdtFilterDropdownAnchor> createState() =>
@@ -203,12 +206,20 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fill = widget.active
+    final fill = widget.frosted
+        ? (isDark
+              ? Colors.white.withValues(alpha: _hovered ? 0.10 : 0.05)
+              : Colors.white.withValues(alpha: _hovered ? 0.72 : 0.56))
+        : widget.active
         ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.16 : 0.08)
         : _hovered
         ? DdtTheme.inputFillColorHover(context)
         : DdtTheme.inputFillColor(context);
-    final border = widget.active
+    final border = widget.frosted
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.11)
+              : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90))
+        : widget.active
         ? DdtTheme.primaryColor.withValues(alpha: _hovered ? 0.55 : 0.38)
         : (_hovered
               ? DdtTheme.borderStrong(context)
@@ -221,7 +232,16 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
       child: GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
+        child: ClipRRect(
+          borderRadius: widget.frosted
+              ? BorderRadius.circular(999)
+              : DdtTheme.inputControlBorderRadius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: widget.frosted ? 12 : 0,
+              sigmaY: widget.frosted ? 12 : 0,
+            ),
+            child: AnimatedContainer(
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
           width: double.infinity,
@@ -233,7 +253,9 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
             horizontal: widget.compact ? 10.w : 12.w,
           ),
           decoration: BoxDecoration(
-            borderRadius: DdtTheme.inputControlBorderRadius,
+            borderRadius: widget.frosted
+                ? BorderRadius.circular(999)
+                : DdtTheme.inputControlBorderRadius,
             border: Border.all(color: border),
             color: fill,
           ),
@@ -303,6 +325,8 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
                     : DdtTheme.textMuted(context),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),

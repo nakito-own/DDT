@@ -9,6 +9,7 @@ import '../models/analytics_dashboard.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
+import 'ddt_section_refresh.dart';
 
 /// Closed and success series: muted sage-emerald green.
 const analyticsPositiveColor = Color(0xFF3E9B74);
@@ -474,6 +475,37 @@ class AnalyticsPanel extends StatelessWidget {
   }
 }
 
+/// Pale shimmer block used in place of a chart or value while data loads.
+class AnalyticsSkeletonFill extends StatelessWidget {
+  const AnalyticsSkeletonFill({super.key, this.height, this.width, this.radius});
+
+  final double? height;
+  final double? width;
+  final BorderRadius? radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pale = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+    return ClipRRect(
+      borderRadius: radius ?? BorderRadius.circular(8.r),
+      child: SizedBox(
+        height: height,
+        width: width,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: pale),
+            const DdtShimmerSweep(visible: true, intensity: 0.4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AnalyticsKpiCard extends StatelessWidget {
   const AnalyticsKpiCard({
     super.key,
@@ -481,12 +513,14 @@ class AnalyticsKpiCard extends StatelessWidget {
     required this.value,
     required this.color,
     this.hint,
+    this.skeleton = false,
   });
 
   final String label;
   final String value;
   final Color color;
   final String? hint;
+  final bool skeleton;
 
   @override
   Widget build(BuildContext context) {
@@ -519,19 +553,22 @@ class AnalyticsKpiCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4.h),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.displaySize,
-                      fontWeight: FontWeight.w800,
-                      color: DdtTheme.textPrimary(context),
+                if (skeleton)
+                  const AnalyticsSkeletonFill(height: 28, width: 88)
+                else
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.displaySize,
+                        fontWeight: FontWeight.w800,
+                        color: DdtTheme.textPrimary(context),
+                      ),
                     ),
                   ),
-                ),
-                if (hint != null)
+                if (!skeleton && hint != null)
                   Text(
                     hint!,
                     style: DdtTheme.style(
@@ -539,6 +576,10 @@ class AnalyticsKpiCard extends StatelessWidget {
                       color: DdtTheme.textMuted(context),
                     ),
                   ),
+                if (skeleton) ...[
+                  SizedBox(height: 6.h),
+                  const AnalyticsSkeletonFill(height: 10, width: 120),
+                ],
               ],
             ),
           ),
@@ -1047,16 +1088,29 @@ class AnalyticsTrendChart extends StatelessWidget {
     super.key,
     required this.trend,
     required this.isLine,
+    this.seriesName,
   });
 
   final AnalyticsTrendBuckets trend;
   final bool isLine;
 
+  /// When set, only the first series is drawn and labeled with this name.
+  final String? seriesName;
+
   @override
   Widget build(BuildContext context) {
     if (trend.isEmpty) return const AnalyticsEmptyChart();
 
-    final maxValue = [...trend.created, ...trend.closed].fold<int>(1, math.max);
+    final single = seriesName != null;
+    final primaryLabel = seriesName ?? 'Создано';
+    final legend = _ChartLegend(
+      items: [
+        _LegendItem(primaryLabel, DdtTheme.primaryColor),
+        if (!single) const _LegendItem('Закрыто', analyticsPositiveColor),
+      ],
+    );
+    final maxValue = (single ? trend.created : [...trend.created, ...trend.closed])
+        .fold<int>(1, math.max);
     final labelStyle = DdtTheme.style(
       fontSize: DdtTypography.microSize,
       color: DdtTheme.textMuted(context),
@@ -1081,12 +1135,7 @@ class AnalyticsTrendChart extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _ChartLegend(
-            items: [
-              _LegendItem('Создано', DdtTheme.primaryColor),
-              _LegendItem('Закрыто', analyticsPositiveColor),
-            ],
-          ),
+          legend,
           SizedBox(height: 8.h),
           Expanded(
             child: _chartPlot(
@@ -1120,7 +1169,7 @@ class AnalyticsTrendChart extends StatelessWidget {
                             if (spot.x.toInt() >= 0 &&
                                 spot.x.toInt() < trend.labels.length)
                               '${trend.labels[spot.x.toInt()]}\n'
-                                  '${spot.barIndex == 0 ? 'Создано' : 'Закрыто'}: '
+                                  '${single || spot.barIndex == 0 ? primaryLabel : 'Закрыто'}: '
                                   '${spot.y.toInt()}',
                         ];
                         if (lines.isEmpty) {
@@ -1159,24 +1208,25 @@ class AnalyticsTrendChart extends StatelessWidget {
                               ),
                         ),
                       ),
-                      LineChartBarData(
-                        spots: closedSpots,
-                        isCurved: true,
-                        color: _palette[1],
-                        barWidth: 2.5,
-                        dotData: FlDotData(
-                          show: trend.labels.length <= 24,
-                          getDotPainter: (spot, percent, bar, index) =>
-                              FlDotCirclePainter(
-                                radius: 3,
-                                color: _palette[1],
-                                strokeWidth: 1.5,
-                                strokeColor: DdtTheme.pickerSurfaceColor(
-                                  context,
+                      if (!single)
+                        LineChartBarData(
+                          spots: closedSpots,
+                          isCurved: true,
+                          color: _palette[1],
+                          barWidth: 2.5,
+                          dotData: FlDotData(
+                            show: trend.labels.length <= 24,
+                            getDotPainter: (spot, percent, bar, index) =>
+                                FlDotCirclePainter(
+                                  radius: 3,
+                                  color: _palette[1],
+                                  strokeWidth: 1.5,
+                                  strokeColor: DdtTheme.pickerSurfaceColor(
+                                    context,
+                                  ),
                                 ),
-                              ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   duration: _chartDuration,
@@ -1192,12 +1242,7 @@ class AnalyticsTrendChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _ChartLegend(
-          items: [
-            _LegendItem('Создано', DdtTheme.primaryColor),
-            _LegendItem('Закрыто', analyticsPositiveColor),
-          ],
-        ),
+        legend,
         SizedBox(height: 8.h),
         Expanded(
           child: _chartPlot(
@@ -1207,7 +1252,7 @@ class AnalyticsTrendChart extends StatelessWidget {
                 final rodWidth = _flexibleRodWidth(
                   chartWidth: constraints.maxWidth,
                   groupCount: trend.labels.length,
-                  rodsPerGroup: 2,
+                  rodsPerGroup: single ? 1 : 2,
                   minWidth: 10,
                   axisReserve: 32,
                   maxWidth: 28,
@@ -1240,8 +1285,8 @@ class AnalyticsTrendChart extends StatelessWidget {
                             tooltip.hide();
                             return;
                           }
-                          final kind = spot.touchedRodDataIndex == 0
-                              ? 'Создано'
+                          final kind = single || spot.touchedRodDataIndex == 0
+                              ? primaryLabel
                               : 'Закрыто';
                           _syncChartTooltip(
                             tooltip: tooltip,
@@ -1271,12 +1316,15 @@ class AnalyticsTrendChart extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(_rodRadius),
                                 color: _palette[0],
                               ),
-                              BarChartRodData(
-                                toY: trend.closed[index].toDouble(),
-                                width: rodWidth,
-                                borderRadius: BorderRadius.circular(_rodRadius),
-                                color: _palette[1],
-                              ),
+                              if (!single)
+                                BarChartRodData(
+                                  toY: trend.closed[index].toDouble(),
+                                  width: rodWidth,
+                                  borderRadius: BorderRadius.circular(
+                                    _rodRadius,
+                                  ),
+                                  color: _palette[1],
+                                ),
                             ],
                           ),
                       ],

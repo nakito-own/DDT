@@ -23,6 +23,14 @@ class DdtRoundBackButton extends StatelessWidget {
   /// Gap between the button and the "New …" label.
   static const double labelGap = 6;
 
+  /// Extra left inset for titles and body inside a parent already padded by
+  /// [screenInset], so that text lines up at [contentInset].
+  static double contentLead(double contentInset) {
+    final lead = contentInset - screenInset;
+    if (lead <= 0) return 0;
+    return lead;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

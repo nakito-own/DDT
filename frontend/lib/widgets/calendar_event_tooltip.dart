@@ -23,7 +23,9 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../utils/calendar_body_html.dart';
 import '../utils/ddt_toast.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_icon.dart';
+import 'ddt_side_panel.dart';
 import 'ddt_user_chip.dart';
 
 const _tooltipDuration = Duration(milliseconds: 280);
@@ -63,8 +65,24 @@ class _CalendarTooltipHostState extends State<CalendarTooltipHost> {
 }
 
 OverlayEntry? _activeTooltip;
+var _eventSheetOpen = false;
 
 void showCalendarEventTooltip(BuildContext context, CalendarEvent event) {
+  if (DdtAdaptive.isCompact(context)) {
+    if (_eventSheetOpen) return;
+    _eventSheetOpen = true;
+    showDdtFullscreenBottomSheet<void>(
+      context,
+      child: Builder(
+        builder: (sheetContext) => CalendarEventTooltip(
+          event: event,
+          onClose: () => Navigator.of(sheetContext).maybePop(),
+        ),
+      ),
+    ).whenComplete(() => _eventSheetOpen = false);
+    return;
+  }
+
   final anchor = _anchorInOverlay(context);
   final host = context.findAncestorStateOfType<_CalendarTooltipHostState>();
   final theme = Theme.of(context);
@@ -796,8 +814,9 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
       _event,
       ownerEmail: calendar.ownerEmail,
     );
-    GoRouter.of(context).push(RoutePaths.calendarNew, extra: draft);
+    final router = GoRouter.of(context);
     widget.onClose();
+    router.push(RoutePaths.calendarNew, extra: draft);
   }
 
   String _responseSuccessMessage(CalendarEventResponseAction action) {

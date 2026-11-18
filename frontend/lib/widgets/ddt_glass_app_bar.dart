@@ -9,6 +9,7 @@ import '../models/user_profile.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import 'ddt_adaptive.dart';
+import 'ddt_snow.dart';
 import 'ddt_context_menu.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
@@ -117,6 +118,12 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
           ?center,
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: DdtAppBarSnow(),
+          ),
         ],
       ),
     );
@@ -170,31 +177,30 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
       ],
     );
     final actionsRow = secondaryRow
-        ? SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.only(
-              left: DdtTheme.shellSizeOf(context, 8),
-              right: DdtTheme.shellSizeOf(context, 8),
-              bottom: DdtTheme.shellSizeOf(context, 6),
+        ? Padding(
+            padding: EdgeInsets.fromLTRB(
+              DdtTheme.shellSizeOf(context, 4),
+              0,
+              DdtTheme.shellSizeOf(context, 4),
+              DdtTheme.shellSizeOf(context, 6),
             ),
-            child: Row(
-              children: [
-                ?center,
-                if (center != null && actions != null)
-                  SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
-                ?actions,
-              ],
-            ),
+            child: actions ?? const SizedBox.shrink(),
           )
         : null;
 
     if (overlay) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return Stack(
         children: [
-          SizedBox(height: height, child: titleRow),
-          if (actionsRow != null) SizedBox(height: secondary, child: actionsRow),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: height, child: titleRow),
+              if (actionsRow != null)
+                SizedBox(height: secondary, child: actionsRow),
+            ],
+          ),
+          const Positioned(top: 0, left: 0, right: 0, child: DdtAppBarSnow()),
         ],
       );
     }
@@ -203,12 +209,17 @@ class DdtGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
       context: context,
       height: height + secondary,
       width: double.infinity,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: [
-          Expanded(flex: barHeight.round(), child: titleRow),
-          if (actionsRow != null)
-            Expanded(flex: secondary.round(), child: actionsRow),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: barHeight.round(), child: titleRow),
+              if (actionsRow != null)
+                Expanded(flex: secondary.round(), child: actionsRow),
+            ],
+          ),
+          const Positioned(top: 0, left: 0, right: 0, child: DdtAppBarSnow()),
         ],
       ),
     );

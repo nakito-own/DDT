@@ -19,12 +19,7 @@ class DdtScrollToTopOverlay extends StatefulWidget {
 
   /// Bottom edge of the scroll-to-top button above the primary FAB stack.
   static double bottomOf(BuildContext context) {
-    const primaryFabSize = 48.0;
-    const gap = 12.0;
-    final navClearance = DdtAdaptive.floatingBottomBar(context)
-        ? DdtMobileNavigationBar.clearance(context)
-        : 0.0;
-    return navClearance + gap + primaryFabSize + gap;
+    return DdtGlassFab.bottomOffset(context) + DdtGlassFab.size + 12;
   }
 
   @override
