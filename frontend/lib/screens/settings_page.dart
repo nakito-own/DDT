@@ -19,6 +19,7 @@ import '../theme/ddt_icons.dart';
 import '../utils/ddt_toast.dart';
 import '../widgets/avatar_crop_dialog.dart';
 import '../widgets/ddt_dialog.dart';
+import '../widgets/ddt_snow.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
@@ -112,7 +113,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: 'Внешний вид',
                       child: BlocBuilder<ThemeBloc, ThemeState>(
                         buildWhen: (previous, current) =>
-                            previous.mode != current.mode,
+                            previous.mode != current.mode ||
+                            previous.snowEnabled != current.snowEnabled,
                         builder: (context, themeState) {
                           return Column(
                             children: [
@@ -137,6 +139,18 @@ class _SettingsPageState extends State<SettingsPage> {
                                 onChanged: (value) =>
                                     setState(() => _systemTheme = value),
                               ),
+                              if (ddtSnowEnabled) ...[
+                                SizedBox(height: 8.h),
+                                _SettingsSwitchTile(
+                                  label: 'Выключить снег',
+                                  value: !themeState.snowEnabled,
+                                  onChanged: (disable) {
+                                    context.read<ThemeBloc>().add(
+                                      ThemeSnowChanged(!disable),
+                                    );
+                                  },
+                                ),
+                              ],
                             ],
                           );
                         },
@@ -433,6 +447,289 @@ class _SettingsSwitchTile extends StatelessWidget {
           DdtSwitch(value: value, onChanged: onChanged, enabled: enabled),
         ],
       ),
+    );
+  }
+}
+
+/// Profile block. [card] draws the additions layout on the scaffold.
+class UserProfileSettingsSection extends StatelessWidget {
+  const UserProfileSettingsSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        if (authState is! AuthAuthenticated) {
+          return Text(
+            'Войдите через Exchange, чтобы увидеть профиль',
+            style: DdtTheme.style(fontSize: DdtTypography.bodySize),
+          );
+        }
+        return _AdditionsProfile(
+          profile: authState.user,
+          isLoggingOut: authState is AuthLoading,
+          exchangeConnected: authState.connected,
+        );
+      },
+    );
+  }
+}
+
+class _AdditionsProfile extends StatefulWidget {
+  const _AdditionsProfile({
+    required this.profile,
+    required this.isLoggingOut,
+    required this.exchangeConnected,
+  });
+
+  final UserProfile profile;
+  final bool isLoggingOut;
+  final bool exchangeConnected;
+
+  @override
+  State<_AdditionsProfile> createState() => _AdditionsProfileState();
+}
+
+class _AdditionsProfileState extends State<_AdditionsProfile> {
+  bool _busy = false;
+
+  bool get _canEdit => !_busy && !widget.isLoggingOut;
+
+  Future<void> _pickPhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
+      );
+      if (picked == null || !mounted) return;
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final cropped = await showAvatarCropDialog(context, bytes);
+      if (cropped == null || !mounted) return;
+      await _run(
+        () => uploadMyAvatar(cropped),
+        success: 'Фотография обновлена',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      DdtToast.show(
+        message: error.toString().replaceFirst('Exception: ', ''),
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить фотографию?'),
+        content: const Text('Вместо неё снова будет показана иконка.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(deleteMyAvatar, success: 'Фотография удалена');
+  }
+
+  Future<void> _run(
+    Future<UserProfile> Function() action, {
+    required String success,
+  }) async {
+    setState(() => _busy = true);
+    try {
+      final user = await action();
+      if (!mounted) return;
+      context.read<AuthBloc>().add(AuthUserUpdated(user));
+      DdtToast.show(message: success, type: ToastType.success);
+    } catch (error) {
+      if (!mounted) return;
+      DdtToast.show(
+        message: error.toString().replaceFirst('Exception: ', ''),
+        type: ToastType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openAvatar() {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Фотография',
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      pageBuilder: (dialogContext, _, _) {
+        final size = MediaQuery.sizeOf(dialogContext).shortestSide * 0.78;
+        return SafeArea(
+          child: Material(
+            type: MaterialType.transparency,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(dialogContext).pop(),
+                  ),
+                ),
+                Center(
+                  child: DdtUserAvatar(
+                    size: size,
+                    userId: widget.profile.id,
+                    avatarVersion: widget.profile.avatarVersion,
+                    versionIsKnown: true,
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 24,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    children: [
+                      _AvatarActionButton(
+                        icon: DdtIcons.camera,
+                        label: widget.profile.hasAvatar
+                            ? 'Изменить фото'
+                            : 'Загрузить фото',
+                        onPressed: _canEdit
+                            ? () {
+                                Navigator.of(dialogContext).pop();
+                                _pickPhoto();
+                              }
+                            : null,
+                      ),
+                      if (widget.profile.hasAvatar)
+                        _AvatarActionButton(
+                          icon: DdtIcons.trash,
+                          label: 'Удалить',
+                          danger: true,
+                          onPressed: _canEdit
+                              ? () {
+                                  Navigator.of(dialogContext).pop();
+                                  _removePhoto();
+                                }
+                              : null,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = widget.profile;
+    return Column(
+      children: [
+        SizedBox(height: 8.h),
+        GestureDetector(
+          onTap: _openAvatar,
+          child: DdtUserAvatar(
+            size: 96.w,
+            userId: profile.id,
+            avatarVersion: profile.avatarVersion,
+            versionIsKnown: true,
+            showBorder: true,
+          ),
+        ),
+        SizedBox(height: 14.h),
+        Text(
+          profile.label,
+          textAlign: TextAlign.center,
+          style: DdtTheme.style(
+            fontSize: DdtTypography.entityTitleSize,
+            fontWeight: FontWeight.w700,
+            color: DdtTheme.textPrimary(context),
+          ),
+        ),
+        SizedBox(height: 12.h),
+        _ProfileFactChips(
+          profile: profile,
+          exchangeConnected: widget.exchangeConnected,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileFactChips extends StatelessWidget {
+  const _ProfileFactChips({
+    required this.profile,
+    required this.exchangeConnected,
+  });
+
+  final UserProfile profile;
+  final bool exchangeConnected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
+    final facts = <(FaIconData, String)>[
+      (DdtIcons.mail, profile.email),
+      if (profile.jobTitle != null && profile.jobTitle!.trim().isNotEmpty)
+        (DdtIcons.briefcase, profile.jobTitle!.trim()),
+      if (profile.phone != null && profile.phone!.trim().isNotEmpty)
+        (DdtIcons.phone, profile.phone!.trim()),
+      if (profile.officeLocation != null &&
+          profile.officeLocation!.trim().isNotEmpty)
+        (DdtIcons.location, profile.officeLocation!.trim()),
+      (
+        exchangeConnected ? DdtIcons.checkCircle : DdtIcons.warning,
+        exchangeConnected ? 'Exchange подключён' : 'Нет связи с Exchange',
+      ),
+    ];
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8.w,
+      runSpacing: 8.h,
+      children: [
+        for (final fact in facts)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isDark ? 0.16 : 0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DdtIcon(fact.$1, size: 12.sp, color: accent),
+                SizedBox(width: 6.w),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 220.w),
+                  child: Text(
+                    fact.$2,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.labelSmallSize,
+                      fontWeight: FontWeight.w600,
+                      color: DdtTheme.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

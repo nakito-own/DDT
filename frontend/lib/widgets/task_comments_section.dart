@@ -210,7 +210,7 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
         ? Colors.white.withValues(alpha: 0.06)
         : const Color(0xFFF1F5F9);
     final sendButton = Tooltip(
-      message: 'Отправить комментарий',
+      message: 'Отправить комментарий (Enter)',
       child: SizedBox.square(
         dimension: 30,
         child: IconButton(
@@ -247,6 +247,8 @@ class _TaskCommentsSectionState extends State<TaskCommentsSection> {
       contentPadding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
       borderRadius: DdtTheme.inputControlBorderRadius,
       textInputAction: TextInputAction.newline,
+      submitOnEnter: true,
+      onSubmitted: (_) => _send(),
       textColor: DdtTheme.sidePanelTextPrimary(context),
       readOnly: _isSending,
       suffix: Padding(

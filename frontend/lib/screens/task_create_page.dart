@@ -26,10 +26,13 @@ import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import '../utils/task_status_dates.dart';
 import '../widgets/ddt_app_input.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_markdown_description_input.dart';
 import '../widgets/ddt_markdown_live_controller.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_round_back_button.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_user_chip.dart';
@@ -249,7 +252,14 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
     final state = context.watch<TasksBloc>().state;
     final candidates = _relationCandidates(state.allTasks);
 
-    return LayoutBuilder(
+    return DdtPageShortcuts(
+      onEscape: () {
+        if (ddtPopOverlayIfAny(context)) return;
+        _close();
+      },
+      onCommandEnter: () =>
+          _submit(personal: context.read<TasksBloc>().spaceKey == null),
+      child: LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760;
         final main = _CreateMainPane(
@@ -309,6 +319,7 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
           ],
         );
       },
+    ),
     );
   }
 }
@@ -348,8 +359,6 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
   final _scroll = ScrollController();
   double _chromeHeight = 148;
 
-  static const double _titlePastGradient = 12;
-
   @override
   void dispose() {
     _scroll.dispose();
@@ -377,28 +386,35 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
       color: DdtTheme.textPrimary(context),
     );
 
+    final fadeTail = 28.h;
+    final chromeHold = (_chromeHeight - fadeTail).clamp(0.0, _chromeHeight);
+
     return Stack(
       children: [
-        ScrollConfiguration(
-          behavior: const DdtScrollBehavior(),
-          child: ListView(
-            controller: _scroll,
-            primary: false,
-            padding: EdgeInsets.fromLTRB(20.w, _chromeHeight, 20.w, bottom),
-            children: [
-              DdtMarkdownDescriptionInput(
-                controller: widget.descriptionController,
-                focusNode: widget.descriptionFocus,
-                label: null,
-                hint: 'Описание',
-                minLines: 6,
-                plain: true,
-              ),
-              if (widget.trailing != null) ...[
-                SizedBox(height: 24.h),
-                widget.trailing!,
+        DdtContentFadeMask(
+          topHold: chromeHold,
+          topFade: _chromeHeight,
+          child: ScrollConfiguration(
+            behavior: const DdtScrollBehavior(),
+            child: ListView(
+              controller: _scroll,
+              primary: false,
+              padding: EdgeInsets.fromLTRB(20.w, _chromeHeight, 20.w, bottom),
+              children: [
+                DdtMarkdownDescriptionInput(
+                  controller: widget.descriptionController,
+                  focusNode: widget.descriptionFocus,
+                  label: null,
+                  hint: 'Описание',
+                  minLines: 6,
+                  plain: true,
+                ),
+                if (widget.trailing != null) ...[
+                  SizedBox(height: 24.h),
+                  widget.trailing!,
+                ],
               ],
-            ],
+            ),
           ),
         ),
         Positioned(
@@ -417,75 +433,39 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
                   _scrollBy(event.scrollDelta.dy);
                 }
               },
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: _titlePastGradient.h,
-                    child: const IgnorePointer(child: _CreateHeaderFade()),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(20.w, topInset + 12.h, 20.w, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _CreateToolbar(
-                          label: widget.toolbarLabel,
-                          backLabel: widget.backLabel,
-                          submitLabel: widget.submitLabel,
-                          onClose: widget.onClose,
-                          onSubmit: widget.onSubmit,
-                        ),
-                        SizedBox(height: 8.h),
-                        _SkeletonTextField(
-                          controller: widget.titleController,
-                          hint: 'Название',
-                          autofocus: widget.autofocusTitle,
-                          style: titleStyle,
-                          onSubmitted: (_) =>
-                              widget.descriptionFocus.requestFocus(),
-                        ),
-                      ],
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  DdtRoundBackButton.screenInset,
+                  topInset + 12.h,
+                  20.w,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _CreateToolbar(
+                      label: widget.toolbarLabel,
+                      backLabel: widget.backLabel,
+                      submitLabel: widget.submitLabel,
+                      onClose: widget.onClose,
+                      onSubmit: widget.onSubmit,
                     ),
-                  ),
-                ],
+                    SizedBox(height: 8.h),
+                    _SkeletonTextField(
+                      controller: widget.titleController,
+                      hint: 'Название',
+                      autofocus: widget.autofocusTitle,
+                      style: titleStyle,
+                      onSubmitted: (_) =>
+                          widget.descriptionFocus.requestFocus(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CreateHeaderFade extends StatelessWidget {
-  const _CreateHeaderFade();
-
-  @override
-  Widget build(BuildContext context) {
-    final color = DdtTheme.scaffoldBackground(context);
-    final solid = color.withValues(alpha: 1);
-    final clear = color.withValues(alpha: 0);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final height = constraints.maxHeight;
-        const tail = 28.0;
-        final solidStop = height <= 0
-            ? 0.7
-            : ((height - tail) / height).clamp(0.0, 1.0);
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [solid, solid, clear],
-              stops: [0, solidStop, 1],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -789,13 +769,8 @@ class _CreateToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _MarkButton(
-          icon: DdtIcons.chevronLeft,
-          label: backLabel,
-          onPressed: onClose,
-          alignStart: true,
-        ),
-        SizedBox(width: 8.w),
+        DdtRoundBackButton(tooltip: backLabel, onPressed: onClose),
+        const SizedBox(width: DdtRoundBackButton.labelGap),
         Expanded(
           child: Text(
             label,
@@ -825,15 +800,11 @@ class _MarkButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.alignStart = false,
   });
 
   final FaIconData icon;
   final String label;
   final VoidCallback onPressed;
-
-  /// Drops the left inset so the glyph lines up with the title and the body.
-  final bool alignStart;
 
   @override
   Widget build(BuildContext context) {
@@ -846,7 +817,7 @@ class _MarkButton extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onPressed,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(alignStart ? 0 : 4.w, 4.h, 4.w, 4.h),
+            padding: EdgeInsets.fromLTRB(4.w, 4.h, 4.w, 4.h),
             child: DdtIcon(
               icon,
               size: 14 / DdtIcon.visualScale,

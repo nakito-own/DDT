@@ -255,6 +255,12 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     openTaskDetailsPage(context, task);
   }
 
+  /// Distance from the page top to the bottom of the floating app bar.
+  /// Zero when the shell has already placed this page below the bar.
+  double _underAppBar(BuildContext context) {
+    return DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+  }
+
   Widget _plainKanbanList(TaskStatus status) {
     return _KanbanTaskList(
       key: ValueKey('plain-$status'),
@@ -266,12 +272,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       taskCardKey: _taskCardKey,
       enableDrag: false,
       padding: EdgeInsets.only(
-        top: () {
-          final reserved =
-              DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
-          final compactTop = _kCompactKanbanListTopInset.h;
-          return reserved > compactTop ? reserved : compactTop;
-        }(),
+        top: _underAppBar(context) + _kCompactKanbanListTopInset.h,
         bottom:
             DdtScrollEdgeFade.listBottomPadding(context) +
             TasksMobileViewBar.reserve,
@@ -326,13 +327,14 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
 
   Widget _compactKanban(BuildContext context) {
     final lastColumn = TaskStatus.values.length - 1;
+    final underBar = _underAppBar(context);
 
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
         Positioned.fill(
           child: _KanbanScrollMask(
-            top: _kCompactKanbanTopFadeHeight.h,
+            top: underBar + _kCompactKanbanTopFadeHeight.h,
             bottom: kDdtScrollEdgeFadeHeight.h,
             child: PageView.builder(
               controller: _columnController,
@@ -348,7 +350,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
           ),
         ),
         Positioned(
-          top: 0,
+          top: underBar,
           left: 0,
           right: 0,
           child: AnimatedBuilder(

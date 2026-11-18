@@ -30,12 +30,29 @@ class DdtSegmentedControl<T> extends StatelessWidget {
     this.compact = false,
   });
 
-  static const double _trackRadius = DdtTheme.inputControlRadius;
-  static const double _segmentRadius = 6;
-  static const double _segmentPaddingHorizontal = 13;
-  static const double _segmentPaddingVertical = 5;
-  static const double _segmentPaddingHorizontalCompact = 10;
-  static const double _segmentPaddingVerticalCompact = 3;
+  static const double _pillRadius = 999;
+  static const double _segmentPaddingHorizontal = 6.5;
+  static const double _segmentPaddingVertical = 2.5;
+  static const double _segmentPaddingHorizontalCompact = 5;
+  static const double _segmentPaddingVerticalCompact = 1.5;
+
+  /// Painted height of the track, including its border.
+  static double barHeight(BuildContext context, {bool compact = false}) {
+    final font = compact ? DdtTypography.microSize : DdtTypography.labelSmallSize;
+    final segmentPad = compact
+        ? _segmentPaddingVerticalCompact
+        : _segmentPaddingVertical;
+    final trackPad = compact ? 2.0 : 3.0;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'Ag',
+        style: DdtTheme.style(fontSize: font, fontWeight: FontWeight.w600),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    return painter.height + segmentPad * 2 + trackPad * 2 + 2;
+  }
 
   final List<DdtSegmentedControlSegment<T>> segments;
   final T? selected;
@@ -51,7 +68,7 @@ class DdtSegmentedControl<T> extends StatelessWidget {
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.11)
         : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
-    final resolvedRadius = BorderRadius.circular(_trackRadius.r);
+    final resolvedRadius = BorderRadius.circular(_pillRadius);
 
     return ClipRRect(
       borderRadius: resolvedRadius,
@@ -154,9 +171,7 @@ class _DdtSegmentedControlItemState<T>
           ),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(
-              DdtSegmentedControl._segmentRadius.r,
-            ),
+            borderRadius: BorderRadius.circular(DdtSegmentedControl._pillRadius),
             border: Border.all(color: borderColor),
           ),
           child: Row(

@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../theme/ddt_icons.dart';
@@ -6,6 +8,7 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_icon.dart';
+import 'ddt_scroll_edge_fade.dart';
 import 'ddt_shell_metrics.dart';
 
 /// Shared left column for section pages (tasks, mail, analytics).
@@ -24,14 +27,18 @@ abstract final class DdtSectionSidebar {
   static double get scrollRightInset =>
       scrollbarEdgeInset + DdtTheme.scrollbarThickness + scrollbarGap;
 
+  /// Space between the app bar reserve and the sidebar's main button.
+  /// Mail uses this for «Написать»; every other section matches it.
+  static double get contentTopInset => 2.h;
+
   static EdgeInsets contentPadding() =>
-      EdgeInsets.fromLTRB(gutter.w, 2.h, scrollRightInset.w, 12.h);
+      EdgeInsets.fromLTRB(gutter.w, contentTopInset, scrollRightInset.w, 12.h);
 
   /// [ListView] padding. The right side clears the scrollbar.
   static EdgeInsets scrollContentPadding({double? top, double? bottom}) =>
       EdgeInsets.fromLTRB(
         gutter.w,
-        top ?? 2.h,
+        top ?? contentTopInset,
         scrollRightInset.w,
         bottom ?? 12.h,
       );
@@ -171,6 +178,147 @@ class DdtSectionSidebarScroll extends StatelessWidget {
       behavior: const _SidebarScrollBehavior(),
       child: child,
     );
+  }
+}
+
+/// Pinned sidebar chrome centered on the top scroll fade.
+///
+/// [pinned] stays under the app bar. The scroll fades above and below that
+/// block by the same amount, so the block sits in the middle of the gradient.
+class DdtSectionSidebarPane extends StatefulWidget {
+  const DdtSectionSidebarPane({
+    super.key,
+    required this.pinned,
+    required this.children,
+  });
+
+  final Widget pinned;
+  final List<Widget> children;
+
+  @override
+  State<DdtSectionSidebarPane> createState() => _DdtSectionSidebarPaneState();
+}
+
+class _DdtSectionSidebarPaneState extends State<DdtSectionSidebarPane> {
+  final _scroll = ScrollController();
+  double _pinnedHeight = 0;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onPinnedSize(Size size) {
+    final next = size.height;
+    if (!mounted || (next - _pinnedHeight).abs() < 0.5) return;
+    setState(() => _pinnedHeight = next);
+  }
+
+  void _scrollBy(double dy) {
+    if (dy == 0 || !_scroll.hasClients) return;
+    final position = _scroll.position;
+    final next = (position.pixels + dy).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (next != position.pixels) position.jumpTo(next.toDouble());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pinnedTop = DdtSectionSidebar.contentTopInset;
+    final below = DdtSectionSidebar.afterTitleGap;
+    final topFade = _pinnedHeight <= 0
+        ? pinnedTop + below
+        : pinnedTop + _pinnedHeight + below;
+    final bottomFade = kDdtScrollEdgeFadeHeightCompact.h;
+
+    return DdtSectionSidebarScroll(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          return SizedBox(
+            height: height.isFinite ? height : null,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                DdtContentFadeMask(
+                  topFade: topFade,
+                  bottomFade: bottomFade,
+                  child: ListView(
+                    controller: _scroll,
+                    clipBehavior: Clip.hardEdge,
+                    padding: DdtSectionSidebar.scrollContentPadding(
+                      top: topFade,
+                      bottom: bottomFade + 12.h,
+                    ),
+                    children: widget.children,
+                  ),
+                ),
+                Positioned(
+                  top: pinnedTop,
+                  left: DdtSectionSidebar.gutter.w,
+                  right: DdtSectionSidebar.scrollRightInset.w,
+                  child: Listener(
+                    onPointerSignal: (event) {
+                      if (event is PointerScrollEvent) {
+                        _scrollBy(event.scrollDelta.dy);
+                      }
+                    },
+                    child: _ReportSize(
+                      onChange: _onPinnedSize,
+                      child: widget.pinned,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Reports its own size after layout. The render object may read its size;
+/// a parent callback may not.
+class _ReportSize extends SingleChildRenderObjectWidget {
+  const _ReportSize({required this.onChange, required super.child});
+
+  final ValueChanged<Size> onChange;
+
+  @override
+  RenderProxyBox createRenderObject(BuildContext context) {
+    return _RenderReportSize(onChange);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderReportSize renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderReportSize extends RenderProxyBox {
+  _RenderReportSize(this.onChange);
+
+  ValueChanged<Size> onChange;
+  Size? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final next = child?.size ?? Size.zero;
+    if (_last == next) return;
+    _last = next;
+    final reported = next;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_last != reported) return;
+      onChange(reported);
+    });
   }
 }
 

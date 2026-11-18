@@ -447,11 +447,16 @@ class NotesScope extends InheritedNotifier<NotesController> {
     required super.child,
   }) : super(notifier: controller);
 
-  static NotesController read(BuildContext context) {
+  static NotesController? maybeRead(BuildContext context) {
     final element = context
         .getElementForInheritedWidgetOfExactType<NotesScope>();
     final scope = element?.widget as NotesScope?;
-    assert(scope != null, 'NotesScope not found');
-    return scope!.notifier!;
+    return scope?.notifier ?? NotesCommands.current;
+  }
+
+  static NotesController read(BuildContext context) {
+    final controller = maybeRead(context);
+    assert(controller != null, 'NotesScope not found');
+    return controller!;
   }
 }

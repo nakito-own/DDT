@@ -9,6 +9,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
+import '../services/notes_controller.dart';
 import '../models/app_section.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
@@ -162,6 +163,7 @@ class DdtSectionSheetController extends ChangeNotifier {
     } on ProviderNotFoundException {
       tasksBloc = null;
     }
+    final notes = NotesScope.maybeRead(registration.hostContext);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -176,6 +178,9 @@ class DdtSectionSheetController extends ChangeNotifier {
         final tasks = tasksBloc;
         if (tasks != null) {
           body = BlocProvider.value(value: tasks, child: body);
+        }
+        if (notes != null) {
+          body = NotesScope(controller: notes, child: body);
         }
         return _SectionBottomSheet(
           title: registration.title,

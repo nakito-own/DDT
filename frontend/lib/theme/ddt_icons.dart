@@ -24,7 +24,9 @@ abstract final class DdtIcons {
   static const FaIconData remove = FontAwesomeIcons.minus;
   static const FaIconData close = FontAwesomeIcons.xmark;
   static const FaIconData closeCircle = FontAwesomeIcons.circleXmark;
-  static const FaIconData back = FontAwesomeIcons.arrowLeft;
+  static const FaIconData back = FontAwesomeIcons.chevronLeft;
+  static const FaIconData phone = FontAwesomeIcons.phone;
+  static const FaIconData briefcase = FontAwesomeIcons.briefcase;
   static const FaIconData chevronLeft = FontAwesomeIcons.chevronLeft;
   static const FaIconData chevronRight = FontAwesomeIcons.chevronRight;
   static const FaIconData chevronDown = FontAwesomeIcons.chevronDown;

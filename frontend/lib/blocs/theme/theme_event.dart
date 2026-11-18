@@ -16,3 +16,13 @@ final class ThemeLoadRequested extends ThemeEvent {
 final class ThemeToggleRequested extends ThemeEvent {
   const ThemeToggleRequested();
 }
+
+/// Включить или выключить сезонный снег.
+final class ThemeSnowChanged extends ThemeEvent {
+  const ThemeSnowChanged(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}

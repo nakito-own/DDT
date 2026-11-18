@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../theme/ddt_typography.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,6 +18,7 @@ import '../router/route_paths.dart';
 import '../screens/notes_page.dart';
 import '../services/spaces_api.dart';
 import '../theme/ddt_theme.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_context_menu.dart';
 import 'ddt_glass_app_bar.dart';
 import 'ddt_filter_dropdown.dart';
@@ -68,10 +71,12 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
     final selectedSpaceKey = _spaceKeyFromLocation(location);
     final activeMode = TasksViewMode.fromRoute(location);
     final archiveOpen = RoutePaths.isArchiveRoute(location);
+    final compact = DdtAdaptive.isCompact(context);
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
       children: [
+        if (!compact) ...[
         DdtSegmentedControl<TasksViewMode>(
           segments: const [
             DdtSegmentedControlSegment(
@@ -99,12 +104,16 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
           tooltip: 'Архив',
           icon: DdtIcons.archive,
           isActive: archiveOpen,
+          glassCircle: true,
           onPressed: selectedSpaceKey == null
               ? null
               : () => context.go(RoutePaths.spaceArchiveFor(selectedSpaceKey)),
         ),
-        SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
-        FutureBuilder<List<Space>>(
+        ],
+        if (!compact) SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
+        if (compact)
+          Expanded(
+            child: FutureBuilder<List<Space>>(
           future: _spaces,
           builder: (context, snapshot) {
             final spaces = snapshot.data ?? const <Space>[];
@@ -119,7 +128,7 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
             final loading = snapshot.connectionState == ConnectionState.waiting;
 
             return _AppBarFilterDropdown(
-              width: 220,
+              width: DdtAdaptive.isCompact(context) ? null : 220,
               label: loading
                   ? 'Загрузка…'
                   : (selectedSpace?.name ?? 'Пространство'),
@@ -140,7 +149,45 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               ),
             );
           },
-        ),
+            ),
+          )
+        else
+          FutureBuilder<List<Space>>(
+            future: _spaces,
+            builder: (context, snapshot) {
+              final spaces = snapshot.data ?? const <Space>[];
+              Space? selectedSpace;
+              for (final space in spaces) {
+                if (space.spaceKey == selectedSpaceKey) {
+                  selectedSpace = space;
+                  break;
+                }
+              }
+              final loading =
+                  snapshot.connectionState == ConnectionState.waiting;
+              return _AppBarFilterDropdown(
+                width: 220,
+                label: loading
+                    ? 'Загрузка…'
+                    : (selectedSpace?.name ?? 'Пространство'),
+                isBusy: loading,
+                active: selectedSpaceKey != null,
+                options: [
+                  for (final space in spaces)
+                    DdtFilterOption(key: space.spaceKey, label: space.name),
+                ],
+                selected: selectedSpaceKey != null
+                    ? {selectedSpaceKey}
+                    : const {},
+                emptyLabel: 'Нет пространств',
+                onSelected: (key) => context.go(
+                  archiveOpen
+                      ? RoutePaths.spaceArchiveFor(key)
+                      : activeMode.routePathForSpace(key),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -198,6 +245,7 @@ class _TasksAppBarActions extends StatelessWidget {
           tooltip: 'Архив',
           icon: DdtIcons.archive,
           isActive: archiveOpen,
+          glassCircle: true,
           onPressed: () => context.go(RoutePaths.tasksArchive),
         ),
       ],
@@ -229,6 +277,15 @@ class _MailAppBarFolderStats extends StatelessWidget {
         final sentValue = folders == null ? '…' : '${folders.sent}';
 
         if (dense) {
+          final fill = isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.white.withValues(alpha: 0.56);
+          final edge = hasError
+              ? borderColor
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.11)
+                    : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90));
+          final radius = BorderRadius.circular(999);
           Widget glassStat({
             required FaIconData icon,
             required String label,
@@ -236,17 +293,26 @@ class _MailAppBarFolderStats extends StatelessWidget {
           }) {
             return Tooltip(
               message: hasError ? state.inboxQueryErrorMessage! : label,
-              child: DdtTheme.shellAppBarGlass(
-                context: context,
-                padding: EdgeInsets.symmetric(
-                  horizontal: 10 * shell,
-                  vertical: 8 * shell,
-                ),
-                child: _MailAppBarStatItem(
-                  icon: icon,
-                  label: label,
-                  value: value,
-                  dense: true,
+              child: ClipRRect(
+                borderRadius: radius,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    height: DdtSegmentedControl.barHeight(context),
+                    padding: EdgeInsets.symmetric(horizontal: 10 * shell),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: fill,
+                      borderRadius: radius,
+                      border: Border.all(color: edge),
+                    ),
+                    child: _MailAppBarStatItem(
+                      icon: icon,
+                      label: label,
+                      value: value,
+                      dense: true,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -390,6 +456,7 @@ class _MailAppBarActions extends StatelessWidget {
               tooltip: 'Обновить почту',
               icon: DdtIcons.refresh,
               isBusy: state.isLoading || state.isRefreshingInbox,
+              glassCircle: dense,
               onPressed: () => context.read<MailBloc>().add(
                 const MailInboxRefreshRequested(showAnimation: true),
               ),
@@ -399,6 +466,7 @@ class _MailAppBarActions extends StatelessWidget {
               tooltip: selectionActive ? 'Отменить выделение' : 'Выделить',
               icon: DdtIcons.checkCircle,
               isActive: selectionActive,
+              glassCircle: dense,
               onPressed: () {
                 final bloc = context.read<MailBloc>();
                 if (selectionActive) {
@@ -435,6 +503,7 @@ class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
   String _selectionKey(AnalyticsState state) {
     return switch (state.dashboardKind) {
       AnalyticsDashboardKind.stp => 'stp',
+      AnalyticsDashboardKind.krrWorks => 'krr',
       AnalyticsDashboardKind.tasksPersonal => 'personal',
       AnalyticsDashboardKind.tasksSpace => 'space:${state.spaceId ?? 0}',
     };
@@ -443,6 +512,7 @@ class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
   String _selectionLabel(AnalyticsState state, List<Space> spaces) {
     return switch (state.dashboardKind) {
       AnalyticsDashboardKind.stp => 'КРР МР — Аналитика СТП',
+      AnalyticsDashboardKind.krrWorks => 'Версии работ КРР МР',
       AnalyticsDashboardKind.tasksPersonal => 'Личные задачи',
       AnalyticsDashboardKind.tasksSpace => () {
         final id = state.spaceId;
@@ -466,6 +536,7 @@ class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
   }) {
     _storage.write(_dashboardKindStorageKey, switch (kind) {
       AnalyticsDashboardKind.stp => 'stp',
+      AnalyticsDashboardKind.krrWorks => 'krr',
       AnalyticsDashboardKind.tasksPersonal => 'personal',
       AnalyticsDashboardKind.tasksSpace => 'space',
     });
@@ -483,26 +554,25 @@ class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
   Widget build(BuildContext context) {
     return BlocBuilder<AnalyticsBloc, AnalyticsState>(
       buildWhen: (previous, current) =>
-          previous.isLoading != current.isLoading ||
           previous.dashboardKind != current.dashboardKind ||
           previous.spaceId != current.spaceId ||
-          previous.dashboard?.sheetName != current.dashboard?.sheetName,
+          previous.dashboard?.spaceName != current.dashboard?.spaceName,
       builder: (context, state) {
-        final loading = state.isLoading && state.dashboard == null;
-
         return FutureBuilder<List<Space>>(
           future: _spaces,
           builder: (context, snapshot) {
             final spaces = snapshot.data ?? const <Space>[];
             final selectedKey = _selectionKey(state);
-            final label = loading
-                ? 'Загрузка…'
-                : _selectionLabel(state, spaces);
+            final label = _selectionLabel(state, spaces);
 
             final options = [
               const DdtFilterOption(
                 key: 'stp',
                 label: 'КРР МР — Аналитика СТП',
+              ),
+              const DdtFilterOption(
+                key: 'krr',
+                label: 'Версии работ КРР МР',
               ),
               const DdtFilterOption(key: 'personal', label: 'Личные задачи'),
               for (final space in spaces)
@@ -513,18 +583,19 @@ class _AnalyticsAppBarActionsState extends State<_AnalyticsAppBarActions> {
             ];
 
             return _AppBarFilterDropdown(
-              width: 280,
+              width: DdtAdaptive.isCompact(context) ? null : 280,
               label: label,
-              isBusy:
-                  loading ||
-                  snapshot.connectionState == ConnectionState.waiting,
-              active: !loading,
+              active: true,
               options: options,
-              selected: loading ? const {} : {selectedKey},
+              selected: {selectedKey},
               emptyLabel: 'Нет дашбордов',
               onSelected: (key) {
                 if (key == 'stp') {
                   _selectDashboard(context, kind: AnalyticsDashboardKind.stp);
+                  return;
+                }
+                if (key == 'krr') {
+                  _selectDashboard(context, kind: AnalyticsDashboardKind.krrWorks);
                   return;
                 }
                 if (key == 'personal') {
@@ -649,6 +720,7 @@ class _CalendarAppBarActions extends StatelessWidget {
           const _AppBarIconAction(
             tooltip: 'Добавить календарь',
             icon: DdtIcons.calendarPlus,
+            glassCircle: true,
             contextMenuItems: _addCalendarMenuItems,
           ),
         ],
@@ -669,7 +741,7 @@ class _AppBarFilterDropdown extends StatelessWidget {
     this.emptyLabel = 'Нет значений',
   });
 
-  final double width;
+  final double? width;
   final String label;
   final List<DdtFilterOption> options;
   final Set<String> selected;
@@ -680,10 +752,15 @@ class _AppBarFilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final menuWidth = DdtTheme.shellSizeOf(context, width);
-
-    return SizedBox(
-      width: menuWidth,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fixed = width;
+        final bounded = constraints.maxWidth.isFinite;
+        final menuWidth = fixed == null
+            ? (bounded ? constraints.maxWidth : 280.0)
+            : DdtTheme.shellSizeOf(context, fixed);
+        return SizedBox(
+      width: fixed == null ? (bounded ? constraints.maxWidth : null) : menuWidth,
       height: kDdtCompactFilterDropdownHeight,
       child: Builder(
         builder: (anchorContext) {
@@ -691,6 +768,7 @@ class _AppBarFilterDropdown extends StatelessWidget {
             label: label,
             active: active,
             compact: true,
+            frosted: fixed == null,
             onTap: isBusy
                 ? () {}
                 : () => showDdtSearchableFilterMenu(
@@ -707,6 +785,8 @@ class _AppBarFilterDropdown extends StatelessWidget {
         },
       ),
     );
+      },
+    );
   }
 }
 
@@ -718,6 +798,7 @@ class _AppBarIconAction extends StatefulWidget {
     this.contextMenuItems,
     this.isBusy = false,
     this.isActive = false,
+    this.glassCircle = false,
   });
 
   final String tooltip;
@@ -726,6 +807,7 @@ class _AppBarIconAction extends StatefulWidget {
   final List<DdtContextMenuItem>? contextMenuItems;
   final bool isBusy;
   final bool isActive;
+  final bool glassCircle;
 
   @override
   State<_AppBarIconAction> createState() => _AppBarIconActionState();
@@ -779,32 +861,70 @@ class _AppBarIconActionState extends State<_AppBarIconAction> {
                     : const Color(0xFFF1F5F9))
               : Colors.transparent);
 
+    final diameter = DdtSegmentedControl.barHeight(context);
+    final glassFill = widget.isActive
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.22 : 0.12)
+        : (isDark
+              ? Colors.white.withValues(alpha: _hovered ? 0.10 : 0.05)
+              : Colors.white.withValues(alpha: _hovered ? 0.72 : 0.56));
+    final glassBorder = widget.isActive
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.35 : 0.22)
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.11)
+              : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90));
+    final button = IconButton(
+      tooltip: widget.tooltip,
+      visualDensity: widget.glassCircle
+          ? VisualDensity.standard
+          : VisualDensity.compact,
+      padding: widget.glassCircle
+          ? EdgeInsets.zero
+          : DdtGlassAppBar.actionIconButtonPadding(context),
+      constraints: widget.glassCircle
+          ? BoxConstraints.tightFor(width: diameter, height: diameter)
+          : DdtGlassAppBar.actionIconButtonConstraints(context),
+      onPressed: onPressed,
+      icon: icon,
+    );
+    final buttonBody = widget.glassCircle
+        ? SizedBox(
+            width: diameter,
+            height: diameter,
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: glassFill,
+                    border: Border.all(color: glassBorder),
+                  ),
+                  child: button,
+                ),
+              ),
+            ),
+          )
+        : Container(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: DdtTheme.inputControlBorderRadius,
+              border: Border.all(
+                color: widget.isActive
+                    ? DdtTheme.primaryColor.withValues(
+                        alpha: isDark ? 0.35 : 0.22,
+                      )
+                    : Colors.transparent,
+              ),
+            ),
+            child: button,
+          );
+
     return KeyedSubtree(
       key: _anchorKey,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: DdtTheme.inputControlBorderRadius,
-            border: Border.all(
-              color: widget.isActive
-                  ? DdtTheme.primaryColor.withValues(
-                      alpha: isDark ? 0.35 : 0.22,
-                    )
-                  : Colors.transparent,
-            ),
-          ),
-          child: IconButton(
-            tooltip: widget.tooltip,
-            visualDensity: VisualDensity.compact,
-            padding: DdtGlassAppBar.actionIconButtonPadding(context),
-            constraints: DdtGlassAppBar.actionIconButtonConstraints(context),
-            onPressed: onPressed,
-            icon: icon,
-          ),
-        ),
+        child: buttonBody,
       ),
     );
   }
@@ -819,19 +939,21 @@ class CalendarViewSwitcher extends StatelessWidget {
     return BlocBuilder<CalendarBloc, CalendarState>(
       buildWhen: (previous, current) => previous.viewMode != current.viewMode,
       builder: (context, state) {
+        final compact = DdtAdaptive.isCompact(context);
         return DdtSegmentedControl<CalendarViewMode>(
-          segments: const [
-            DdtSegmentedControlSegment(
+          segments: [
+            const DdtSegmentedControlSegment(
               value: CalendarViewMode.day,
               label: 'День',
               icon: DdtIcons.clock,
             ),
-            DdtSegmentedControlSegment(
-              value: CalendarViewMode.week,
-              label: 'Неделя',
-              icon: DdtIcons.calendar,
-            ),
-            DdtSegmentedControlSegment(
+            if (!compact)
+              const DdtSegmentedControlSegment(
+                value: CalendarViewMode.week,
+                label: 'Неделя',
+                icon: DdtIcons.calendar,
+              ),
+            const DdtSegmentedControlSegment(
               value: CalendarViewMode.month,
               label: 'Месяц',
               icon: DdtIcons.calendarPlus,
@@ -850,12 +972,13 @@ class CalendarViewSwitcher extends StatelessWidget {
 class CalendarMobileViewBar extends StatelessWidget {
   const CalendarMobileViewBar({super.key});
 
-  static const double reserve = 64;
+  static const double navGap = 4;
+  static const double reserve = 56;
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: navGap),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -884,6 +1007,7 @@ class _CalendarRefreshAction extends StatelessWidget {
             tooltip: 'Обновить календарь',
             icon: DdtIcons.refresh,
             isBusy: state.isRefreshing || state.isLoading,
+            glassCircle: true,
             onPressed: () => context.read<CalendarBloc>().add(
               const CalendarEventsRefreshRequested(showAnimation: true),
             ),
@@ -904,6 +1028,7 @@ class _CalendarAddAction extends StatelessWidget {
       child: const _AppBarIconAction(
         tooltip: 'Добавить календарь',
         icon: DdtIcons.calendarPlus,
+        glassCircle: true,
         contextMenuItems: _CalendarAppBarActions._addCalendarMenuItems,
       ),
     );
@@ -914,12 +1039,13 @@ class _CalendarAddAction extends StatelessWidget {
 class TasksMobileViewBar extends StatelessWidget {
   const TasksMobileViewBar({super.key});
 
-  static const double reserve = 64;
+  static const double navGap = 4;
+  static const double reserve = 56;
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: navGap),
       child: _TasksAppBarActions(),
     );
   }
@@ -934,7 +1060,7 @@ class MailMobileDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: TasksMobileViewBar.navGap),
       child: _MailAppBarActions(dense: true),
     );
   }

@@ -37,25 +37,14 @@ class _ContactsPageState extends State<ContactsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final belowBar = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+    final listTop = belowBar + DdtTheme.inputControlHeight + 12;
     return BlocProvider.value(
       value: _bloc,
-      child: Column(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Padding(
-            padding: DdtShellMetrics.fixedTopPadding(context).copyWith(
-              bottom: 12.h,
-            ),
-            child: DdtAppInput(
-              hint: 'Поиск контактов',
-              type: InputType.search,
-              variant: DdtInputVariant.pill,
-              prefixIcon: DdtIcons.search,
-              onChanged: (value) =>
-                  _bloc.add(ContactsSearchQueryChanged(value)),
-            ),
-          ),
-          Expanded(
-            child: BlocBuilder<ContactsBloc, ContactsState>(
+          BlocBuilder<ContactsBloc, ContactsState>(
               builder: (context, state) {
                 if (state.isLoading && state.contacts.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
@@ -87,7 +76,10 @@ class _ContactsPageState extends State<ContactsPage> {
                         _bloc.add(const ContactsLoadRequested()),
                     child: state.contacts.isEmpty
                         ? ListView(
-                            padding: EdgeInsets.only(bottom: bottomPad),
+                            padding: EdgeInsets.only(
+                              top: listTop,
+                              bottom: bottomPad,
+                            ),
                             children: [
                               SizedBox(height: 120.h),
                               Center(
@@ -101,7 +93,10 @@ class _ContactsPageState extends State<ContactsPage> {
                             ],
                           )
                         : ListView.separated(
-                            padding: EdgeInsets.only(bottom: bottomPad),
+                            padding: EdgeInsets.only(
+                              top: listTop,
+                              bottom: bottomPad,
+                            ),
                             itemCount: state.contacts.length,
                             separatorBuilder: (_, _) =>
                                 SizedBox(height: 8.h),
@@ -114,6 +109,18 @@ class _ContactsPageState extends State<ContactsPage> {
                   ),
                 );
               },
+            ),
+          Positioned(
+            top: belowBar,
+            left: 12,
+            right: 12,
+            child: DdtAppInput(
+              hint: 'Поиск контактов',
+              type: InputType.search,
+              variant: DdtInputVariant.pill,
+              prefixIcon: DdtIcons.search,
+              onChanged: (value) =>
+                  _bloc.add(ContactsSearchQueryChanged(value)),
             ),
           ),
         ],
