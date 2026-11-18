@@ -1,11 +1,17 @@
 import json
+import logging
 from pathlib import Path
 
+import httplib2
+from google.auth.exceptions import TransportError
 from google.oauth2 import service_account
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _SCOPES = ("https://www.googleapis.com/auth/spreadsheets.readonly",)
 
@@ -63,19 +69,27 @@ class GoogleSheetsClient:
     def __init__(self) -> None:
         self._credentials: service_account.Credentials | None = None
 
-    def _service(self):
+    def _authorized_http(self) -> AuthorizedHttp:
         if self._credentials is None:
             self._credentials = _load_credentials()
-        return build(
-            "sheets",
-            "v4",
-            credentials=self._credentials,
-            cache_discovery=False,
+        timeout = max(5.0, settings.google_sheets_timeout_seconds)
+        # One HTTP client per request: httplib2.Http is not safe to share across calls.
+        return AuthorizedHttp(
+            self._credentials,
+            http=httplib2.Http(timeout=timeout),
         )
 
     def fetch_sheet_values(self, spreadsheet_id: str, sheet_name: str) -> list[list[object]]:
         try:
-            service = self._service()
+            # static_discovery skips the discovery-document download, which
+            # otherwise runs on every request and surfaces as TimeoutError.
+            service = build(
+                "sheets",
+                "v4",
+                http=self._authorized_http(),
+                cache_discovery=False,
+                static_discovery=True,
+            )
             result = (
                 service.spreadsheets()
                 .values()
@@ -86,7 +100,7 @@ class GoogleSheetsClient:
                     valueRenderOption="FORMATTED_VALUE",
                     dateTimeRenderOption="FORMATTED_STRING",
                 )
-                .execute()
+                .execute(num_retries=1)
             )
         except HttpError as exc:
             try:
@@ -107,6 +121,18 @@ class GoogleSheetsClient:
             raise GoogleSheetsAccessError(
                 "Google Sheets API request failed",
                 status_code=status or 502,
+            ) from exc
+        except TimeoutError as exc:
+            logger.warning("Google Sheets request timed out: %s", exc)
+            raise GoogleSheetsAccessError(
+                "Не удалось получить таблицу аналитики: истекло время ожидания Google Sheets.",
+                status_code=504,
+            ) from exc
+        except (OSError, httplib2.HttpLib2Error, TransportError) as exc:
+            logger.warning("Google Sheets request failed: %s", exc)
+            raise GoogleSheetsAccessError(
+                "Не удалось получить таблицу аналитики из Google Sheets.",
+                status_code=502,
             ) from exc
 
         return result.get("values", [])

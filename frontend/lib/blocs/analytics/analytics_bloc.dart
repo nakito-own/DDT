@@ -3,16 +3,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../models/analytics_dashboard.dart';
 import '../../models/analytics_filters.dart';
+import '../../models/krr_dashboard.dart';
 import '../../services/analytics_api.dart';
+import '../../services/krr_api.dart';
 import '../../services/task_analytics_api.dart';
 
 part 'analytics_event.dart';
 part 'analytics_state.dart';
 
 class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
-  AnalyticsBloc({AnalyticsApi? api, TaskAnalyticsApi? taskApi})
+  AnalyticsBloc({AnalyticsApi? api, TaskAnalyticsApi? taskApi, KrrApi? krrApi})
     : _api = api ?? analyticsApi,
       _taskApi = taskApi ?? taskAnalyticsApi,
+      _krrApi = krrApi ?? krrApiInstance,
       super(const AnalyticsState()) {
     on<AnalyticsLoadRequested>(_onLoadRequested);
     on<AnalyticsRefreshRequested>(_onRefreshRequested);
@@ -30,6 +33,7 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
 
   final AnalyticsApi _api;
   final TaskAnalyticsApi _taskApi;
+  final KrrApi _krrApi;
   int _requestId = 0;
 
   Future<void> _onLoadRequested(
@@ -132,7 +136,26 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     bool allowStale = false,
   }) async {
     final requestId = ++_requestId;
+    final kind = state.dashboardKind;
     try {
+      if (kind == AnalyticsDashboardKind.krrWorks) {
+        final dashboard = await _krrApi.query(
+          filters: state.filters,
+          tableLimit: state.tableLimit,
+        );
+        if (requestId != _requestId) return;
+        emit(
+          state.copyWith(
+            isLoading: false,
+            isRefreshing: false,
+            clearDashboard: true,
+            krrDashboard: dashboard,
+            filters: state.filters.prunedTo(dashboard.columns),
+            errorMessage: () => null,
+          ),
+        );
+        return;
+      }
       final dashboard = await _fetchDashboard(
         refresh: refresh,
         allowStale: allowStale,
@@ -142,6 +165,7 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
         state.copyWith(
           isLoading: false,
           isRefreshing: false,
+          clearKrr: true,
           dashboard: dashboard,
           filters: state.filters.prunedTo(dashboard.columns),
           errorMessage: () => null,

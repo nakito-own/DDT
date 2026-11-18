@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import 'ddt_app_input.dart';
+import 'ddt_scene_veil.dart';
 
 /// Fixed footprint of the standard confirm / prompt window.
 const double _kDialogWidth = 420;
@@ -19,8 +19,8 @@ const double _kDialogTallHeight = 560;
 
 const Duration _kDialogDuration = Duration(milliseconds: 220);
 const Curve _kDialogCurve = Curves.easeOutCubic;
-const double _kDialogBlurSigma = 3.5;
-const double _kDialogBarrierOpacity = 0.58;
+/// Same strength as a normal alert barrier (`Colors.black54`).
+const double _kDialogBarrierOpacity = 0.54;
 
 enum DdtDialogActionKind { neutral, primary, danger }
 
@@ -36,7 +36,7 @@ class DdtDialogAction {
   final DdtDialogActionKind kind;
 }
 
-/// Centered modal with a fixed size, a dimmed blurred page behind it,
+/// Centered modal with a fixed size, a dimmed page behind it,
 /// and a short scale-and-fade entrance.
 Future<T?> showDdtDialog<T>({
   required BuildContext context,
@@ -124,13 +124,9 @@ Future<String?> showDdtTextPrompt(
   );
 }
 
-/// Dims and blurs whatever is already on screen under a modal route.
+/// Dims whatever is already on screen under a modal route.
 class DdtModalBarrier extends StatefulWidget {
-  const DdtModalBarrier({
-    super.key,
-    required this.animation,
-    this.onDismiss,
-  });
+  const DdtModalBarrier({super.key, required this.animation, this.onDismiss});
 
   final Animation<double> animation;
   final VoidCallback? onDismiss;
@@ -161,15 +157,7 @@ class _DdtModalBarrierState extends State<DdtModalBarrier> {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onDismiss,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: _kDialogBlurSigma * t,
-              sigmaY: _kDialogBlurSigma * t,
-            ),
-            child: ColoredBox(
-              color: Colors.black.withValues(alpha: _kDialogBarrierOpacity * t),
-            ),
-          ),
+          child: DdtSceneVeil(t: t, dimOpacity: _kDialogBarrierOpacity),
         );
       },
     );

@@ -860,7 +860,7 @@ class DdtTheme {
         iconTheme: const IconThemeData(size: 20, color: lightTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
-        scaffoldBackgroundColor: lightBackground,
+        scaffoldBackgroundColor: Colors.transparent,
         colorScheme: theme.colorScheme.copyWith(
           primary: primaryColor,
           secondary: accentColor,
@@ -987,7 +987,7 @@ class DdtTheme {
         iconTheme: const IconThemeData(size: 20, color: darkTextSecondary),
         textTheme: typography,
         primaryTextTheme: typography,
-        scaffoldBackgroundColor: darkBackground,
+        scaffoldBackgroundColor: Colors.transparent,
         colorScheme: theme.colorScheme.copyWith(
           primary: primaryColor,
           secondary: accentColor,

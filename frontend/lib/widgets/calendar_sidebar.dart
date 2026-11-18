@@ -12,6 +12,7 @@ import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../screens/event_create_page.dart';
+import 'ddt_adaptive.dart';
 import 'ddt_app_input.dart';
 import 'ddt_checkbox.dart';
 import 'ddt_icon.dart';
@@ -52,15 +53,17 @@ class CalendarSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  DdtSectionSidebarField(
-                    gapAbove: false,
-                    child: DdtPanelPrimaryButton(
-                      label: 'Событие',
-                      icon: DdtIcons.add,
-                      onPressed: () => openEventCreatePage(context),
+                  if (!DdtAdaptive.isCompact(context)) ...[
+                    DdtSectionSidebarField(
+                      gapAbove: false,
+                      child: DdtPanelPrimaryButton(
+                        label: 'Событие',
+                        icon: DdtIcons.add,
+                        onPressed: () => openEventCreatePage(context),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
+                    SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
+                  ],
                   _CalendarMiniView(state: state),
                 ],
               ),

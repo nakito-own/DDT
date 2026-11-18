@@ -371,6 +371,18 @@ class _TaskEditPageState extends State<TaskEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    return DdtPageShortcuts(
+      onEscape: () {
+        if (ddtPopOverlayIfAny(context)) return;
+        _close();
+      },
+      onCommandEnter: () =>
+          _submit(personal: context.read<TasksBloc>().spaceKey == null),
+      child: _buildPage(context),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }

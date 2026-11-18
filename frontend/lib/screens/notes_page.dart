@@ -17,7 +17,12 @@ import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_dialog.dart';
 import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_filter_dropdown.dart';
+import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_icon.dart';
+import '../widgets/ddt_mobile_navigation_bar.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
+import '../widgets/ddt_round_back_button.dart';
+import '../widgets/ddt_scroll_to_top.dart';
 import '../widgets/ddt_markdown_description_input.dart';
 import '../widgets/ddt_markdown_live_controller.dart';
 import '../widgets/ddt_panel_primary_button.dart';
@@ -72,12 +77,32 @@ class _NotesShellPageState extends State<NotesShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = DdtAdaptive.isCompact(context);
+    final browsing = GoRouterState.of(context).uri.path == RoutePaths.notes;
     return NotesScope(
       controller: _notes,
-      child: DdtAdaptiveSectionColumns(
-        sheetTitle: 'Фильтры',
-        sidebar: const _NotesFiltersPanel(),
-        body: widget.child,
+      child: DdtScrollToTopOverlay(
+        enabled: compact,
+        child: DdtAdaptiveSectionColumns(
+          sheetTitle: 'Фильтры',
+          sidebar: const _NotesFiltersPanel(),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              widget.child,
+              if (compact && browsing)
+                Positioned(
+                  right: DdtMobileNavigationBar.horizontalMargin(context),
+                  bottom: DdtGlassFab.bottomOffset(context),
+                  child: DdtGlassFab(
+                    icon: DdtIcons.add,
+                    tooltip: 'Новая заметка',
+                    onPressed: () => _createNote(context, _notes),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -188,7 +213,13 @@ class _NotesBrowserPageState extends State<NotesBrowserPage> {
                   : DdtScrollEdgeFade(
                       showTop: false,
                       child: ListView.separated(
-                        padding: EdgeInsets.only(bottom: 12.h),
+                        padding: EdgeInsets.only(
+                          bottom:
+                              DdtScrollEdgeFade.listBottomPadding(context) +
+                              (DdtAdaptive.isCompact(context)
+                                  ? DdtGlassFab.size + 12
+                                  : 0),
+                        ),
                         clipBehavior: Clip.none,
                         itemCount: roots.length,
                         separatorBuilder: (context, index) =>
@@ -245,6 +276,18 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   String _status = '';
   String _savedTitle = '';
   String _savedBody = '';
+  final _chromeKey = GlobalKey();
+  double _chromeHeight = 148;
+
+  void _syncChromeHeight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _chromeKey.currentContext?.findRenderObject() as RenderBox?;
+      final next = box?.size.height;
+      if (next == null || (next - _chromeHeight).abs() < 0.5) return;
+      setState(() => _chromeHeight = next);
+    });
+  }
 
   @override
   void initState() {
@@ -422,8 +465,20 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _closeEditor();
   }
 
+  void _onEscape() {
+    if (ddtPopOverlayIfAny(context)) return;
+    _back();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return DdtPageShortcuts(
+      onEscape: _onEscape,
+      child: _buildEditor(context),
+    );
+  }
+
+  Widget _buildEditor(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -433,28 +488,53 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     final top = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
     final bottom = DdtShellMetrics.contentBottomPadding(context);
+    _syncChromeHeight();
     final titleStyle = DdtTheme.style(
       fontSize: DdtTypography.entityTitleSize,
       fontWeight: FontWeight.w700,
       color: DdtTheme.textPrimary(context),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(20.w, top + 12.h, 12.w, 0),
+          padding: EdgeInsets.only(top: _chromeHeight),
+          child: DdtScrollEdgeFade(
+            showTop: false,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, bottom),
+              children: [
+                DdtMarkdownDescriptionInput(
+                  controller: _body,
+                  focusNode: _bodyFocus,
+                  label: null,
+                  hint: 'Текст заметки',
+                  minLines: 8,
+                  plain: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          key: _chromeKey,
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            DdtRoundBackButton.screenInset,
+            top + 12.h,
+            20.w,
+            0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  _NoteIconButton(
-                    icon: DdtIcons.chevronLeft,
-                    tooltip: 'К списку',
-                    onPressed: _back,
-                  ),
-                  SizedBox(width: 8.w),
+                  DdtRoundBackButton(tooltip: 'К списку', onPressed: _back),
+                  const SizedBox(width: DdtRoundBackButton.labelGap),
                   Expanded(
                     child: Text(
                       'ЗАМЕТКА',
@@ -492,31 +572,20 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 ],
               ),
               SizedBox(height: 8.h),
-              _NoteTitleField(
-                controller: _title,
-                focusNode: _titleFocus,
-                style: titleStyle,
-                onSubmitted: (_) => _bodyFocus.requestFocus(),
+              Padding(
+                padding: EdgeInsets.only(
+                  left: DdtRoundBackButton.contentLead(20.w),
+                ),
+                child: _NoteTitleField(
+                  controller: _title,
+                  focusNode: _titleFocus,
+                  style: titleStyle,
+                  onSubmitted: (_) => _bodyFocus.requestFocus(),
+                ),
               ),
             ],
           ),
         ),
-        Expanded(
-          child: DdtScrollEdgeFade(
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, bottom),
-              children: [
-                DdtMarkdownDescriptionInput(
-                  controller: _body,
-                  focusNode: _bodyFocus,
-                  label: null,
-                  hint: 'Текст заметки',
-                  minLines: 8,
-                  plain: true,
-                ),
-              ],
-            ),
-          ),
         ),
       ],
     );
@@ -542,10 +611,9 @@ class _NotesFiltersPanelState extends State<_NotesFiltersPanel> {
   @override
   Widget build(BuildContext context) {
     final notes = NotesScope.read(context);
-    return DdtSectionSidebarScroll(
-      child: ListView(
-        clipBehavior: Clip.none,
-        padding: DdtSectionSidebar.scrollContentPadding(),
+    return DdtSectionSidebarPane(
+      pinned: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DdtSectionSidebarField(
             gapAbove: false,
@@ -557,7 +625,9 @@ class _NotesFiltersPanelState extends State<_NotesFiltersPanel> {
           ),
           SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
           const DdtSectionSidebarTitle(),
-          SizedBox(height: DdtSectionSidebar.afterTitleGap),
+        ],
+      ),
+      children: [
           DdtSectionSidebarField(
             label: 'Поиск',
             gapAbove: false,
@@ -575,8 +645,7 @@ class _NotesFiltersPanelState extends State<_NotesFiltersPanel> {
             listenable: notes,
             builder: (context, _) => _NotesFilterFields(notes: notes),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -1222,7 +1291,7 @@ class _FolderCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.title,
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: DdtTheme.style(
                     fontSize: DdtTypography.bodySize,
@@ -1268,7 +1337,7 @@ class _NoteBody extends StatelessWidget {
         children: [
           Text(
             item.title,
-            maxLines: 1,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: DdtTheme.style(
               fontSize: DdtTypography.bodySize,
@@ -1466,7 +1535,9 @@ class _NoteTitleField extends StatelessWidget {
       cursorColor: accent,
       cursorWidth: 1.4,
       textCapitalization: TextCapitalization.sentences,
-      textInputAction: TextInputAction.next,
+      textInputAction: TextInputAction.newline,
+      minLines: 1,
+      maxLines: 6,
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         isCollapsed: true,

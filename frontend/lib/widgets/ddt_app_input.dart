@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_icon.dart';
 
 enum DdtInputVariant { standard, compact, pill }
@@ -55,6 +56,7 @@ class DdtAppInput extends StatefulWidget {
     this.textAlign = TextAlign.start,
     this.obscureText,
     this.filled = true,
+    this.submitOnEnter = false,
   });
 
   final String? label;
@@ -100,6 +102,10 @@ class DdtAppInput extends StatefulWidget {
   final bool? obscureText;
   final bool filled;
 
+  /// Enter submits instead of inserting a line break. Shift+Enter still
+  /// inserts a line break. Used for desktop web comments.
+  final bool submitOnEnter;
+
   @override
   State<DdtAppInput> createState() => _DdtAppInputState();
 }
@@ -122,6 +128,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
     _focusNode = widget.focusNode ?? FocusNode();
     _focusNode.addListener(_handleFocusChange);
     _obscureText = widget.obscureText ?? widget.type == InputType.password;
+    _syncEnterShortcut();
   }
 
   @override
@@ -130,10 +137,12 @@ class _DdtAppInputState extends State<DdtAppInput> {
     if (widget.obscureText != null && widget.obscureText != _obscureText) {
       _obscureText = widget.obscureText!;
     }
+    _syncEnterShortcut();
   }
 
   @override
   void dispose() {
+    DdtDesktopShortcutRegistry.unbindEnter(_focusNode);
     _focusNode.removeListener(_handleFocusChange);
     if (_ownsFocusNode) _focusNode.dispose();
     if (_ownsController) _controller.dispose();
@@ -141,6 +150,21 @@ class _DdtAppInputState extends State<DdtAppInput> {
   }
 
   void _handleFocusChange() => setState(() {});
+
+  bool get _enterSubmits {
+    if (!ddtDesktopWeb || widget.onSubmitted == null) return false;
+    if (!widget.enabled || widget.readOnly) return false;
+    if (widget.submitOnEnter) return true;
+    if (_resolvedMaxLines != 1) return false;
+    return widget.textInputAction != TextInputAction.newline;
+  }
+
+  void _syncEnterShortcut() {
+    DdtDesktopShortcutRegistry.bindEnter(
+      _focusNode,
+      _enterSubmits ? () => widget.onSubmitted!(_controller.text) : null,
+    );
+  }
 
   bool get _isFocused => _focusNode.hasFocus;
   BorderRadius get _radius {
@@ -360,7 +384,7 @@ class _DdtAppInputState extends State<DdtAppInput> {
             fieldState.didChange(value);
             widget.onChanged?.call(value);
           },
-          onSubmitted: widget.onSubmitted,
+          onSubmitted: widget.submitOnEnter ? null : widget.onSubmitted,
           onTap: widget.onTap,
           autofillHints: widget.autofillHints,
           inputFormatters: _formatters(),

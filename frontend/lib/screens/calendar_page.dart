@@ -12,9 +12,13 @@ import '../theme/ddt_icons.dart';
 import '../widgets/calendar_event_card.dart';
 import '../widgets/calendar_event_tooltip.dart';
 import '../widgets/calendar_sidebar.dart';
+import '../screens/event_create_page.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
+import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_mobile_navigation_bar.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../theme/ddt_typography.dart';
@@ -51,8 +55,14 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_mobileDayRequested || !DdtAdaptive.isCompact(context)) return;
+    if (!DdtAdaptive.isCompact(context)) return;
     final bloc = context.read<CalendarBloc>();
+    if (bloc.state.viewMode == CalendarViewMode.week) {
+      bloc.add(const CalendarViewModeChanged(CalendarViewMode.day));
+      _mobileDayRequested = true;
+      return;
+    }
+    if (_mobileDayRequested) return;
     if (bloc.viewModeChosen) {
       _mobileDayRequested = true;
       return;
@@ -212,48 +222,152 @@ class _CalendarPageState extends State<CalendarPage> {
                   );
                 }
 
-                return Padding(
-                  padding: DdtShellMetrics.fixedTopPadding(context),
-                  child: compact
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Center(child: CalendarAppBarDateNav()),
-                            Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(
-                                  bottom:
-                                      CalendarMobileViewBar.reserve +
-                                      (DdtAdaptive.floatingBottomBar(context)
-                                          ? DdtMobileNavigationBar.clearance(
-                                              context,
-                                            )
-                                          : 0),
-                                ),
-                                child: content,
-                              ),
-                            ),
-                          ],
-                        )
-                      : content,
-                );
+                if (!compact) {
+                  return Padding(
+                    padding: DdtShellMetrics.fixedTopPadding(context),
+                    child: content,
+                  );
+                }
+                return DdtScrollEdgeFade(child: content);
               },
             ),
-            if (DdtAdaptive.isCompact(context))
+            if (DdtAdaptive.isCompact(context)) ...[
+              Positioned(
+                top: DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0,
+                left: 0,
+                right: 0,
+                child: const _CalendarCompactDateBar(),
+              ),
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: DdtAdaptive.floatingBottomBar(context)
                     ? DdtMobileNavigationBar.clearance(context)
                     : 0,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [CalendarMobileViewBar()],
+                child: const Center(child: CalendarMobileViewBar()),
+              ),
+              Positioned(
+                right: DdtMobileNavigationBar.horizontalMargin(context),
+                bottom: DdtGlassFab.bottomOffset(context),
+                child: DdtGlassFab(
+                  icon: DdtIcons.add,
+                  tooltip: 'Новое событие',
+                  onPressed: () => openEventCreatePage(context),
                 ),
               ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CalendarCompactDateBar extends StatelessWidget {
+  const _CalendarCompactDateBar();
+
+  static const _weekdays = [
+    'Понедельник',
+    'Вторник',
+    'Среда',
+    'Четверг',
+    'Пятница',
+    'Суббота',
+    'Воскресенье',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = DdtTheme.textPrimary(context);
+    return BlocBuilder<CalendarBloc, CalendarState>(
+      buildWhen: (previous, current) =>
+          previous.viewMode != current.viewMode ||
+          previous.focusedDate != current.focusedDate,
+      builder: (context, state) {
+        final day = state.effectiveFocusedDate;
+        final isToday = _isSameDay(day, DateTime.now());
+        final accent = Theme.of(context).brightness == Brightness.dark
+            ? DdtTheme.accentColor
+            : DdtTheme.primaryColor;
+        return SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Назад',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => context.read<CalendarBloc>().add(
+                  const CalendarGoPreviousRequested(),
+                ),
+                icon: DdtIcon(DdtIcons.chevronLeft, size: 16.sp, color: foreground),
+              ),
+              Expanded(
+                child: state.viewMode == CalendarViewMode.day
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _weekdays[day.weekday - 1],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.bodySize,
+                                fontWeight: FontWeight.w600,
+                                color: isToday ? accent : foreground,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8.w),
+                          Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isToday
+                                  ? DdtTheme.primaryColor
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${day.day}',
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.bodySize,
+                                fontWeight: FontWeight.w700,
+                                color: isToday ? Colors.white : foreground,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        state.titleLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.bodySize,
+                          fontWeight: FontWeight.w600,
+                          color: foreground,
+                        ),
+                      ),
+              ),
+              IconButton(
+                tooltip: 'Вперёд',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => context.read<CalendarBloc>().add(
+                  const CalendarGoNextRequested(),
+                ),
+                icon: DdtIcon(
+                  DdtIcons.chevronRight,
+                  size: 16.sp,
+                  color: foreground,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -589,9 +703,12 @@ class _PlannerCalendarState extends State<_PlannerCalendar> {
         heightPerMinute * (now.hour * 60 + now.minute) - _timeLineTopMargin;
 
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
+    final compact = DdtAdaptive.isCompact(context);
+    final belowBar = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
+    final resolvedHeaderHeight = compact ? belowBar + 48 : headerHeight;
 
     return ClipRRect(
-      borderRadius: DdtTheme.radius,
+      borderRadius: compact ? BorderRadius.zero : DdtTheme.radius,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.metrics.axis != Axis.vertical) return false;
@@ -627,10 +744,11 @@ class _PlannerCalendarState extends State<_PlannerCalendar> {
             bloc.add(CalendarPlannerDayChanged(day));
           },
           daysHeaderParam: DaysHeaderParam(
-            daysHeaderHeight: headerHeight,
+            daysHeaderHeight: resolvedHeaderHeight,
             daysHeaderColor: Colors.transparent,
-            dayHeaderBuilder: (day, isToday) =>
-                _CalendarBody.buildDayHeader(context, day, isToday),
+            dayHeaderBuilder: (day, isToday) => compact
+                ? const SizedBox.shrink()
+                : _CalendarBody.buildDayHeader(context, day, isToday),
           ),
           fullDayParam: FullDayParam(
             fullDayEventsBarVisibility: widget.showAllDayBar,
@@ -775,10 +893,14 @@ class _MonthCalendarState extends State<_MonthCalendar> {
   @override
   Widget build(BuildContext context) {
     final textSecondary = DdtTheme.taskCardTextSecondary(context);
+    final compact = DdtAdaptive.isCompact(context);
+    final belowBar = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
 
     final theme = Theme.of(context);
-    return ClipRRect(
-      borderRadius: DdtTheme.radius,
+    return Padding(
+      padding: EdgeInsets.only(top: compact ? belowBar + 48 : 0),
+      child: ClipRRect(
+      borderRadius: compact ? BorderRadius.zero : DdtTheme.radius,
       child: Theme(
         data: theme.copyWith(
           appBarTheme: theme.appBarTheme.copyWith(
@@ -831,6 +953,7 @@ class _MonthCalendarState extends State<_MonthCalendar> {
           ),
           pinchToZoomParam: PinchToZoom(pinchToZoom: false),
         ),
+      ),
       ),
     );
   }

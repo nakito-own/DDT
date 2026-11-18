@@ -13,10 +13,10 @@ from app.routers import (
     ews_auth,
     ews_notifications,
     health,
+    krr,
     notes,
     owa,
     spaces,
-    static_assets,
     task_analytics,
     task_types,
     tasks,
@@ -72,7 +72,6 @@ async def root():
 
 
 app.include_router(health.router, prefix="/api/health", tags=["health"])
-app.include_router(static_assets.router, prefix="/api/static", tags=["static"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(spaces.router, prefix="/api/spaces", tags=["spaces"])
@@ -92,3 +91,4 @@ app.include_router(
 )
 app.include_router(boards.router, prefix="/api/boards", tags=["boards"])
 app.include_router(notes.router, prefix="/api/notes", tags=["notes"])
+app.include_router(krr.router, prefix="/api/krr", tags=["krr"])

@@ -17,6 +17,7 @@ import '../utils/ddt_toast.dart';
 import '../utils/mail_compose.dart';
 import 'mail_compose_page.dart';
 import '../widgets/ddt_glass_fab.dart';
+import '../widgets/ddt_scroll_to_top.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_tappable.dart';
 import '../widgets/mail_body_view.dart';
@@ -311,6 +312,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                             ),
                     )
                   : DdtScrollEdgeFade(
+                      topFadeHeight: 14,
                       child: ListView(
                         padding: EdgeInsets.fromLTRB(
                           widget.embedded ? DdtSectionSidebar.gutter.w : 0,
@@ -321,7 +323,7 @@ class _MailFolderBrowserState extends State<_MailFolderBrowser> {
                           DdtScrollEdgeFade.listBottomPadding(context),
                         ),
                         children: [
-                          SizedBox(height: kDdtScrollEdgeFadeHeightCompact.h),
+                          SizedBox(height: 4.h),
                           if (favoriteFolders.isNotEmpty)
                             _buildExpandableSection(
                               context: context,
@@ -925,15 +927,17 @@ class _MailListState extends State<_MailList> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DdtSectionSidebarField(
-                      gapAbove: false,
-                      child: DdtPanelPrimaryButton(
-                        label: 'Написать',
-                        icon: DdtIcons.edit,
-                        onPressed: () => openMailComposePage(context),
+                    if (!DdtAdaptive.isCompact(context)) ...[
+                      DdtSectionSidebarField(
+                        gapAbove: false,
+                        child: DdtPanelPrimaryButton(
+                          label: 'Написать',
+                          icon: DdtIcons.edit,
+                          onPressed: () => openMailComposePage(context),
+                        ),
                       ),
-                    ),
-                    SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
+                      SizedBox(height: DdtSectionSidebar.afterPrimaryButtonGap),
+                    ],
                     DdtSectionSidebarField(
                       label: 'Поиск',
                       gapAbove: false,
@@ -1077,25 +1081,32 @@ class _MailListState extends State<_MailList> {
                 right: 0,
                 child: _buildMessagesToolbar(context),
               ),
-              if (widget.showDock)
+              if (widget.showDock) ...[
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: DdtAdaptive.floatingBottomBar(context)
                       ? DdtMobileNavigationBar.clearance(context)
                       : 0,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [MailMobileDock()],
+                  child: const Center(child: MailMobileDock()),
+                ),
+                Positioned(
+                  right: DdtMobileNavigationBar.horizontalMargin(context),
+                  bottom: DdtGlassFab.bottomOffset(context),
+                  child: DdtGlassFab(
+                    icon: DdtIcons.add,
+                    tooltip: 'Новое письмо',
+                    onPressed: () => openMailComposePage(context),
                   ),
                 ),
+              ],
               Positioned(
-                right: 12.w,
-                bottom:
-                    (widget.showDock ? MailMobileDock.reserve : 12.h) +
-                    (DdtAdaptive.floatingBottomBar(context)
-                        ? DdtMobileNavigationBar.clearance(context)
-                        : 0),
+                right: widget.showDock
+                    ? DdtMobileNavigationBar.horizontalMargin(context)
+                    : 12.w,
+                bottom: widget.showDock
+                    ? DdtScrollToTopOverlay.bottomOf(context)
+                    : 12.h,
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _showScrollToTopButton,
                   builder: (context, show, child) {

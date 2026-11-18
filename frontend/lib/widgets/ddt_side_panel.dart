@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import '../theme/ddt_icons.dart';
 
 import 'package:flutter/foundation.dart';
@@ -13,17 +12,20 @@ import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_icon.dart';
+import 'ddt_scene_veil.dart';
 
 const Duration _kSidePanelDuration = Duration(milliseconds: 340);
 const Curve _kSidePanelCurve = Curves.easeInOutCubic;
-const double _kSidePanelBlurSigma = 4;
+const double _kSidePanelDimOpacity = 0.12;
+
 const double _kSidePanelScrollFadeHeight = 32;
+
 /// Scroll content starts this far through the fade (0 = opaque edge, 1 = fully transparent edge).
 const double _kSidePanelFadeContentAnchor = 0.28;
 
 OverlayEntry? _activeSidePanelOverlayEntry;
 
-/// Shows a dialog above an open side panel, keeping the panel blur intact.
+/// Shows a dialog above an open side panel.
 Future<T?> showDdtSidePanelDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -133,6 +135,52 @@ Future<T?> showDdtSidePanel<T>(
   });
 }
 
+/// Phone sheet with a top gap and a tappable dimmed barrier, same as mail.
+Future<T?> showDdtFullscreenBottomSheet<T>(
+  BuildContext context, {
+  required Widget child,
+}) {
+  final chrome = DdtFloatingChrome.read(context);
+  chrome?.hold();
+  TasksBloc? tasksBloc;
+  try {
+    tasksBloc = BlocProvider.of<TasksBloc>(context, listen: false);
+  } on ProviderNotFoundException {
+    tasksBloc = null;
+  }
+  final surface = Theme.of(context).brightness == Brightness.dark
+      ? DdtTheme.darkSurface
+      : DdtTheme.lightSurface;
+
+  return showModalBottomSheet<T>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    backgroundColor: surface,
+    builder: (sheetContext) {
+      Widget body = child;
+      final tasks = tasksBloc;
+      if (tasks != null) {
+        body = BlocProvider.value(value: tasks, child: body);
+      }
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(height: constraints.maxHeight * 0.94, child: body);
+          },
+        ),
+      );
+    },
+  ).whenComplete(() => chrome?.release());
+}
+
 class _DdtSidePanelOverlay<T> extends StatefulWidget {
   const _DdtSidePanelOverlay({
     required this.child,
@@ -145,7 +193,8 @@ class _DdtSidePanelOverlay<T> extends StatefulWidget {
   final double? maxWidth;
 
   @override
-  State<_DdtSidePanelOverlay<T>> createState() => _DdtSidePanelOverlayState<T>();
+  State<_DdtSidePanelOverlay<T>> createState() =>
+      _DdtSidePanelOverlayState<T>();
 }
 
 class _DdtSidePanelOverlayState<T> extends State<_DdtSidePanelOverlay<T>>
@@ -197,20 +246,11 @@ class _DdtSidePanelOverlayState<T> extends State<_DdtSidePanelOverlay<T>>
       animation: _animation,
       builder: (context, _) {
         final progress = _animation.value;
-        final scrim = Container(
-          color: Colors.black.withValues(alpha: 0.12 * progress),
-        );
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => unawaited(_dismiss()),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: _kSidePanelBlurSigma * progress,
-              sigmaY: _kSidePanelBlurSigma * progress,
-            ),
-            child: scrim,
-          ),
+          child: DdtSceneVeil(t: progress, dimOpacity: _kSidePanelDimOpacity),
         );
       },
     );
@@ -248,10 +288,7 @@ class _DdtSidePanelOverlayState<T> extends State<_DdtSidePanelOverlay<T>>
 }
 
 class _DdtSidePanelPageRoute<T> extends MaterialPageRoute<T> {
-  _DdtSidePanelPageRoute({
-    required super.builder,
-    required this.onClose,
-  });
+  _DdtSidePanelPageRoute({required super.builder, required this.onClose});
 
   final Future<void> Function(T? result) onClose;
 
@@ -408,10 +445,7 @@ class DdtSidePanelShell extends StatelessWidget {
 
     return Material(
       type: MaterialType.transparency,
-      child: Theme(
-        data: DdtTheme.sidePanelTheme(context),
-        child: framed,
-      ),
+      child: Theme(data: DdtTheme.sidePanelTheme(context), child: framed),
     );
   }
 }
@@ -445,9 +479,7 @@ class _SidePanelChromeFade extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: atTop
-                    ? [solid, solid, clear]
-                    : [clear, solid, solid],
+                colors: atTop ? [solid, solid, clear] : [clear, solid, solid],
                 stops: atTop
                     ? [0.0, (1.0 - edgeRatio).clamp(0.0, 1.0), 1.0]
                     : [0.0, edgeRatio, 1.0],

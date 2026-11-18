@@ -10,51 +10,76 @@ import 'analytics_charts.dart';
 import 'ddt_filter_dropdown.dart';
 
 class TaskAnalyticsKpiGrid extends StatelessWidget {
-  const TaskAnalyticsKpiGrid({super.key, required this.kpi});
+  const TaskAnalyticsKpiGrid({super.key, required this.kpi, this.skeleton = false});
 
-  final AnalyticsKpi kpi;
+  final AnalyticsKpi? kpi;
+  final bool skeleton;
 
   @override
   Widget build(BuildContext context) {
+    if (skeleton || kpi == null) {
+      return _grid(context, [
+        ('Среднее время решения', Color(0xFF7D6BC4)),
+        ('Решено задач', analyticsPositiveColor),
+        ('Блокеры', Color(0xFFD65C5C)),
+        ('Просрочен дедлайн', Color(0xFFD4943A)),
+        ('Всего задач', AppColors.primary),
+        ('В работе', Color(0xFF4A90C2)),
+      ], skeleton: true);
+    }
+    final data = kpi!;
     final items = [
       (
         'Среднее время решения',
-        formatAnalyticsDuration(kpi.medianResolutionHours),
+        formatAnalyticsDuration(data.medianResolutionHours),
         const Color(0xFF7D6BC4),
         'медиана по закрытым задачам',
       ),
       (
         'Решено задач',
-        '${kpi.closed}',
+        '${data.closed}',
         analyticsPositiveColor,
-        '${kpi.open} в работе / открыто',
+        '${data.open} в работе / открыто',
       ),
       (
         'Блокеры',
-        '${kpi.errors}',
+        '${data.errors}',
         const Color(0xFFD65C5C),
         'приоритет «Блокер»',
       ),
       (
         'Просрочен дедлайн',
-        '${kpi.overdueOpen}',
+        '${data.overdueOpen}',
         const Color(0xFFD4943A),
         'открытые и закрытые с нарушением срока',
       ),
       (
         'Всего задач',
-        '${kpi.total}',
+        '${data.total}',
         AppColors.primary,
-        '${kpi.waitingOpen} в статусе «В работе»',
+        '${data.waitingOpen} в статусе «В работе»',
       ),
       (
         'В работе',
-        '${kpi.waitingOpen}',
+        '${data.waitingOpen}',
         const Color(0xFF4A90C2),
         'статус «В работе»',
       ),
     ];
 
+    return _grid(
+      context,
+      [for (final item in items) (item.$1, item.$3)],
+      values: [for (final item in items) (item.$2, item.$4)],
+    );
+  }
+
+  Widget _grid(
+    BuildContext context,
+    List<(String, Color)> cards, {
+    List<(String, String?)>? values,
+    bool skeleton = false,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1200
@@ -69,14 +94,15 @@ class TaskAnalyticsKpiGrid extends StatelessWidget {
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final item in items)
+            for (var index = 0; index < cards.length; index++)
               SizedBox(
                 width: width,
                 child: AnalyticsKpiCard(
-                  label: item.$1,
-                  value: item.$2,
-                  color: item.$3,
-                  hint: item.$4,
+                  label: cards[index].$1,
+                  value: values == null ? '' : values[index].$1,
+                  color: cards[index].$2,
+                  hint: values == null ? null : values[index].$2,
+                  skeleton: skeleton || values == null,
                 ),
               ),
           ],
@@ -93,6 +119,7 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
     required this.chartHeight,
     required this.tallChartHeight,
     required this.charts,
+    this.skeleton = false,
     required this.trendIsLine,
     required this.trendGroupBy,
     required this.onTrendTypeChanged,
@@ -103,7 +130,8 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
   final bool wide;
   final double chartHeight;
   final double tallChartHeight;
-  final AnalyticsCharts charts;
+  final AnalyticsCharts? charts;
+  final bool skeleton;
   final bool trendIsLine;
   final AnalyticsTrendGroupBy trendGroupBy;
   final ValueChanged<bool> onTrendTypeChanged;
@@ -113,6 +141,12 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gap = 12.h;
+    final data = charts;
+    Widget plot(Widget Function(AnalyticsCharts charts) build) {
+      if (skeleton || data == null) return const AnalyticsSkeletonFill();
+      return build(data);
+    }
+
     final trendControls = _TrendChartControls(
       isLine: trendIsLine,
       groupBy: trendGroupBy,
@@ -123,39 +157,47 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
     final trendCard = AnalyticsPanel(
       title: 'Динамика: создание и закрытие',
       headerTrailing: trendControls,
-      child: AnalyticsTrendChart(
-        trend: charts.trendFor(trendGroupBy),
-        isLine: trendIsLine,
+      child: plot(
+        (charts) => AnalyticsTrendChart(
+          trend: charts.trendFor(trendGroupBy),
+          isLine: trendIsLine,
+        ),
       ),
     );
 
     final typeCard = AnalyticsPanel(
       title: 'Типы задач',
-      child: AnalyticsDonutChart(points: charts.type),
+      child: plot((charts) => AnalyticsDonutChart(points: charts.type)),
     );
 
     final priorityCard = AnalyticsPanel(
       title: 'Приоритеты',
-      child: AnalyticsDonutChart(
-        points: charts.priority.isNotEmpty ? charts.priority : charts.block,
+      child: plot(
+        (charts) => AnalyticsDonutChart(
+          points: charts.priority.isNotEmpty ? charts.priority : charts.block,
+        ),
       ),
     );
 
     final statusCard = AnalyticsPanel(
       title: 'Статусы',
-      child: AnalyticsDonutChart(
-        points: charts.statusGroup,
-        preferStatusColors: true,
+      child: plot(
+        (charts) => AnalyticsDonutChart(
+          points: charts.statusGroup,
+          preferStatusColors: true,
+        ),
       ),
     );
 
     final resolutionTrendCard = AnalyticsPanel(
       title: 'Динамика среднего времени решения',
-      child: AnalyticsResolutionTrendChart(buckets: charts.dailyDetail),
+      child: plot(
+        (charts) => AnalyticsResolutionTrendChart(buckets: charts.dailyDetail),
+      ),
     );
 
-    final executorTrend = charts.executorTrend;
-    final spaceRow = showSpaceCharts && executorTrend != null
+    final executorTrend = data?.executorTrend;
+    final spaceRow = showSpaceCharts && (skeleton || executorTrend != null)
         ? _ResponsiveRow(
             wide: wide,
             height: tallChartHeight,
@@ -163,24 +205,31 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
             children: [
               AnalyticsPanel(
                 title: 'Топ исполнителей (закрыто по периодам)',
-                child: AnalyticsExecutorTrendChart(trend: executorTrend),
+                child: plot(
+                  (charts) => AnalyticsExecutorTrendChart(
+                    trend: charts.executorTrend!,
+                  ),
+                ),
               ),
               AnalyticsPanel(
                 title: 'Исполнители',
-                child: AnalyticsDonutChart(points: charts.executor),
+                child: plot((charts) => AnalyticsDonutChart(points: charts.executor)),
               ),
               AnalyticsPanel(
                 title: 'Топ авторов',
-                child: AnalyticsDonutChart(points: charts.author),
+                child: plot((charts) => AnalyticsDonutChart(points: charts.author)),
               ),
             ],
           )
         : null;
 
-    final executorBar = !showSpaceCharts && charts.executor.isNotEmpty
+    final executorBar = !showSpaceCharts &&
+            (skeleton || (data?.executor.isNotEmpty ?? false))
         ? AnalyticsPanel(
             title: 'Исполнители',
-            child: AnalyticsHorizontalBarChart(points: charts.executor),
+            child: plot(
+              (charts) => AnalyticsHorizontalBarChart(points: charts.executor),
+            ),
           )
         : null;
 

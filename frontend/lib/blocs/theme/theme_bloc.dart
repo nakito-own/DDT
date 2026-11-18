@@ -12,16 +12,24 @@ class ThemeBloc extends Bloc<ThemeEvent, ThemeState> {
       super(const ThemeState()) {
     on<ThemeLoadRequested>(_onLoadRequested);
     on<ThemeToggleRequested>(_onToggleRequested);
+    on<ThemeSnowChanged>(_onSnowChanged);
   }
 
   static const _storageKey = 'theme_mode';
+  static const _snowKey = 'snow_enabled';
 
   final GetStorage _storage;
 
   void _onLoadRequested(ThemeLoadRequested event, Emitter<ThemeState> emit) {
     final saved = _storage.read<String>(_storageKey);
     final mode = saved == 'dark' ? ThemeMode.dark : ThemeMode.light;
-    emit(state.copyWith(mode: mode));
+    final snow = _storage.read<bool>(_snowKey);
+    emit(state.copyWith(mode: mode, snowEnabled: snow ?? true));
+  }
+
+  void _onSnowChanged(ThemeSnowChanged event, Emitter<ThemeState> emit) {
+    _storage.write(_snowKey, event.enabled);
+    emit(state.copyWith(snowEnabled: event.enabled));
   }
 
   void _onToggleRequested(

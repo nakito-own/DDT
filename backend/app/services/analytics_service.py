@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import Lock
@@ -7,9 +8,12 @@ from app.config import settings
 from app.services.analytics_processor import build_dataset
 from app.services.analytics_queries import AnalyticsFilterSpec, query_dashboard
 from app.services.google_sheets_client import (
+    GoogleSheetsAccessError,
     GoogleSheetsConfigError,
     google_sheets_client,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsNotConfiguredError(RuntimeError):
@@ -25,6 +29,7 @@ class _CachedDataset:
 class AnalyticsService:
     def __init__(self) -> None:
         self._lock = Lock()
+        self._fetch_lock = Lock()
         self._cache: _CachedDataset | None = None
 
     def query(
@@ -66,9 +71,33 @@ class AnalyticsService:
             if cached is not None:
                 return cached
 
-        payload = self._fetch_and_parse()
-        self._write_cache(payload)
-        return payload
+        with self._fetch_lock:
+            if not refresh:
+                cached = self._read_cache(allow_stale=allow_stale)
+                if cached is not None:
+                    return cached
+            try:
+                payload = self._fetch_and_parse()
+            except GoogleSheetsAccessError as exc:
+                stale = self._read_cache(allow_stale=True)
+                if stale is None or exc.status_code not in {502, 504}:
+                    raise
+                logger.warning(
+                    "Google Sheets fetch failed; serving cached analytics from %s",
+                    stale.get("fetched_at"),
+                )
+                return stale
+            except TimeoutError:
+                stale = self._read_cache(allow_stale=True)
+                if stale is None:
+                    raise
+                logger.warning(
+                    "Google Sheets fetch timed out; serving cached analytics from %s",
+                    stale.get("fetched_at"),
+                )
+                return stale
+            self._write_cache(payload)
+            return payload
 
     def _fetch_and_parse(self) -> dict:
         spreadsheet_id = settings.google_sheets_spreadsheet_id.strip()

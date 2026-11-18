@@ -1,12 +1,14 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
-import '../theme/ddt_typography.dart';
-import '../widgets/ddt_icon.dart';
+import 'ddt_adaptive.dart';
+import 'ddt_icon.dart';
+import 'ddt_mobile_navigation_bar.dart';
 
 class DdtGlassFab extends StatefulWidget {
   const DdtGlassFab({
@@ -14,11 +16,25 @@ class DdtGlassFab extends StatefulWidget {
     required this.onPressed,
     required this.icon,
     this.label,
+    this.tooltip,
   });
+
+  static const double size = 48;
+
+  /// Same gap between the create button and the navigation bar on every screen.
+  static const double navigationGap = 4;
+
+  static double bottomOffset(BuildContext context) {
+    final nav = DdtAdaptive.floatingBottomBar(context)
+        ? DdtMobileNavigationBar.clearance(context)
+        : 0.0;
+    return nav + navigationGap;
+  }
 
   final VoidCallback onPressed;
   final FaIconData icon;
   final String? label;
+  final String? tooltip;
 
   @override
   State<DdtGlassFab> createState() => _DdtGlassFabState();
@@ -30,54 +46,24 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
 
   static const _animationDuration = Duration(milliseconds: 160);
   static const _animationCurve = Curves.easeOutCubic;
-  static const _hoverScale = 1.05;
-  static const _pressedScale = 0.96;
 
   double get _scale {
-    if (_pressed) return _pressedScale;
-    if (_hovered) return _hoverScale;
+    if (_pressed) return 0.96;
+    if (_hovered) return 1.05;
     return 1.0;
-  }
-
-  Widget _buildContent(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = DdtTheme.taskCardTextPrimary(context);
-    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
-    final label = widget.label;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DdtIcon(widget.icon, size: 18.sp, color: accent),
-        if (label != null) ...[
-          SizedBox(width: 8.w),
-          Text(
-            label,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSize,
-              fontWeight: FontWeight.w600,
-              color: textPrimary,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildTapLayer() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onPressed,
-      child: const SizedBox.expand(),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
+    final fill = isDark
+        ? DdtTheme.darkSurface.withValues(alpha: 0.55)
+        : DdtTheme.lightSurface.withValues(alpha: 0.62);
+    final border = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : Colors.white.withValues(alpha: 0.72);
+    final button = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
@@ -88,24 +74,52 @@ class _DdtGlassFabState extends State<DdtGlassFab> {
         scale: _scale,
         duration: _animationDuration,
         curve: _animationCurve,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            DdtTheme.taskCardGlass(
-              context: context,
-              padding: widget.label == null
-                  ? EdgeInsets.all(14.w)
-                  : EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
-              child: _buildContent(context),
+        child: UnconstrainedBox(
+          child: SizedBox(
+            width: DdtGlassFab.size,
+            height: DdtGlassFab.size,
+            child: ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: fill,
+                    border: Border.all(color: border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.36 : 0.10,
+                        ),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (_) => setState(() => _pressed = true),
+                    onTapUp: (_) => setState(() => _pressed = false),
+                    onTapCancel: () => setState(() => _pressed = false),
+                    onTap: widget.onPressed,
+                    child: Center(
+                      child: DdtIcon(
+                        widget.icon,
+                        size: 18,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-            Positioned.fill(
-              child: kIsWeb
-                  ? PointerInterceptor(child: _buildTapLayer())
-                  : _buildTapLayer(),
-            ),
-          ],
+          ),
         ),
       ),
     );
+    final tooltip = widget.tooltip ?? widget.label;
+    final tappable = kIsWeb ? PointerInterceptor(child: button) : button;
+    if (tooltip == null) return tappable;
+    return Tooltip(message: tooltip, child: tappable);
   }
 }

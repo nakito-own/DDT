@@ -16,6 +16,9 @@ import 'blocs/tasks/tasks_bloc.dart';
 import 'blocs/theme/theme_bloc.dart';
 import 'models/app_notification.dart';
 import 'router/app_router.dart';
+import 'router/route_paths.dart';
+import 'widgets/ddt_snow.dart';
+import 'widgets/login_background.dart';
 import 'services/session_token_storage.dart';
 import 'theme/ddt_scale.dart';
 import 'theme/ddt_scroll_behavior.dart';
@@ -55,20 +58,45 @@ class _DdtAppState extends State<DdtApp> {
   // состояния между роутером и UI.
   late final AuthBloc _authBloc;
   late final AppRouter _appRouter;
+  late final ValueNotifier<bool> _onLogin;
   Timer? _mailBackgroundRefresh;
   Timer? _calendarBackgroundRefresh;
+  bool _loginSyncScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _authBloc = AuthBloc()..add(const AuthSessionRestoreRequested());
     _appRouter = createAppRouter(_authBloc);
+    // До первого кадра сессия ещё не восстановлена, редирект ведёт на вход.
+    _onLogin = ValueNotifier(true);
+    _appRouter.router.routerDelegate.addListener(_scheduleLoginSync);
+  }
+
+  bool _routeIsLogin() {
+    return _appRouter.router.routerDelegate.currentConfiguration.uri.path ==
+        RoutePaths.login;
+  }
+
+  void _scheduleLoginSync() {
+    if (_loginSyncScheduled) return;
+    _loginSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loginSyncScheduled = false;
+      if (!mounted) return;
+      final onLogin = _routeIsLogin();
+      if (_onLogin.value != onLogin) {
+        _onLogin.value = onLogin;
+      }
+    });
   }
 
   @override
   void dispose() {
     _mailBackgroundRefresh?.cancel();
     _calendarBackgroundRefresh?.cancel();
+    _appRouter.router.routerDelegate.removeListener(_scheduleLoginSync);
+    _onLogin.dispose();
     _appRouter.dispose();
     _authBloc.close();
     super.dispose();
@@ -190,7 +218,9 @@ class _DdtAppState extends State<DdtApp> {
         ],
         child: DdtScaleScope(
           builder: (context, child) => BlocBuilder<ThemeBloc, ThemeState>(
-            buildWhen: (previous, current) => previous.mode != current.mode,
+            buildWhen: (previous, current) =>
+                previous.mode != current.mode ||
+                previous.snowEnabled != current.snowEnabled,
             builder: (context, themeState) => ToastificationWrapper(
               config: ToastificationConfig(
                 alignment: Alignment.topRight,
@@ -219,15 +249,29 @@ class _DdtAppState extends State<DdtApp> {
                 themeMode: themeState.mode,
                 scrollBehavior: const DdtScrollBehavior(),
                 builder: (context, child) {
-                  return Material(
-                    type: MaterialType.transparency,
-                    child: DefaultTextStyle(
-                      style: DdtTypography.style(
-                        size: DdtTypography.bodySize,
-                        color: DdtTheme.textPrimary(context),
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _onLogin,
+                        builder: (context, onLogin, _) =>
+                            LoginBackground(appBackdrop: !onLogin),
                       ),
-                      child: child ?? const SizedBox.shrink(),
-                    ),
+                      if (ddtSnowEnabled && themeState.snowEnabled)
+                        const IgnorePointer(child: DdtSnowLayer(back: true)),
+                      Material(
+                        type: MaterialType.transparency,
+                        child: DefaultTextStyle(
+                          style: DdtTypography.style(
+                            size: DdtTypography.bodySize,
+                            color: DdtTheme.textPrimary(context),
+                          ),
+                          child: child ?? const SizedBox.shrink(),
+                        ),
+                      ),
+                      if (ddtSnowEnabled && themeState.snowEnabled)
+                        const IgnorePointer(child: DdtSnowLayer(back: false)),
+                    ],
                   );
                 },
                 debugShowCheckedModeBanner: false,

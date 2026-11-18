@@ -19,6 +19,9 @@ import '../models/user_profile.dart';
 import '../services/directory_users.dart';
 import '../utils/task_formatters.dart';
 import '../widgets/ddt_adaptive.dart';
+import '../widgets/ddt_desktop_shortcuts.dart';
+import '../widgets/ddt_round_back_button.dart';
+import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_user_chip.dart';
 import '../widgets/task_comments_section.dart';
 import 'task_create_page.dart';
@@ -26,13 +29,22 @@ import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_markdown_body.dart';
 import '../widgets/ddt_shell_metrics.dart';
+import '../widgets/ddt_side_panel.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 
 class TaskDetailsPage extends StatefulWidget {
-  const TaskDetailsPage({super.key, required this.taskKey, this.spaceKey});
+  const TaskDetailsPage({
+    super.key,
+    required this.taskKey,
+    this.spaceKey,
+    this.initialTask,
+  });
 
   final String taskKey;
   final String? spaceKey;
+
+  /// Already loaded task. A phone sheet has no route extra to read.
+  final Task? initialTask;
 
   @override
   State<TaskDetailsPage> createState() => _TaskDetailsPageState();
@@ -44,7 +56,16 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   String? _error;
   var _restored = false;
 
+  bool get _inSheet => ModalRoute.of(context) is ModalBottomSheetRoute;
+
   Task? _knownTask() {
+    final initial = widget.initialTask;
+    if (initial != null &&
+        (initial.apiRef == widget.taskKey ||
+            initial.key == widget.taskKey ||
+            initial.id.toString() == widget.taskKey)) {
+      return initial;
+    }
     final extra = GoRouterState.of(context).extra;
     if (extra is Task &&
         (extra.apiRef == widget.taskKey ||
@@ -99,6 +120,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         _isLoading = false;
       });
       context.read<TasksBloc>().add(TaskServerSnapshotReceived(task));
+      if (_inSheet) return;
       final canonical = RoutePaths.task(task.key);
       if (task.spaceId == null &&
           task.key.isNotEmpty &&
@@ -118,7 +140,17 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     final task = _task;
     if (task == null) return;
 
-    final updated = await openTaskEditPage(context, task);
+    final Future<Task?> updatedFuture = _inSheet
+        ? showDdtFullscreenBottomSheet<Task>(
+            context,
+            child: TaskEditPage(
+              taskKey: widget.taskKey,
+              spaceKey: widget.spaceKey ?? task.spaceKey,
+              task: task,
+            ),
+          )
+        : openTaskEditPage(context, task);
+    final updated = await updatedFuture;
     if (updated == null || !mounted) return;
 
     setState(() => _task = updated);
@@ -127,9 +159,25 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     );
   }
 
+  void _onEscape() {
+    if (ddtPopOverlayIfAny(context)) return;
+    final task = _task;
+    if (task != null) {
+      _leaveTask(context, task);
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(_backRoute);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocListener<TasksBloc, TasksState>(
+    return DdtPageShortcuts(
+      onEscape: _onEscape,
+      child: BlocListener<TasksBloc, TasksState>(
       listenWhen: (previous, current) {
         Task? findTask(TasksState state) {
           for (final tasks in state.columns.values) {
@@ -158,6 +206,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         }
       },
       child: _buildBody(context),
+    ),
     );
   }
 
@@ -218,7 +267,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                 padding: DdtShellMetrics.scrollPadding(
                   context,
                   base: EdgeInsets.fromLTRB(
-                    20.w,
+                    DdtRoundBackButton.screenInset,
                     12.h,
                     20.w,
                     24.h + DdtShellMetrics.contentBottomPadding(context),
@@ -228,18 +277,28 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _TaskHeader(task: task, onEdit: _editTask),
-                    SizedBox(height: 16.h),
-                    _TaskDescription(task: task),
-                    SizedBox(height: 20.h),
-                    _TaskParametersPanel(task: task, pinned: false),
-                    SizedBox(height: 24.h),
-                    TaskCommentsSection(
-                      key: ValueKey('task-comments-${task.id}'),
-                      task: task,
-                      inputAtTop: true,
-                      onTaskChanged: (updated) {
-                        setState(() => _task = updated);
-                      },
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: DdtRoundBackButton.contentLead(20.w),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: 16.h),
+                          _TaskDescription(task: task),
+                          SizedBox(height: 20.h),
+                          _TaskParametersPanel(task: task, pinned: false),
+                          SizedBox(height: 24.h),
+                          TaskCommentsSection(
+                            key: ValueKey('task-comments-${task.id}'),
+                            task: task,
+                            inputAtTop: true,
+                            onTaskChanged: (updated) {
+                              setState(() => _task = updated);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -333,22 +392,30 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
         ? DdtShellMetrics.contentBottomPadding(context)
         : 0.0;
 
+    final fadeTail = 28.h;
+    final chromeFade = _chromeHeight;
+    final chromeHold = (chromeFade - fadeTail).clamp(0.0, chromeFade);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: Stack(
             children: [
-              SingleChildScrollView(
-                controller: _pageScroll,
-                primary: false,
-                padding: EdgeInsets.only(
-                  top: _chromeHeight,
-                  bottom: floatingBottom,
-                ),
-                child: _TaskMainContent(
-                  task: widget.task,
-                  onTaskChanged: widget.onTaskChanged,
+              DdtContentFadeMask(
+                topHold: chromeHold,
+                topFade: chromeFade,
+                child: SingleChildScrollView(
+                  controller: _pageScroll,
+                  primary: false,
+                  padding: EdgeInsets.only(
+                    top: _chromeHeight,
+                    bottom: floatingBottom,
+                  ),
+                  child: _TaskMainContent(
+                    task: widget.task,
+                    onTaskChanged: widget.onTaskChanged,
+                  ),
                 ),
               ),
               Positioned(
@@ -410,29 +477,21 @@ class _TaskMainContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20.w, 8.h, 0, 24.h),
+      padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 24.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: EdgeInsets.only(right: 20.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _TaskDescription(task: task, showHeading: false),
-                Divider(
-                  height: 32.h,
-                  thickness: 1,
-                  color: DdtTheme.sidePanelDivider(context),
-                ),
-                TaskCommentsSection(
-                  key: ValueKey('task-comments-${task.id}'),
-                  task: task,
-                  inputAtTop: true,
-                  onTaskChanged: onTaskChanged,
-                ),
-              ],
-            ),
+          _TaskDescription(task: task, showHeading: false),
+          Divider(
+            height: 32.h,
+            thickness: 1,
+            color: DdtTheme.sidePanelDivider(context),
+          ),
+          TaskCommentsSection(
+            key: ValueKey('task-comments-${task.id}'),
+            task: task,
+            inputAtTop: true,
+            onTaskChanged: onTaskChanged,
           ),
         ],
       ),
@@ -440,8 +499,8 @@ class _TaskMainContent extends StatelessWidget {
   }
 }
 
-/// Toolbar sits on the solid fade. The title is the last layer of the same
-/// stack and continues a little past the gradient.
+/// Toolbar and title stay pinned. Scrolling text fades out under them
+/// instead of sitting on a solid color band.
 class _PinnedTaskChrome extends StatelessWidget {
   const _PinnedTaskChrome({
     required this.topInset,
@@ -453,64 +512,16 @@ class _PinnedTaskChrome extends StatelessWidget {
   final Task task;
   final VoidCallback onEdit;
 
-  /// How far the title hangs below the gradient.
-  static const double _titlePastGradient = 12;
-
-  static const double _fadeTail = 28;
-
   @override
   Widget build(BuildContext context) {
-    final background = DdtTheme.scaffoldBackground(context);
-
-    return Stack(
-      children: [
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: _titlePastGradient.h,
-          child: IgnorePointer(
-            child: _TaskHeaderFade(color: background, fadeTail: _fadeTail.h),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(20.w, topInset + 12.h, 20.w, 0),
-          child: _TaskHeader(task: task, onEdit: onEdit, fullscreen: true),
-        ),
-      ],
-    );
-  }
-}
-
-class _TaskHeaderFade extends StatelessWidget {
-  const _TaskHeaderFade({required this.color, required this.fadeTail});
-
-  final Color color;
-  final double fadeTail;
-
-  @override
-  Widget build(BuildContext context) {
-    final solid = color.withValues(alpha: 1);
-    final clear = color.withValues(alpha: 0);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final height = constraints.maxHeight;
-        final solidStop = height <= 0
-            ? 0.7
-            : ((height - fadeTail) / height).clamp(0.0, 1.0);
-
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [solid, solid, clear],
-              stops: [0, solidStop, 1],
-            ),
-          ),
-        );
-      },
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        DdtRoundBackButton.screenInset,
+        topInset + 12.h,
+        20.w,
+        0,
+      ),
+      child: _TaskHeader(task: task, onEdit: onEdit, fullscreen: true),
     );
   }
 }
@@ -568,12 +579,15 @@ class _TaskHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = Text(
-      task.title,
-      style: DdtTheme.style(
-        fontSize: DdtTypography.entityTitleSize,
-        fontWeight: FontWeight.w700,
-        color: DdtTheme.sidePanelTextPrimary(context),
+    final title = Padding(
+      padding: EdgeInsets.only(left: DdtRoundBackButton.contentLead(20.w)),
+      child: Text(
+        task.title,
+        style: DdtTheme.style(
+          fontSize: DdtTypography.entityTitleSize,
+          fontWeight: FontWeight.w700,
+          color: DdtTheme.sidePanelTextPrimary(context),
+        ),
       ),
     );
 
@@ -595,8 +609,11 @@ class _TaskHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            _TaskBackButton(task: task),
-            SizedBox(width: 4.w),
+            DdtRoundBackButton(
+              tooltip: 'Назад к задачам',
+              onPressed: () => _leaveTask(context, task),
+            ),
+            const SizedBox(width: DdtRoundBackButton.labelGap),
             Expanded(
               child: Text(
                 'Задача ${task.displayKey}',
@@ -617,38 +634,14 @@ class _TaskHeader extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: 10.h),
+        SizedBox(height: 8.h),
         title,
       ],
     );
   }
 }
 
-class _TaskBackButton extends StatelessWidget {
-  const _TaskBackButton({required this.task});
-
-  final Task task;
-
-  @override
-  Widget build(BuildContext context) {
-    // Avoid IconButton.tooltip (OverlayPortal): navigating/resizing while
-    // the tooltip is open trips Flutter's `size == theater.size` assert.
-    return Semantics(
-      button: true,
-      label: 'Назад к задачам',
-      child: IconButton(
-        onPressed: () {
-          Tooltip.dismissAllToolTips();
-          _leaveTask(context, task);
-        },
-        icon: DdtIcon(DdtIcons.back),
-        visualDensity: VisualDensity.compact,
-      ),
-    );
-  }
-}
-
-/// Painted height of the fullscreen chevron and edit icon.
+/// Painted height of the fullscreen edit icon.
 /// App-bar glyphs are 16 before [DdtIcon.visualScale], about 14 on screen.
 const double _taskMarkSize = 14;
 
@@ -699,12 +692,11 @@ class _FullscreenTaskToolbarState extends State<_FullscreenTaskToolbar> {
 
     return Row(
       children: [
-        _TaskMarkButton(
-          icon: DdtIcons.chevronLeft,
-          label: 'Назад к задачам',
+        DdtRoundBackButton(
+          tooltip: 'Назад к задачам',
           onPressed: () => _leaveTask(context, widget.task),
         ),
-        SizedBox(width: 6.w),
+        const SizedBox(width: DdtRoundBackButton.labelGap),
         Expanded(
           child: MouseRegion(
             onEnter: (_) => setState(() => _keyHovered = true),
@@ -814,6 +806,16 @@ Future<void> openTaskDetailsPage(BuildContext context, Task task) {
   final spaceKey = taskSpace != null && taskSpace.isNotEmpty
       ? taskSpace
       : context.read<TasksBloc>().spaceKey;
+  if (DdtAdaptive.isCompact(context)) {
+    return showDdtFullscreenBottomSheet<void>(
+      context,
+      child: TaskDetailsPage(
+        taskKey: taskKey,
+        spaceKey: spaceKey,
+        initialTask: task,
+      ),
+    );
+  }
   return context.push(
     RoutePaths.forTask(
       taskKey: taskKey,
@@ -825,6 +827,10 @@ Future<void> openTaskDetailsPage(BuildContext context, Task task) {
 }
 
 void _leaveTask(BuildContext context, Task task) {
+  if (ModalRoute.of(context) is ModalBottomSheetRoute) {
+    Navigator.of(context).pop();
+    return;
+  }
   if (context.canPop()) {
     context.pop();
     return;
@@ -1013,7 +1019,7 @@ class _TaskParametersPanel extends StatelessWidget {
       child: SingleChildScrollView(
         controller: scrollController,
         primary: false,
-        padding: EdgeInsets.all(20.w),
+        padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.w),
         child: content,
       ),
     );

@@ -7,11 +7,15 @@ import 'package:go_router/go_router.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../router/route_paths.dart';
 import '../services/tasks_api.dart';
+import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_bar_section_actions.dart';
+import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_mobile_navigation_bar.dart';
+import '../widgets/ddt_scroll_to_top.dart';
+import 'task_create_page.dart';
 import '../widgets/kanban_board_skeleton.dart';
 
 /// Оболочка раздела задач: управляет загрузкой и ошибками.
@@ -120,28 +124,39 @@ class _TasksShellPageState extends State<TasksShellPage> {
         final compact = DdtAdaptive.isCompact(context);
         final path = GoRouterState.of(context).uri.path;
         final onBoard = RoutePaths.isTasksBoardRoute(path);
+        final archiveOpen = RoutePaths.isArchiveRoute(path);
 
         return DdtFloatingChrome(
           controller: _chrome,
           child: ListenableBuilder(
             listenable: _chrome,
             builder: (context, _) {
-              return Stack(
+              return DdtScrollToTopOverlay(
+                enabled: compact && _chrome.visible && onBoard,
+                child: Stack(
                 fit: StackFit.expand,
                 children: [
                   widget.child,
-                  if (compact && _chrome.visible && onBoard)
+                  if (compact && _chrome.visible && onBoard) ...[
                     Positioned(
                       left: 0,
                       right: 0,
                       bottom: DdtAdaptive.floatingBottomBar(context)
                           ? DdtMobileNavigationBar.clearance(context)
                           : 0,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [TasksMobileViewBar()],
-                      ),
+                      child: const Center(child: TasksMobileViewBar()),
                     ),
+                    if (!archiveOpen)
+                      Positioned(
+                        right: DdtMobileNavigationBar.horizontalMargin(context),
+                        bottom: DdtGlassFab.bottomOffset(context),
+                        child: DdtGlassFab(
+                          icon: DdtIcons.add,
+                          tooltip: 'Новая задача',
+                          onPressed: () => openTaskCreatePage(context),
+                        ),
+                      ),
+                  ],
                   if (showKanbanPlaceholder)
                     ColoredBox(
                       color: DdtTheme.scaffoldBackground(context),
@@ -179,6 +194,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
                       ),
                     ),
                 ],
+                ),
               );
             },
           ),

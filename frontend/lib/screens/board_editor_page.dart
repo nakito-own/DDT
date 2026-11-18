@@ -263,7 +263,7 @@ class _BoardBackButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               DdtIcon(
-                DdtIcons.back,
+                DdtIcons.chevronLeft,
                 size: DdtTheme.shellSizeOf(context, 14),
                 color: DdtTheme.textPrimary(context),
               ),

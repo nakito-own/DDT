@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -8,36 +10,12 @@ import '../models/analytics_dashboard.dart';
 import '../models/analytics_filters.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
+import 'analytics_charts.dart';
 import 'analytics_period_calendar.dart';
+import 'ddt_app_input.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_tappable.dart';
-import 'ddt_scroll_edge_fade.dart';
 import 'ddt_section_sidebar.dart';
-
-const _kAnalyticsFiltersFadeHeight = kDdtScrollEdgeFadeHeightCompact;
-const _kAnalyticsFiltersSolidTail = 8.0;
-const _kAnalyticsFiltersListGap = 4.0;
-
-/// Single source of truth for sticky header height vs [ListView] top padding.
-abstract final class _AnalyticsFiltersHeaderMetrics {
-  static double titleRowHeight(BuildContext context) {
-    return DdtSectionSidebarTitle.rowHeight(context);
-  }
-
-  static double topOverlayHeight(BuildContext context) {
-    return titleRowHeight(context) +
-        _kAnalyticsFiltersSolidTail.h +
-        _kAnalyticsFiltersFadeHeight.h;
-  }
-
-  static double listTopPadding(BuildContext context) {
-    return topOverlayHeight(context) + _kAnalyticsFiltersListGap.h;
-  }
-
-  static double listBottomPadding(BuildContext context) {
-    return _kAnalyticsFiltersFadeHeight.h + _kAnalyticsFiltersListGap.h;
-  }
-}
 
 class AnalyticsFiltersPanel extends StatelessWidget {
   const AnalyticsFiltersPanel({
@@ -50,6 +28,8 @@ class AnalyticsFiltersPanel extends StatelessWidget {
     required this.onPeriodChanged,
     required this.onValueToggled,
     required this.onCleared,
+    this.onQueryChanged,
+    this.loading = false,
   });
 
   final List<AnalyticsColumn> columns;
@@ -59,7 +39,9 @@ class AnalyticsFiltersPanel extends StatelessWidget {
   final ValueChanged<String> onDateColumnChanged;
   final void Function(DateTime? start, DateTime? end) onPeriodChanged;
   final void Function(String columnKey, String valueKey) onValueToggled;
+  final void Function(String columnKey, String query)? onQueryChanged;
   final VoidCallback onCleared;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -80,27 +62,69 @@ class AnalyticsFiltersPanel extends StatelessWidget {
       }
     }
 
-    final panelBackground = DdtTheme.scaffoldBackground(context);
-
-    return ColoredBox(
-      color: panelBackground,
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
+    if (loading) {
+      return DdtSectionSidebarPane(
+        pinned: const DdtSectionSidebarTitle(),
         children: [
-          Positioned.fill(
-            child: DdtSectionSidebarScroll(
-              child: ListView(
-                clipBehavior: Clip.hardEdge,
-                padding: DdtSectionSidebar.scrollContentPadding(
-                  top: _AnalyticsFiltersHeaderMetrics.listTopPadding(context),
-                  bottom: _AnalyticsFiltersHeaderMetrics.listBottomPadding(
-                    context,
+          const DdtSectionSidebarField(
+            label: 'Тип фильтрации по дате',
+            gapAbove: false,
+            child: AnalyticsSkeletonFill(height: 44),
+          ),
+          const DdtSectionSidebarField(
+            label: 'Период',
+            child: AnalyticsSkeletonFill(height: 44),
+          ),
+          SizedBox(height: DdtSectionSidebar.fieldGap),
+          const DdtFilterLabel('Колонки таблицы'),
+          SizedBox(height: DdtSectionSidebar.labelGap),
+          for (var index = 0; index < 6; index++)
+            Padding(
+              padding: EdgeInsets.only(bottom: DdtSectionSidebar.fieldGap),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnalyticsSkeletonFill(height: 12, width: 96),
+                  SizedBox(height: 8),
+                  AnalyticsSkeletonFill(height: 44),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+
+    return DdtSectionSidebarPane(
+      pinned: DdtSectionSidebarTitle(
+        trailing: AnimatedSwitcher(
+          duration: DdtTheme.selectionAnimationDuration,
+          switchInCurve: DdtTheme.selectionAnimationCurve,
+          switchOutCurve: DdtTheme.selectionAnimationCurve,
+          child: filters.hasPeriod || filters.hasColumnFilters
+              ? DdtTappable(
+                  key: const ValueKey('reset'),
+                  onTap: onCleared,
+                  enableHoverFill: true,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 4.h,
                   ),
-                ),
-                  children: [
-                    DdtSectionSidebarField(
-                      label: 'Тип фильтрации по дате',
-                      gapAbove: false,
+                  child: Text(
+                    'Сбросить',
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.labelSmallSize,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('reset-hidden')),
+        ),
+      ),
+      children: [
+          DdtSectionSidebarField(
+            label: 'Тип фильтрации по дате',
+            gapAbove: false,
                       child: DdtSearchableFilterDropdown(
                         summary: selectedDateLabel ?? 'Выбрать колонку',
                         active: selectedDateKey.isNotEmpty,
@@ -163,38 +187,27 @@ class AnalyticsFiltersPanel extends StatelessWidget {
                     SizedBox(height: DdtSectionSidebar.labelGap),
                     for (final column in sheetColumns)
                       _columnFilter(context, column),
-                  ],
-                ),
-              ),
-            ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: RepaintBoundary(
-              child: _AnalyticsFiltersHeader(
-                backgroundColor: panelBackground,
-                showReset: filters.hasPeriod || filters.hasColumnFilters,
-                onCleared: onCleared,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: DdtScrollEdgeFadeGradient(
-              backgroundColor: panelBackground,
-              atTop: false,
-              fadeHeight: _kAnalyticsFiltersFadeHeight,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
   Widget _columnFilter(BuildContext context, AnalyticsColumn column) {
+    if (column.options.isEmpty && onQueryChanged != null) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: DdtSectionSidebar.fieldGap),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DdtFilterLabel(column.label),
+            SizedBox(height: DdtSectionSidebar.labelGap),
+            _ColumnQueryField(
+              value: filters.queries[column.key] ?? '',
+              onChanged: (query) => onQueryChanged!(column.key, query),
+            ),
+          ],
+        ),
+      );
+    }
     final options = [
       for (final option in column.options)
         DdtFilterOption(
@@ -239,72 +252,53 @@ class AnalyticsFiltersPanel extends StatelessWidget {
   }
 }
 
-/// Title row plus a downward fade so scrolled filters dissolve under the header.
-class _AnalyticsFiltersHeader extends StatelessWidget {
-  const _AnalyticsFiltersHeader({
-    required this.backgroundColor,
-    required this.showReset,
-    required this.onCleared,
+class _ColumnQueryField extends StatefulWidget {
+  const _ColumnQueryField({
+    required this.value,
+    required this.onChanged,
   });
 
-  final Color backgroundColor;
-  final bool showReset;
-  final VoidCallback onCleared;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ColumnQueryField> createState() => _ColumnQueryFieldState();
+}
+
+class _ColumnQueryFieldState extends State<_ColumnQueryField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+  Timer? _timer;
+
+  @override
+  void didUpdateWidget(covariant _ColumnQueryField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value && widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ColoredBox(
-          color: backgroundColor,
-          child: SizedBox(
-            height: _AnalyticsFiltersHeaderMetrics.titleRowHeight(context),
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: DdtSectionSidebar.gutter.w,
-                right: DdtSectionSidebar.scrollRightInset.w,
-              ),
-              child: DdtSectionSidebarTitle(
-                trailing: AnimatedSwitcher(
-                  duration: DdtTheme.selectionAnimationDuration,
-                  switchInCurve: DdtTheme.selectionAnimationCurve,
-                  switchOutCurve: DdtTheme.selectionAnimationCurve,
-                  child: showReset
-                      ? DdtTappable(
-                          key: const ValueKey('reset'),
-                          onTap: onCleared,
-                          enableHoverFill: true,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10.w,
-                            vertical: 4.h,
-                          ),
-                          child: Text(
-                            'Сбросить',
-                            style: DdtTheme.style(
-                              fontSize: DdtTypography.labelSmallSize,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('reset-hidden')),
-                ),
-              ),
-            ),
-          ),
-        ),
-        ColoredBox(
-          color: backgroundColor,
-          child: SizedBox(height: _kAnalyticsFiltersSolidTail.h),
-        ),
-        DdtScrollEdgeFadeGradient(
-          backgroundColor: backgroundColor,
-          atTop: true,
-          fadeHeight: _kAnalyticsFiltersFadeHeight,
-        ),
-      ],
+    return DdtAppInput(
+      controller: _controller,
+      hint: 'Поиск',
+      variant: DdtInputVariant.compact,
+      onChanged: (value) {
+        _timer?.cancel();
+        _timer = Timer(const Duration(milliseconds: 400), () {
+          widget.onChanged(value);
+        });
+      },
+      onSubmitted: widget.onChanged,
     );
   }
 }

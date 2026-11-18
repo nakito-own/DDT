@@ -28,7 +28,7 @@ import '../screens/tasks_gantt_page.dart';
 import '../screens/tasks_list_page.dart';
 import '../screens/tasks_shell_page.dart';
 import '../services/tasks_api.dart';
-import '../theme/ddt_theme.dart';
+import '../widgets/ddt_fullscreen_transition.dart';
 import '../widgets/ddt_section_transition.dart';
 import 'route_paths.dart';
 
@@ -97,7 +97,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'kanban',
                     name: RoutePaths.nameTasksKanban,
-                    pageBuilder: (context, state) => NoTransitionPage(
+                    pageBuilder: (context, state) => _buildRestingPage(
                       key: state.pageKey,
                       child: const KanbanBoardPage(),
                     ),
@@ -105,7 +105,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'list',
                     name: RoutePaths.nameTasksList,
-                    pageBuilder: (context, state) => NoTransitionPage(
+                    pageBuilder: (context, state) => _buildRestingPage(
                       key: state.pageKey,
                       child: const TasksListPage(),
                     ),
@@ -113,7 +113,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'gantt',
                     name: RoutePaths.nameTasksGantt,
-                    pageBuilder: (context, state) => NoTransitionPage(
+                    pageBuilder: (context, state) => _buildRestingPage(
                       key: state.pageKey,
                       child: const TasksGanttPage(),
                     ),
@@ -123,7 +123,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     name: RoutePaths.nameTaskEdit,
                     pageBuilder: (context, state) {
                       final taskKey = state.pathParameters['taskKey'] ?? '';
-                      return _buildRevealPage(
+                      return _buildFullscreenPage(
                         key: state.pageKey,
                         child: taskKey.isEmpty
                             ? const _NotFoundPage()
@@ -134,7 +134,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'new',
                     name: RoutePaths.nameTaskCreate,
-                    pageBuilder: (context, state) => _buildRevealPage(
+                    pageBuilder: (context, state) => _buildFullscreenPage(
                       key: state.pageKey,
                       child: const TaskCreatePage(),
                     ),
@@ -142,7 +142,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   GoRoute(
                     path: 'archive',
                     name: RoutePaths.nameTasksArchive,
-                    pageBuilder: (context, state) => NoTransitionPage(
+                    pageBuilder: (context, state) => _buildRestingPage(
                       key: state.pageKey,
                       child: BlocProvider(
                         create: (_) =>
@@ -157,7 +157,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     name: RoutePaths.nameTaskDetails,
                     pageBuilder: (context, state) {
                       final taskKey = state.pathParameters['taskKey'] ?? '';
-                      return _buildTaskOpenPage(
+                      return _buildFullscreenPage(
                         key: state.pageKey,
                         child:
                             taskKey.isEmpty ||
@@ -176,12 +176,12 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             path: RoutePaths.mail,
             name: RoutePaths.nameMail,
             pageBuilder: (context, state) =>
-                NoTransitionPage(key: state.pageKey, child: const MailPage()),
+                _buildRestingPage(key: state.pageKey, child: const MailPage()),
             routes: [
               GoRoute(
                 path: 'new',
                 name: RoutePaths.nameMailNew,
-                pageBuilder: (context, state) => _buildRevealPage(
+                pageBuilder: (context, state) => _buildFullscreenPage(
                   key: state.pageKey,
                   child: MailComposePage(
                     draft: state.extra is MailComposeDraft
@@ -195,7 +195,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.calendarNew,
             name: RoutePaths.nameCalendarNew,
-            pageBuilder: (context, state) => _buildRevealPage(
+            pageBuilder: (context, state) => _buildFullscreenPage(
               key: state.pageKey,
               child: EventCreatePage(
                 draft: state.extra is EventCreateDraft
@@ -207,7 +207,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.calendar,
             name: RoutePaths.nameCalendar,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRestingPage(
               key: state.pageKey,
               child: const CalendarPage(),
             ),
@@ -215,7 +215,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.contacts,
             name: RoutePaths.nameContacts,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRestingPage(
               key: state.pageKey,
               child: const ContactsPage(),
             ),
@@ -223,7 +223,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.analytics,
             name: RoutePaths.nameAnalytics,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRestingPage(
               key: state.pageKey,
               child: const AnalyticsPage(),
             ),
@@ -231,7 +231,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.settings,
             name: RoutePaths.nameSettings,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRestingPage(
               key: state.pageKey,
               child: const SettingsPage(),
             ),
@@ -253,7 +253,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             pageBuilder: (context, state) {
               final taskKey = state.pathParameters['spaceKey'] ?? '';
               final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
-              return _buildTaskOpenPage(
+              return _buildFullscreenPage(
                 key: state.pageKey,
                 child: RoutePaths.isTaskKey(taskKey)
                     ? BlocProvider(
@@ -275,7 +275,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             pageBuilder: (context, state) {
               final taskKey = state.pathParameters['taskKey'] ?? '';
               final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
-              return _buildRevealPage(
+              return _buildFullscreenPage(
                 key: state.pageKey,
                 child: RoutePaths.isTaskKey(taskKey)
                     ? BlocProvider(
@@ -309,7 +309,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: '/space/:spaceKey/new',
                 name: RoutePaths.nameSpaceTaskCreate,
-                pageBuilder: (context, state) => _buildRevealPage(
+                pageBuilder: (context, state) => _buildFullscreenPage(
                   key: state.pageKey,
                   child: const TaskCreatePage(),
                 ),
@@ -317,7 +317,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: RoutePaths.spaceList,
                 name: RoutePaths.nameSpaceList,
-                pageBuilder: (context, state) => NoTransitionPage(
+                pageBuilder: (context, state) => _buildRestingPage(
                   key: state.pageKey,
                   child: const TasksListPage(),
                 ),
@@ -325,7 +325,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: RoutePaths.spaceGantt,
                 name: RoutePaths.nameSpaceGantt,
-                pageBuilder: (context, state) => NoTransitionPage(
+                pageBuilder: (context, state) => _buildRestingPage(
                   key: state.pageKey,
                   child: const TasksGanttPage(),
                 ),
@@ -333,7 +333,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: RoutePaths.spaceKanban,
                 name: RoutePaths.nameSpaceKanban,
-                pageBuilder: (context, state) => NoTransitionPage(
+                pageBuilder: (context, state) => _buildRestingPage(
                   key: state.pageKey,
                   child: const KanbanBoardPage(),
                 ),
@@ -343,7 +343,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                 name: RoutePaths.nameSpaceArchive,
                 pageBuilder: (context, state) {
                   final spaceKey = state.pathParameters['spaceKey'] ?? '';
-                  return NoTransitionPage(
+                  return _buildRestingPage(
                     key: state.pageKey,
                     child: BlocProvider(
                       create: (_) => TasksBloc(
@@ -364,7 +364,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.more,
             name: RoutePaths.nameMore,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _buildRestingPage(
               key: state.pageKey,
               child: const AdditionsPage(),
             ),
@@ -372,7 +372,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.board,
             name: RoutePaths.nameBoard,
-            pageBuilder: (context, state) => _buildRevealPage(
+            pageBuilder: (context, state) => _buildFullscreenPage(
               key: state.pageKey,
               child: BoardEditorPage(
                 boardId: state.pathParameters['boardId'] ?? '',
@@ -382,8 +382,10 @@ AppRouter createAppRouter(AuthBloc authBloc) {
           GoRoute(
             path: RoutePaths.boards,
             name: RoutePaths.nameBoards,
-            pageBuilder: (context, state) =>
-                NoTransitionPage(key: state.pageKey, child: const BoardsPage()),
+            pageBuilder: (context, state) => _buildRestingPage(
+              key: state.pageKey,
+              child: const BoardsPage(),
+            ),
           ),
           ShellRoute(
             pageBuilder: (context, state, child) => NoTransitionPage(
@@ -394,7 +396,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               GoRoute(
                 path: RoutePaths.notes,
                 name: RoutePaths.nameNotes,
-                pageBuilder: (context, state) => NoTransitionPage(
+                pageBuilder: (context, state) => _buildRestingPage(
                   key: state.pageKey,
                   child: const NotesBrowserPage(),
                 ),
@@ -404,7 +406,7 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                     name: RoutePaths.nameNote,
                     pageBuilder: (context, state) {
                       final noteId = state.pathParameters['noteId'] ?? '';
-                      return _buildRevealPage(
+                      return _buildFullscreenPage(
                         key: state.pageKey,
                         child: NoteEditorPage(noteId: noteId),
                       );
@@ -444,68 +446,44 @@ final class AppRouter {
   }
 }
 
-/// Создание задачи, письма, события и доски: один и тот же переход поверх раздела.
+/// Задача, заметка, письмо, событие, доска: перелистывание поверх раздела.
 ///
-/// Экран проявляется и чуть сдвигается справа, при закрытии уходит так же.
-/// Рейл и шапка живут в оболочке и не участвуют в переходе.
-CustomTransitionPage<void> _buildRevealPage({
+/// Страница въезжает, как в Material, и проявляется из фона. Предыдущий
+/// кадр уезжает и растворяется. Рейл и шапка не участвуют.
+CustomTransitionPage<void> _buildFullscreenPage({
   required LocalKey key,
   required Widget child,
 }) {
   return CustomTransitionPage<void>(
     key: key,
-    transitionDuration: const Duration(milliseconds: 240),
-    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionDuration: DdtFullscreenTransition.duration,
+    reverseTransitionDuration: DdtFullscreenTransition.reverseDuration,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.04, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: ColoredBox(
-            color: DdtTheme.scaffoldBackground(context),
-            child: child,
-          ),
-        ),
+      return DdtFullscreenTransition(
+        animation: animation,
+        secondaryAnimation: secondaryAnimation,
+        child: child,
       );
     },
   );
 }
 
-/// Карточка задачи въезжает внутри оболочки: рейл и шапка не двигаются.
-CustomTransitionPage<void> _buildTaskOpenPage({
-  required LocalKey key,
+/// Страница раздела без собственного появления.
+///
+/// Смена раздела мгновенная. Когда сверху открывается сущность, контент
+/// растворяется в фон вместе с её проявлением.
+CustomTransitionPage<void> _buildRestingPage({
+  LocalKey? key,
   required Widget child,
 }) {
   return CustomTransitionPage<void>(
     key: key,
-    transitionDuration: const Duration(milliseconds: 240),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      return ColoredBox(
-        color: DdtTheme.scaffoldBackground(context),
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.04, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
+      return DdtCoveredFade(animation: secondaryAnimation, child: child);
     },
   );
 }

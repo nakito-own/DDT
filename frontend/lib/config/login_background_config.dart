@@ -37,6 +37,18 @@ class LoginBackgroundConfig {
   /// Засветка поверх фото в светлой теме.
   static const double lightOverlayOpacity = 0.44;
 
-  /// Лёгкий блюр самого фото.
+  /// Лёгкий блюр самого фото на экране входа.
   static const double backgroundBlurSigma = 4;
+
+  /// Сильный блюр того же фото на фоне всего приложения в тёмной теме.
+  static const double appBackdropBlurSigma = 36;
+
+  /// Чуть более читаемый блюр фона в светлой теме.
+  static const double appBackdropLightBlurSigma = 26;
+
+  /// Плотная заливка цветом тёмной темы поверх размытого фото.
+  static const double appBackdropDarkOverlayOpacity = 0.82;
+
+  /// Почти сплошная заливка цветом светлой темы поверх размытого фото.
+  static const double appBackdropLightOverlayOpacity = 0.94;
 }

@@ -196,7 +196,8 @@ class AnalyticsTrendBuckets {
 
   bool get isEmpty =>
       labels.isEmpty ||
-      (created.every((v) => v == 0) && closed.every((v) => v == 0));
+      (!created.any((value) => value != 0) &&
+          !closed.any((value) => value != 0));
 
   factory AnalyticsTrendBuckets.fromJson(Map<String, dynamic> json) {
     return AnalyticsTrendBuckets(
@@ -615,7 +616,8 @@ class AnalyticsRecordsPage {
 enum AnalyticsDashboardKind {
   stp,
   tasksPersonal,
-  tasksSpace;
+  tasksSpace,
+  krrWorks;
 
   bool get isTaskDashboard =>
       this == AnalyticsDashboardKind.tasksPersonal ||
@@ -627,6 +629,8 @@ enum AnalyticsDashboardKind {
         return AnalyticsDashboardKind.tasksPersonal;
       case 'tasks_space':
         return AnalyticsDashboardKind.tasksSpace;
+      case 'krr':
+        return AnalyticsDashboardKind.krrWorks;
       default:
         return AnalyticsDashboardKind.stp;
     }

@@ -6,7 +6,7 @@ from pymysql.cursors import DictCursor
 from app.config import settings
 
 
-def _connect():
+def _connect(*, read_timeout: int = 30, write_timeout: int = 30):
     return pymysql.connect(
         host=settings.db_host,
         port=settings.db_port,
@@ -17,14 +17,14 @@ def _connect():
         cursorclass=DictCursor,
         autocommit=True,
         connect_timeout=5,
-        read_timeout=30,
-        write_timeout=30,
+        read_timeout=read_timeout,
+        write_timeout=write_timeout,
     )
 
 
 @contextmanager
-def get_db():
-    conn = _connect()
+def get_db(*, read_timeout: int = 30, write_timeout: int = 30):
+    conn = _connect(read_timeout=read_timeout, write_timeout=write_timeout)
     try:
         yield conn
     finally:
