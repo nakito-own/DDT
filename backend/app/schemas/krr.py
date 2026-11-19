@@ -44,8 +44,11 @@ class KrrRelayPage(BaseModel):
     name: str = Field(default="", max_length=512)
     total_count: int = Field(default=0, ge=0)
     offset: int = Field(default=0, ge=0)
-    # Raw DTW page. The client forwards it without parsing, so the UI thread
-    # does not build the row objects.
+    # First slice of a DTW page. Repeat detection uses only this slice.
+    page_start: bool = False
+    # Client knows the dataset ended; an upload slice is smaller than a DTW page.
+    done: bool = False
+    # One slice of a DTW page. The client does not build row objects.
     payload: dict[str, Any] | None = None
     rows: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
 

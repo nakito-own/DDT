@@ -47,22 +47,46 @@ class KrrApi {
         await _yieldFrame();
         final raw = await relay.loadPage(offset);
         await _yieldFrame();
-        final progress = await _post(
-          '/api/krr/sync/page',
-          rawBody:
-              '{"sync_id":${jsonEncode(syncId)},"offset":$offset,"payload":$raw}',
-          timeout: const Duration(minutes: 2),
-        );
-        onProgress?.call(
-          _asInt(progress['stored_count']),
-          _asInt(progress['total_count']),
-        );
-        final rowCount = _asInt(progress['row_count']);
-        if (progress['done'] == true || rowCount <= 0) {
+        final parsed = splitDtwPage(raw);
+        if (parsed.rows.isEmpty) {
           finished = true;
           break;
         }
-        offset += rowCount;
+        final pageEnds =
+            parsed.rows.length < relay.pageSize ||
+            (parsed.totalCount > 0 &&
+                offset + parsed.rows.length >= parsed.totalCount);
+        var index = 0;
+        var pageStart = true;
+        while (index < parsed.rows.length) {
+          final batch = _takeBatch(parsed.rows, index);
+          index += batch.length;
+          final last = pageEnds && index >= parsed.rows.length;
+          final payload =
+              '{"totalCount":${parsed.totalCount},"data":[${batch.join(',')}]}';
+          final progress = await _post(
+            '/api/krr/sync/page',
+            rawBody:
+                '{"sync_id":${jsonEncode(syncId)},"offset":$offset,'
+                '"page_start":$pageStart,"done":$last,"payload":$payload}',
+            timeout: const Duration(minutes: 2),
+          );
+          pageStart = false;
+          offset += batch.length;
+          onProgress?.call(
+            _asInt(progress['stored_count']),
+            _asInt(progress['total_count'], fallback: parsed.totalCount),
+          );
+          await _yieldFrame();
+          if (progress['done'] == true) {
+            finished = true;
+            break;
+          }
+        }
+        if (finished || pageEnds) {
+          finished = true;
+          break;
+        }
       }
       if (!finished) {
         throw Exception('Загрузка КРР остановлена: слишком много страниц.');
@@ -74,6 +98,27 @@ class KrrApi {
     } finally {
       relay.close();
     }
+  }
+
+  /// Keeps one post under the proxy body limit. DTW pages stay large.
+  static const _maxBatchBytes = 400 * 1024;
+  static const _maxBatchRows = 80;
+
+  List<String> _takeBatch(List<String> rows, int start) {
+    final batch = <String>[];
+    var bytes = 2;
+    for (var index = start; index < rows.length; index++) {
+      final row = rows[index];
+      final next = bytes + row.length + 1;
+      if (batch.isNotEmpty &&
+          (batch.length >= _maxBatchRows || next > _maxBatchBytes)) {
+        break;
+      }
+      batch.add(row);
+      bytes = next;
+      if (row.length > _maxBatchBytes) break;
+    }
+    return batch;
   }
 
   /// Lets the snow ticker paint between DTW pages.
