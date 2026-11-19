@@ -419,6 +419,7 @@ class AnalyticsPanel extends StatelessWidget {
     this.subtitle,
     this.expandChild = true,
     this.headerTrailing,
+    this.skeleton = false,
   });
 
   final String title;
@@ -426,9 +427,10 @@ class AnalyticsPanel extends StatelessWidget {
   final Widget child;
   final bool expandChild;
   final Widget? headerTrailing;
+  final bool skeleton;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _panel(BuildContext context, {required bool forMeasure}) {
+    final body = forMeasure ? const SizedBox.expand() : child;
     return DdtTheme.glass(
       context: context,
       padding: EdgeInsets.all(16.w),
@@ -463,13 +465,131 @@ class AnalyticsPanel extends StatelessWidget {
                   ],
                 ),
               ),
-              if (headerTrailing != null)
+              if (!forMeasure && headerTrailing != null)
                 Align(alignment: Alignment.topRight, child: headerTrailing!),
             ],
           ),
           SizedBox(height: 16.h),
-          if (expandChild) Expanded(child: child) else child,
+          if (expandChild) Expanded(child: body) else body,
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loading = skeleton || DashboardSkeletonScope.of(context);
+    return DashboardCardReveal(
+      loading: loading,
+      skeleton: DashboardGrayCard(
+        child: _panel(context, forMeasure: true),
+      ),
+      child: _panel(context, forMeasure: false),
+    );
+  }
+}
+
+/// Marks a dashboard section whose chart cards should render as gray plates.
+class DashboardSkeletonScope extends InheritedWidget {
+  const DashboardSkeletonScope({
+    super.key,
+    required this.loading,
+    required super.child,
+  });
+
+  final bool loading;
+
+  static bool of(BuildContext context) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<DashboardSkeletonScope>();
+    return scope?.loading ?? false;
+  }
+
+  @override
+  bool updateShouldNotify(DashboardSkeletonScope oldWidget) {
+    return loading != oldWidget.loading;
+  }
+}
+
+/// Solid gray stand-in. With a [child], the plate takes that child's size
+/// and hides it, so the placeholder matches the loaded widget.
+class DashboardGrayCard extends StatelessWidget {
+  const DashboardGrayCard({super.key, this.child});
+
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final plate = _shimmerPlate(context);
+    if (child == null) return SizedBox.expand(child: plate);
+    return Stack(
+      children: [
+        Visibility(
+          visible: false,
+          maintainSize: true,
+          maintainState: true,
+          maintainAnimation: true,
+          child: child!,
+        ),
+        Positioned.fill(child: plate),
+      ],
+    );
+  }
+
+  Widget _shimmerPlate(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: DdtTheme.radius,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(
+            color: isDark ? const Color(0xFF2A2F3A) : const Color(0xFFE3E6EE),
+          ),
+          const DdtShimmerSweep(visible: true, intensity: 0.4),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fades a gray placeholder into the loaded widget without a size jump.
+class DashboardCardReveal extends StatelessWidget {
+  const DashboardCardReveal({
+    super.key,
+    required this.loading,
+    required this.skeleton,
+    required this.child,
+  });
+
+  final bool loading;
+  final Widget skeleton;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+      duration: const Duration(milliseconds: 420),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (current, previous) {
+        return Stack(
+          fit: StackFit.passthrough,
+          alignment: Alignment.topCenter,
+          children: [
+            ...previous,
+            ?current,
+          ],
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<bool>(loading),
+        child: loading ? skeleton : child,
+      ),
       ),
     );
   }
@@ -522,8 +642,7 @@ class AnalyticsKpiCard extends StatelessWidget {
   final String? hint;
   final bool skeleton;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _card(BuildContext context) {
     return DdtTheme.glass(
       context: context,
       padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 12.h),
@@ -553,38 +672,42 @@ class AnalyticsKpiCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4.h),
-                if (skeleton)
-                  const AnalyticsSkeletonFill(height: 28, width: 88)
-                else
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      value,
-                      style: DdtTheme.style(
-                        fontSize: DdtTypography.displaySize,
-                        fontWeight: FontWeight.w800,
-                        color: DdtTheme.textPrimary(context),
-                      ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value.isEmpty ? '0' : value,
+                    style: DdtTheme.style(
+                      fontSize: DdtTypography.displaySize,
+                      fontWeight: FontWeight.w800,
+                      color: DdtTheme.textPrimary(context),
                     ),
                   ),
-                if (!skeleton && hint != null)
+                ),
+                if (hint != null)
                   Text(
                     hint!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: DdtTheme.style(
                       fontSize: DdtTypography.microSize,
                       color: DdtTheme.textMuted(context),
                     ),
                   ),
-                if (skeleton) ...[
-                  SizedBox(height: 6.h),
-                  const AnalyticsSkeletonFill(height: 10, width: 120),
-                ],
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DashboardCardReveal(
+      loading: skeleton,
+      skeleton: DashboardGrayCard(child: _card(context)),
+      child: _card(context),
     );
   }
 }

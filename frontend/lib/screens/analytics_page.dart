@@ -18,6 +18,7 @@ import '../widgets/analytics_filters_panel.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/analytics_tables.dart';
 import '../widgets/task_analytics_dashboard.dart';
+import '../widgets/ddt_load_progress.dart';
 import '../widgets/ddt_section_refresh.dart';
 import '../widgets/ddt_segmented_control.dart';
 import '../widgets/ddt_shell_metrics.dart';
@@ -137,9 +138,37 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         final loaded = state.dashboardKind == AnalyticsDashboardKind.krrWorks
             ? state.krrDashboard != null
             : state.dashboard != null;
-        if (state.isLoading && !loaded) {
-          if (state.dashboardKind == AnalyticsDashboardKind.krrWorks) {
-            return KrrAnalyticsView(
+        if (state.dashboardKind == AnalyticsDashboardKind.stp &&
+            state.isRefreshing) {
+          return DashboardLoadVeil(
+            title: 'Загрузка данных',
+            detail: 'Обновление данных из Google Таблиц…',
+            skeleton: _AnalyticsDashboardView(
+              skeleton: true,
+              dashboardKind: state.dashboardKind,
+              filters: state.filters,
+              section: _section,
+              isRefreshing: false,
+              onSectionChanged: _selectSection,
+              onRefresh: () {},
+              onDateColumnChanged: (_) {},
+              onPeriodChanged: (_, _) {},
+              onValueToggled: (_, _) {},
+              onFiltersCleared: () {},
+              onTableMore: () {},
+            ),
+          );
+        }
+        if (state.dashboardKind == AnalyticsDashboardKind.krrWorks) {
+          final krr = state.krrDashboard;
+          return KrrSyncSurface(
+            hasData: krr != null,
+            checking: state.isLoading && krr == null,
+            message:
+                state.errorMessage ??
+                'Снимок за сегодня ещё не загружен. Запустите синхронизацию КРР.',
+            onCompleted: () => bloc.add(const AnalyticsLoadRequested()),
+            skeleton: KrrAnalyticsView(
               skeleton: true,
               filters: state.filters,
               section: _section,
@@ -152,8 +181,32 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               onQueryChanged: (_, _) {},
               onFiltersCleared: () {},
               onTableMore: () {},
-            );
-          }
+            ),
+            dashboardBuilder: (resync) => KrrAnalyticsView(
+              dashboard: krr,
+              filters: state.filters,
+              section: _section,
+              isRefreshing: state.isRefreshing,
+              errorMessage: state.errorMessage,
+              onSectionChanged: _selectSection,
+              onRefresh: () => bloc.add(const AnalyticsRefreshRequested()),
+              onResync: resync,
+              onDateColumnChanged: (key) =>
+                  bloc.add(AnalyticsDateColumnChanged(key)),
+              onPeriodChanged: (start, end) =>
+                  bloc.add(AnalyticsPeriodChanged(start: start, end: end)),
+              onValueToggled: (column, value) => bloc.add(
+                AnalyticsColumnValueToggled(columnKey: column, valueKey: value),
+              ),
+              onQueryChanged: (column, query) => bloc.add(
+                AnalyticsColumnQueryChanged(columnKey: column, query: query),
+              ),
+              onFiltersCleared: () => bloc.add(const AnalyticsFiltersCleared()),
+              onTableMore: () => bloc.add(const AnalyticsTableMoreRequested()),
+            ),
+          );
+        }
+        if (state.isLoading && !loaded) {
           return _AnalyticsDashboardView(
             skeleton: true,
             dashboardKind: state.dashboardKind,
@@ -167,37 +220,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             onValueToggled: (_, _) {},
             onFiltersCleared: () {},
             onTableMore: () {},
-          );
-        }
-
-        if (state.dashboardKind == AnalyticsDashboardKind.krrWorks) {
-          final krr = state.krrDashboard;
-          if (krr == null) {
-            return KrrFirstSyncPrompt(
-              message: state.errorMessage ?? 'Не удалось загрузить аналитику',
-              onReady: () => bloc.add(const AnalyticsLoadRequested()),
-            );
-          }
-          return KrrAnalyticsView(
-            dashboard: krr,
-            filters: state.filters,
-            section: _section,
-            isRefreshing: state.isRefreshing,
-            errorMessage: state.errorMessage,
-            onSectionChanged: _selectSection,
-            onRefresh: () => bloc.add(const AnalyticsRefreshRequested()),
-            onDateColumnChanged: (key) =>
-                bloc.add(AnalyticsDateColumnChanged(key)),
-            onPeriodChanged: (start, end) =>
-                bloc.add(AnalyticsPeriodChanged(start: start, end: end)),
-            onValueToggled: (column, value) => bloc.add(
-              AnalyticsColumnValueToggled(columnKey: column, valueKey: value),
-            ),
-            onQueryChanged: (column, query) => bloc.add(
-              AnalyticsColumnQueryChanged(columnKey: column, query: query),
-            ),
-            onFiltersCleared: () => bloc.add(const AnalyticsFiltersCleared()),
-            onTableMore: () => bloc.add(const AnalyticsTableMoreRequested()),
           );
         }
 
@@ -632,7 +654,16 @@ class _StpKpiGrid extends StatelessWidget {
         ('Скорость реакции', Color(0xFF4A90C2)),
         ('Ошибки', Color(0xFF6B7C93)),
         ('Ожидание от ОИВ', Color(0xFFD4943A)),
-      ]);
+      ], values: const [
+        ('0', '0 откр. / 0 закр.'),
+        ('—', '0 из 0'),
+        ('—', 'медиана закрытых'),
+        ('0', '0% от всех'),
+        ('0', 'просрочено открытых'),
+        ('—', 'из 0 с 2 комментариями'),
+        ('0', '0% от всех'),
+        ('—', 'нет данных'),
+      ], skeleton: true);
     }
     final data = kpi!;
     final topWaiting = data.topWaitingOiv;
@@ -706,6 +737,7 @@ class _StpKpiGrid extends StatelessWidget {
     BuildContext context,
     List<(String, Color)> cards, {
     List<(String, String?)>? values,
+    bool skeleton = false,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -729,7 +761,7 @@ class _StpKpiGrid extends StatelessWidget {
                   value: values == null ? '' : values[index].$1,
                   color: cards[index].$2,
                   hint: values == null ? null : values[index].$2,
-                  skeleton: values == null,
+                  skeleton: skeleton,
                 ),
               ),
           ],
@@ -905,54 +937,56 @@ class _AnalyticsChartGrid extends StatelessWidget {
       ),
     );
 
-    if (!wide) {
-      return Column(
-        children: [
-          SizedBox(height: tallChartHeight, child: trendCard),
-          SizedBox(height: gap),
-          SizedBox(height: chartHeight, child: typeCard),
-          SizedBox(height: gap),
-          row2,
-          SizedBox(height: gap),
-          row3,
-          SizedBox(height: gap),
-          oivWaitingPanel,
-          SizedBox(height: gap),
-          row4,
-          SizedBox(height: gap),
-          statusCategoryPanel,
-          SizedBox(height: gap),
-          solvedPanel,
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          height: tallChartHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    final layout = !wide
+        ? Column(
             children: [
-              Expanded(flex: 8, child: trendCard),
-              SizedBox(width: 12.w),
-              Expanded(flex: 4, child: typeCard),
+              SizedBox(height: tallChartHeight, child: trendCard),
+              SizedBox(height: gap),
+              SizedBox(height: chartHeight, child: typeCard),
+              SizedBox(height: gap),
+              row2,
+              SizedBox(height: gap),
+              row3,
+              SizedBox(height: gap),
+              oivWaitingPanel,
+              SizedBox(height: gap),
+              row4,
+              SizedBox(height: gap),
+              statusCategoryPanel,
+              SizedBox(height: gap),
+              solvedPanel,
             ],
-          ),
-        ),
-        SizedBox(height: gap),
-        row2,
-        SizedBox(height: gap),
-        row3,
-        SizedBox(height: gap),
-        oivWaitingPanel,
-        SizedBox(height: gap),
-        row4,
-        SizedBox(height: gap),
-        statusCategoryPanel,
-        SizedBox(height: gap),
-        solvedPanel,
-      ],
+          )
+        : Column(
+            children: [
+              SizedBox(
+                height: tallChartHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 8, child: trendCard),
+                    SizedBox(width: 12.w),
+                    Expanded(flex: 4, child: typeCard),
+                  ],
+                ),
+              ),
+              SizedBox(height: gap),
+              row2,
+              SizedBox(height: gap),
+              row3,
+              SizedBox(height: gap),
+              oivWaitingPanel,
+              SizedBox(height: gap),
+              row4,
+              SizedBox(height: gap),
+              statusCategoryPanel,
+              SizedBox(height: gap),
+              solvedPanel,
+            ],
+          );
+    return DashboardSkeletonScope(
+      loading: skeleton || data == null,
+      child: layout,
     );
   }
 }

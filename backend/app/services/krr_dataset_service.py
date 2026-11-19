@@ -1,7 +1,12 @@
-"""Загрузка версий работ КРР из DTW и два суточных снимка."""
+"""Загрузка версий работ КРР из DTW и два суточных снимка.
+
+Продакшен-сервер не видит DTW. Снимок забирает Flutter-клиент из
+корпоративной сети и страницами отдаёт его сюда.
+"""
 
 import logging
 import threading
+import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
@@ -17,6 +22,7 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 40
 _MAX_PAGES = 500
 _DB_TIMEOUT = 120
+_RELAY_PAGE_SIZE = 200
 
 _SUMMARY_COLUMNS = """
 id_unique, name_work_version, id_work, work_year, stage, stage_id,
@@ -33,15 +39,25 @@ class KrrSyncInProgressError(RuntimeError):
         super().__init__("Загрузка набора КРР уже выполняется.")
 
 
+class KrrRelayError(RuntimeError):
+    def __init__(self, message: str, status_code: int = 409) -> None:
+        self.status_code = status_code
+        super().__init__(message)
+
+
 class KrrDatasetService:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._relay_token: str | None = None
+        self._relay_seen: set[tuple[int | None, ...]] = set()
 
     def start_sync(self, *, force: bool = False) -> tuple[dict[str, Any], bool]:
         today = _today()
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
+                raise KrrSyncInProgressError()
+            if self._relay_token:
                 raise KrrSyncInProgressError()
             if not force and self._snapshot_status(today) == "succeeded":
                 return self.status(fetched_from_api=False), False
@@ -56,6 +72,103 @@ class KrrDatasetService:
             )
             self._thread.start()
         return self.status(fetched_from_api=True), True
+
+    def begin_client_sync(self, *, force: bool = False) -> dict[str, Any]:
+        today = _today()
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                raise KrrSyncInProgressError()
+            if not force and self._snapshot_status(today) == "succeeded":
+                payload = self.status(fetched_from_api=False)
+                payload["needed"] = False
+                payload["sync_id"] = ""
+                payload["page_size"] = _RELAY_PAGE_SIZE
+                payload["offset_param"] = settings.dtw_offset_param
+                payload["limit_param"] = settings.dtw_limit_param
+                payload["base_url"] = ""
+                payload["login"] = ""
+                payload["password"] = ""
+                return payload
+            if not settings.dtw_login.strip() or not settings.dtw_password:
+                raise DtwNotConfiguredError()
+            self._relay_token = uuid.uuid4().hex
+            self._relay_seen = set()
+            self._mark_running(today)
+            self._clear_snapshot_rows(today)
+            payload = self.status(fetched_from_api=False)
+            payload.update(
+                {
+                    "needed": True,
+                    "sync_id": self._relay_token,
+                    "base_url": settings.dtw_base_url.rstrip("/"),
+                    "login": settings.dtw_login.strip(),
+                    "password": settings.dtw_password,
+                    "page_size": _RELAY_PAGE_SIZE,
+                    "offset_param": settings.dtw_offset_param.strip() or "offset",
+                    "limit_param": settings.dtw_limit_param.strip() or "limit",
+                }
+            )
+            return payload
+
+    def accept_client_page(
+        self,
+        *,
+        sync_id: str,
+        name: str,
+        total_count: int,
+        rows: list[Any],
+        payload: dict[str, Any] | None = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        if payload is not None:
+            return self._accept_payload(
+                sync_id=sync_id,
+                offset=offset,
+                payload=payload,
+            )
+        with self._lock:
+            snapshot_date = self._require_relay(sync_id)
+            accepted = self._insert_rows(rows, snapshot_date)
+            stored = self._count_rows(snapshot_date)
+            self._update_progress(
+                snapshot_date,
+                name=name.strip(),
+                total=total_count,
+                stored=stored,
+            )
+        return {
+            "stored_count": stored,
+            "total_count": total_count,
+            "accepted": accepted,
+            "row_count": len(rows),
+            "done": False,
+        }
+
+    def finish_client_sync(self, sync_id: str) -> dict[str, Any]:
+        with self._lock:
+            snapshot_date = self._require_relay(sync_id)
+            stored = self._count_rows(snapshot_date)
+            if stored <= 0:
+                self._relay_token = None
+                self._relay_seen = set()
+                self._clear_snapshot_rows(snapshot_date)
+                self._fail(snapshot_date, "DTW не вернул строк набора КРР.")
+                raise KrrRelayError("DTW не вернул строк набора КРР.", 502)
+            self._commit(snapshot_date)
+            self._relay_token = None
+            self._relay_seen = set()
+        logger.info("KRR relay stored %s rows for %s", stored, snapshot_date.isoformat())
+        return self.status(fetched_from_api=True)
+
+    def abort_client_sync(self, sync_id: str, message: str) -> None:
+        text = message.strip() or "Не удалось загрузить набор КРР."
+        with self._lock:
+            snapshot_date = self._require_relay(sync_id)
+            self._relay_token = None
+            self._relay_seen = set()
+            self._clear_snapshot_rows(snapshot_date)
+            self._fail(snapshot_date, text[:2000])
+        logger.info("KRR relay aborted: %s", text[:240])
 
     def status(self, *, fetched_from_api: bool = False) -> dict[str, Any]:
         today = _today()
@@ -368,6 +481,81 @@ class KrrDatasetService:
                     """,
                     (message, snapshot_date),
                 )
+
+    def _accept_payload(
+        self,
+        *,
+        sync_id: str,
+        offset: int,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        rows = payload.get("data")
+        if not isinstance(rows, list):
+            raise KrrRelayError("Ответ набора DTW не содержит список data.", 502)
+        if len(rows) > 500:
+            raise KrrRelayError("Слишком большая страница DTW.", 502)
+        raw_name = payload.get("name")
+        name = raw_name.strip() if isinstance(raw_name, str) else ""
+        total = _as_int(payload.get("totalCount")) or 0
+        signature = tuple(
+            _as_int(row.get("id_unique"))
+            for row in rows[:3]
+            if isinstance(row, dict)
+        )
+        with self._lock:
+            snapshot_date = self._require_relay(sync_id)
+            if signature and signature in self._relay_seen:
+                raise KrrRelayError(
+                    "Сервис DTW вернул повтор страницы. "
+                    "Проверьте DTW_OFFSET_PARAM и DTW_LIMIT_PARAM "
+                    f"({settings.dtw_offset_param}/{settings.dtw_limit_param})."
+                )
+            if signature:
+                self._relay_seen.add(signature)
+            accepted = self._insert_rows(rows, snapshot_date) if rows else 0
+            stored = self._count_rows(snapshot_date)
+            self._update_progress(
+                snapshot_date,
+                name=name,
+                total=total,
+                stored=stored,
+            )
+        row_count = len(rows)
+        done = (
+            row_count == 0
+            or row_count < _RELAY_PAGE_SIZE
+            or (total > 0 and offset + row_count >= total)
+        )
+        return {
+            "stored_count": stored,
+            "total_count": total,
+            "accepted": accepted,
+            "row_count": row_count,
+            "done": done,
+        }
+
+    def _require_relay(self, sync_id: str) -> date:
+        if not sync_id or sync_id != self._relay_token:
+            raise KrrRelayError(
+                "Сессия загрузки устарела. Запустите загрузку заново."
+            )
+        snapshot_date = _today()
+        if self._snapshot_status(snapshot_date) != "running":
+            raise KrrRelayError("Загрузка набора КРР не выполняется.")
+        return snapshot_date
+
+    def _count_rows(self, snapshot_date: date) -> int:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) AS row_count
+                    FROM krr_work_versions
+                    WHERE snapshot_date = %s
+                    """,
+                    (snapshot_date,),
+                )
+                return int(cursor.fetchone()["row_count"])
 
     def _snapshot_status(self, snapshot_date: date) -> str:
         row = self._load_snapshots((snapshot_date,)).get(snapshot_date)
