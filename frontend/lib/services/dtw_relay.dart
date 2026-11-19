@@ -3,6 +3,82 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+/// One DTW page split into raw row JSON, without building row objects.
+class DtwRawPage {
+  const DtwRawPage({required this.totalCount, required this.rows});
+
+  final int totalCount;
+  final List<String> rows;
+}
+
+/// Cuts `data` objects out of a DTW page. A string scan stays off the object
+/// graph, so a thousand geometry rows do not freeze the UI.
+DtwRawPage splitDtwPage(String raw) {
+  final totalMatch = RegExp(r'"totalCount"\s*:\s*(\d+)').firstMatch(raw);
+  final total = int.tryParse(totalMatch?.group(1) ?? '') ?? 0;
+  final dataKey = RegExp(r'"data"\s*:\s*\[').firstMatch(raw);
+  if (dataKey == null) {
+    throw Exception('Ответ набора DTW не содержит список data.');
+  }
+  var index = dataKey.end;
+  final rows = <String>[];
+  while (index < raw.length) {
+    while (index < raw.length && _isSeparator(raw, index)) {
+      index++;
+    }
+    if (index >= raw.length || raw[index] == ']') break;
+    if (raw[index] != '{') {
+      throw Exception('Ответ набора DTW имеет неожиданный формат.');
+    }
+    final start = index;
+    var depth = 0;
+    var inString = false;
+    var escape = false;
+    for (; index < raw.length; index++) {
+      final char = raw[index];
+      if (inString) {
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char == r'\') {
+          escape = true;
+          continue;
+        }
+        if (char == '"') inString = false;
+        continue;
+      }
+      if (char == '"') {
+        inString = true;
+        continue;
+      }
+      if (char == '{') {
+        depth++;
+      } else if (char == '}') {
+        depth--;
+        if (depth == 0) {
+          index++;
+          rows.add(raw.substring(start, index));
+          break;
+        }
+      }
+    }
+    if (depth != 0) {
+      throw Exception('Ответ набора DTW имеет неожиданный формат.');
+    }
+  }
+  return DtwRawPage(totalCount: total, rows: rows);
+}
+
+bool _isSeparator(String raw, int index) {
+  final char = raw[index];
+  return char == ' ' ||
+      char == '\n' ||
+      char == '\r' ||
+      char == '\t' ||
+      char == ',';
+}
+
 /// Pulls dataset pages from DTW in the user's network.
 class DtwRelay {
   DtwRelay({
