@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 40
 _MAX_PAGES = 500
 _DB_TIMEOUT = 120
-_RELAY_PAGE_SIZE = 200
+# DTW itself accepts this page size. The browser splits each page into
+# smaller posts before the request reaches the proxy.
+_RELAY_PAGE_SIZE = 1000
 
 _SUMMARY_COLUMNS = """
 id_unique, name_work_version, id_work, work_year, stage, stage_id,
@@ -119,12 +121,16 @@ class KrrDatasetService:
         rows: list[Any],
         payload: dict[str, Any] | None = None,
         offset: int = 0,
+        page_start: bool = False,
+        done: bool = False,
     ) -> dict[str, Any]:
         if payload is not None:
             return self._accept_payload(
                 sync_id=sync_id,
                 offset=offset,
                 payload=payload,
+                page_start=page_start,
+                client_done=done,
             )
         with self._lock:
             snapshot_date = self._require_relay(sync_id)
@@ -488,6 +494,8 @@ class KrrDatasetService:
         sync_id: str,
         offset: int,
         payload: dict[str, Any],
+        page_start: bool = False,
+        client_done: bool = False,
     ) -> dict[str, Any]:
         rows = payload.get("data")
         if not isinstance(rows, list):
@@ -504,13 +512,13 @@ class KrrDatasetService:
         )
         with self._lock:
             snapshot_date = self._require_relay(sync_id)
-            if signature and signature in self._relay_seen:
+            if page_start and signature and signature in self._relay_seen:
                 raise KrrRelayError(
                     "Сервис DTW вернул повтор страницы. "
                     "Проверьте DTW_OFFSET_PARAM и DTW_LIMIT_PARAM "
                     f"({settings.dtw_offset_param}/{settings.dtw_limit_param})."
                 )
-            if signature:
+            if page_start and signature:
                 self._relay_seen.add(signature)
             accepted = self._insert_rows(rows, snapshot_date) if rows else 0
             stored = self._count_rows(snapshot_date)
@@ -521,10 +529,8 @@ class KrrDatasetService:
                 stored=stored,
             )
         row_count = len(rows)
-        done = (
-            row_count == 0
-            or row_count < _RELAY_PAGE_SIZE
-            or (total > 0 and offset + row_count >= total)
+        done = row_count == 0 or client_done or (
+            total > 0 and offset + row_count >= total
         )
         return {
             "stored_count": stored,

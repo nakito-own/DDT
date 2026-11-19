@@ -89,6 +89,8 @@ def accept_krr_relay_page(
             rows=body.rows,
             payload=body.payload,
             offset=body.offset,
+            page_start=body.page_start,
+            done=body.done,
         )
     except KrrRelayError as exc:
         raise _relay_error(exc) from exc
