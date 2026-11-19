@@ -66,6 +66,7 @@ class ApiClient {
   Future<http.Response> post(
     String path, {
     Map<String, dynamic>? body,
+    String? rawBody,
     Map<String, String>? query,
     bool auth = true,
     Duration? timeout,
@@ -75,7 +76,7 @@ class ApiClient {
         .post(
           uri,
           headers: await _headers(auth: auth),
-          body: body == null ? null : jsonEncode(body),
+          body: rawBody ?? (body == null ? null : jsonEncode(body)),
         )
         .timeout(timeout ?? defaultTimeout);
     if (auth) {
