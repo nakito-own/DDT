@@ -1,16 +1,26 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from app.dependencies import get_current_session
 from app.schemas.analytics import AnalyticsQueryRequest
-from app.schemas.krr import KrrDashboardResponse, KrrSyncStatus, KrrWorkPage
+from app.schemas.krr import (
+    KrrDashboardResponse,
+    KrrRelayAbort,
+    KrrRelayBegin,
+    KrrRelayFinish,
+    KrrRelayPage,
+    KrrRelayProgress,
+    KrrSyncStatus,
+    KrrWorkPage,
+)
 from app.services.analytics_queries import AnalyticsFilterSpec
 from app.services.dtw_client import DtwError
 from app.services.krr_dashboard_service import krr_dashboard_service
 from app.services.krr_dataset_service import (
+    KrrRelayError,
     KrrSyncInProgressError,
     krr_dataset_service,
 )
@@ -21,6 +31,11 @@ router = APIRouter()
 
 def _dtw_error(exc: DtwError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+def _relay_error(exc: KrrRelayError | KrrSyncInProgressError) -> HTTPException:
+    code = exc.status_code if isinstance(exc, KrrRelayError) else status.HTTP_409_CONFLICT
+    return HTTPException(status_code=code, detail=str(exc))
 
 
 @router.post("/sync", response_model=KrrSyncStatus)
@@ -43,6 +58,63 @@ def start_krr_sync(
         status_code=code,
         content=jsonable_encoder(KrrSyncStatus.model_validate(payload)),
     )
+
+
+@router.post("/sync/begin", response_model=KrrRelayBegin)
+def begin_krr_relay(
+    response: Response,
+    force: bool = Query(default=False),
+    _context: SessionContext = Depends(get_current_session),
+):
+    # The body carries the DTW password. Browsers must not cache it.
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return krr_dataset_service.begin_client_sync(force=force)
+    except (KrrRelayError, KrrSyncInProgressError) as exc:
+        raise _relay_error(exc) from exc
+    except DtwError as exc:
+        raise _dtw_error(exc) from exc
+
+
+@router.post("/sync/page", response_model=KrrRelayProgress)
+def accept_krr_relay_page(
+    body: KrrRelayPage,
+    _context: SessionContext = Depends(get_current_session),
+):
+    try:
+        return krr_dataset_service.accept_client_page(
+            sync_id=body.sync_id,
+            name=body.name,
+            total_count=body.total_count,
+            rows=body.rows,
+            payload=body.payload,
+            offset=body.offset,
+        )
+    except KrrRelayError as exc:
+        raise _relay_error(exc) from exc
+
+
+@router.post("/sync/finish", response_model=KrrSyncStatus)
+def finish_krr_relay(
+    body: KrrRelayFinish,
+    _context: SessionContext = Depends(get_current_session),
+):
+    try:
+        return krr_dataset_service.finish_client_sync(body.sync_id)
+    except KrrRelayError as exc:
+        raise _relay_error(exc) from exc
+
+
+@router.post("/sync/abort")
+def abort_krr_relay(
+    body: KrrRelayAbort,
+    _context: SessionContext = Depends(get_current_session),
+):
+    try:
+        krr_dataset_service.abort_client_sync(body.sync_id, body.message)
+    except KrrRelayError as exc:
+        raise _relay_error(exc) from exc
+    return {"status": "failed"}
 
 
 @router.post("/dashboard", response_model=KrrDashboardResponse)

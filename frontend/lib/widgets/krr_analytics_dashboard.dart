@@ -10,6 +10,7 @@ import '../models/krr_dashboard.dart';
 import '../screens/analytics_page.dart';
 import '../theme/ddt_icons.dart';
 import 'ddt_dialog.dart';
+import 'ddt_load_progress.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/analytics_charts.dart';
@@ -35,6 +36,7 @@ class KrrAnalyticsView extends StatelessWidget {
     required this.isRefreshing,
     required this.onSectionChanged,
     required this.onRefresh,
+    this.onResync,
     required this.onDateColumnChanged,
     required this.onPeriodChanged,
     required this.onValueToggled,
@@ -51,6 +53,7 @@ class KrrAnalyticsView extends StatelessWidget {
   final bool isRefreshing;
   final ValueChanged<AnalyticsSection> onSectionChanged;
   final VoidCallback onRefresh;
+  final VoidCallback? onResync;
   final ValueChanged<String> onDateColumnChanged;
   final void Function(DateTime? start, DateTime? end) onPeriodChanged;
   final void Function(String column, String value) onValueToggled;
@@ -87,6 +90,7 @@ class KrrAnalyticsView extends StatelessWidget {
                   errorMessage: errorMessage,
                   onSectionChanged: onSectionChanged,
                   onRefresh: onRefresh,
+                  onResync: onResync,
                 ),
               ),
             ),
@@ -180,6 +184,7 @@ class _KrrHeader extends StatelessWidget {
     required this.isRefreshing,
     required this.onSectionChanged,
     required this.onRefresh,
+    this.onResync,
     this.errorMessage,
   });
 
@@ -189,6 +194,7 @@ class _KrrHeader extends StatelessWidget {
   final bool isRefreshing;
   final ValueChanged<AnalyticsSection> onSectionChanged;
   final VoidCallback onRefresh;
+  final VoidCallback? onResync;
   final String? errorMessage;
 
   @override
@@ -214,7 +220,16 @@ class _KrrHeader extends StatelessWidget {
           onChanged: onSectionChanged,
         ),
         SizedBox(width: 8.w),
-        _KrrResyncButton(enabled: !isRefreshing, onDone: onRefresh),
+        if (onResync != null)
+          IconButton(
+            tooltip: 'Перезапросить данные DTW',
+            onPressed: isRefreshing ? null : onResync,
+            icon: DdtIcon(
+              DdtIcons.refresh,
+              color: DdtTheme.primaryColor,
+              size: 22.sp,
+            ),
+          ),
       ],
     );
     final title = Column(
@@ -274,124 +289,6 @@ class _KrrHeader extends StatelessWidget {
   }
 }
 
-class _KrrResyncButton extends StatefulWidget {
-  const _KrrResyncButton({required this.enabled, required this.onDone});
-
-  final bool enabled;
-  final VoidCallback onDone;
-
-  @override
-  State<_KrrResyncButton> createState() => _KrrResyncButtonState();
-}
-
-class _KrrResyncButtonState extends State<_KrrResyncButton> {
-  Future<void> _resync() async {
-    final confirmed = await showDdtConfirm(
-      context,
-      title: 'Обновить данные КРР?',
-      message:
-          'Текущий снимок за сегодня будет загружен из DTW заново. Это может занять несколько минут.',
-      cancelLabel: 'Отмена',
-      confirmLabel: 'Обновить',
-      destructive: false,
-    );
-    if (confirmed != true || !mounted) return;
-    final done = await showDdtDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _KrrSyncProgressDialog(),
-    );
-    if (done == true && mounted) widget.onDone();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Перезапросить данные DTW',
-      onPressed: widget.enabled ? _resync : null,
-      icon: DdtIcon(
-        DdtIcons.refresh,
-        color: DdtTheme.primaryColor,
-        size: 22.sp,
-      ),
-    );
-  }
-}
-
-class _KrrSyncProgressDialog extends StatefulWidget {
-  const _KrrSyncProgressDialog();
-
-  @override
-  State<_KrrSyncProgressDialog> createState() => _KrrSyncProgressDialogState();
-}
-
-class _KrrSyncProgressDialogState extends State<_KrrSyncProgressDialog> {
-  int _stored = 0;
-  int _total = 0;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _run();
-  }
-
-  Future<void> _run() async {
-    try {
-      await krrApiInstance.syncUntilDone(
-        force: true,
-        onProgress: (stored, total) {
-          if (!mounted) return;
-          setState(() {
-            _stored = stored;
-            _total = total;
-          });
-        },
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '');
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = _total > 0 ? (_stored / _total).clamp(0.0, 1.0) : null;
-    return DdtDialog(
-      title: _error == null ? 'Загрузка данных КРР' : 'Не удалось обновить',
-      body: _error == null
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                LinearProgressIndicator(value: progress),
-                SizedBox(height: 12.h),
-                Text(
-                  _total > 0
-                      ? 'Загружено $_stored из $_total'
-                      : 'Подключение к DTW…',
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.captionSize,
-                    color: DdtTheme.textSecondary(context),
-                  ),
-                ),
-              ],
-            )
-          : Text(_error!),
-      actions: [
-        if (_error != null)
-          DdtDialogAction(
-            label: 'Закрыть',
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-      ],
-    );
-  }
-}
-
 class _KrrKpiGrid extends StatelessWidget {
   const _KrrKpiGrid({required this.kpi, this.skeleton = false});
 
@@ -410,7 +307,16 @@ class _KrrKpiGrid extends StatelessWidget {
         ('Включено в ДК', analyticsPositiveColor),
         ('Дата последнего изменения', Color(0xFFD4943A)),
         ('Заполненность', Color(0xFF3E9B74)),
-      ]);
+      ], values: const [
+        ('0', 'в текущей выборке'),
+        ('0', 'по идентификатору работы'),
+        ('0', 'уникальные ведомственные ОИВ'),
+        ('0', 'уникальные организации'),
+        ('—', 'к вчерашнему снимку'),
+        ('0', 'записи с признаком ДК'),
+        ('—', 'по дате изменения версии'),
+        ('0%', 'доля заполненных значений'),
+      ], skeleton: true);
     }
     final data = kpi!;
     final delta = data.delta;
@@ -447,6 +353,7 @@ class _KrrKpiGrid extends StatelessWidget {
     BuildContext context,
     List<(String, Color)> cards, {
     List<(String, String?)>? values,
+    bool skeleton = false,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -469,7 +376,7 @@ class _KrrKpiGrid extends StatelessWidget {
                   value: values == null ? '' : values[index].$1,
                   color: cards[index].$2,
                   hint: values == null ? null : values[index].$2,
-                  skeleton: values == null,
+                  skeleton: skeleton,
                 ),
               ),
           ],
@@ -614,7 +521,9 @@ class _KrrChartGridState extends State<_KrrChartGrid> {
       );
     }
 
-    return Column(
+    return DashboardSkeletonScope(
+      loading: widget.skeleton || data == null,
+      child: Column(
       children: [
         SizedBox(height: widget.chartHeight, child: created),
         SizedBox(height: 12.h),
@@ -628,6 +537,7 @@ class _KrrChartGridState extends State<_KrrChartGrid> {
         SizedBox(height: 12.h),
         SizedBox(height: widget.chartHeight, child: activation),
       ],
+    ),
     );
   }
 }
@@ -815,100 +725,158 @@ class _KrrTable extends StatelessWidget {
 }
 
 /// Starts the once-a-day KRR fetch when today's snapshot does not exist yet.
-class KrrFirstSyncPrompt extends StatefulWidget {
-  const KrrFirstSyncPrompt({
+
+/// DTW fetch drawn over a dimmed dashboard skeleton.
+class KrrSyncSurface extends StatefulWidget {
+  const KrrSyncSurface({
     super.key,
+    required this.hasData,
+    required this.checking,
     required this.message,
-    required this.onReady,
+    required this.onCompleted,
+    required this.skeleton,
+    required this.dashboardBuilder,
   });
 
+  final bool hasData;
+  final bool checking;
   final String message;
-  final VoidCallback onReady;
+  final VoidCallback onCompleted;
+  final Widget skeleton;
+  final Widget Function(VoidCallback resync) dashboardBuilder;
 
   @override
-  State<KrrFirstSyncPrompt> createState() => _KrrFirstSyncPromptState();
+  State<KrrSyncSurface> createState() => _KrrSyncSurfaceState();
 }
 
-class _KrrFirstSyncPromptState extends State<KrrFirstSyncPrompt> {
-  bool _running = false;
-  String? _progress;
+class _KrrSyncSurfaceState extends State<KrrSyncSurface> {
+  bool _syncing = false;
+  int _stored = 0;
+  int _total = 0;
   String? _error;
 
-  @override
-  void dispose() {
-    _running = false;
-    super.dispose();
-  }
-
-  Future<void> _start() async {
+  Future<void> _start({required bool force}) async {
     setState(() {
-      _running = true;
+      _syncing = true;
       _error = null;
-      _progress = 'Запуск загрузки…';
+      _stored = 0;
+      _total = 0;
     });
     try {
       await krrApiInstance.syncUntilDone(
+        force: force,
         onProgress: (stored, total) {
           if (!mounted) return;
           setState(() {
-            _progress = total > 0
-                ? 'Загружено $stored из $total'
-                : 'Загрузка набора…';
+            _stored = stored;
+            _total = total;
           });
         },
       );
       if (!mounted) return;
-      widget.onReady();
+      setState(() => _syncing = false);
+      widget.onCompleted();
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _running = false;
+        _syncing = false;
         _error = error.toString().replaceFirst('Exception: ', '');
       });
     }
   }
 
+  void _cancel() {
+    setState(() => _error = null);
+    widget.onCompleted();
+  }
+
+  Future<void> _resync() async {
+    final confirmed = await showDdtConfirm(
+      context,
+      title: 'Обновить данные КРР?',
+      message:
+          'Текущий снимок за сегодня будет загружен из DTW заново. Это может занять несколько минут.',
+      cancelLabel: 'Отмена',
+      confirmLabel: 'Обновить',
+      destructive: false,
+    );
+    if (confirmed != true || !mounted) return;
+    await _start(force: true);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final message = _error ?? widget.message;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.bodyLargeSize,
-                color: _error == null
-                    ? DdtTheme.textSecondary(context)
-                    : const Color(0xFFC62828),
+    // Dim and the progress bar are only for an explicit DTW fetch.
+    if (_syncing || _error != null) {
+      final detail = _total > 0
+          ? 'DTW · загружено $_stored из $_total'
+          : 'Подключение к DTW…';
+      return DashboardLoadVeil(
+        skeleton: widget.skeleton,
+        title: 'Загрузка данных',
+        detail: detail,
+        showProgress: _syncing,
+        progress: _syncing && _total > 0 ? _stored / _total : null,
+        error: _error,
+        action: _syncing
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Button(
+                    text: 'Загрузить данные',
+                    onPressed: () => _start(force: widget.hasData),
+                    borderRadius: DdtTheme.radius,
+                  ),
+                  SizedBox(height: 8.h),
+                  Button(
+                    text: 'Отмена',
+                    type: ButtonType.text,
+                    textColor: Colors.white,
+                    onPressed: _cancel,
+                    borderRadius: DdtTheme.radius,
+                  ),
+                ],
               ),
-            ),
-            if (_progress != null) ...[
-              SizedBox(height: 12.h),
-              Text(
-                _progress!,
-                style: DdtTheme.style(
-                  fontSize: DdtTypography.captionSize,
-                  color: DdtTheme.textMuted(context),
+      );
+    }
+    if (!widget.hasData) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          IgnorePointer(child: widget.skeleton),
+          if (!widget.checking)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.message,
+                        textAlign: TextAlign.center,
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.bodyLargeSize,
+                          color: DdtTheme.textSecondary(context),
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+                      Button(
+                        text: 'Загрузить данные',
+                        onPressed: () => _start(force: false),
+                        borderRadius: DdtTheme.radius,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-            SizedBox(height: 16.h),
-            if (_running)
-              const CircularProgressIndicator()
-            else
-              Button(
-                text: 'Загрузить данные',
-                onPressed: _start,
-                borderRadius: DdtTheme.radius,
-              ),
-          ],
-        ),
-      ),
-    );
+            ),
+        ],
+      );
+    }
+    return widget.dashboardBuilder(_resync);
   }
 }
+

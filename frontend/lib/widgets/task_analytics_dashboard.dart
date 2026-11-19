@@ -25,6 +25,13 @@ class TaskAnalyticsKpiGrid extends StatelessWidget {
         ('Просрочен дедлайн', Color(0xFFD4943A)),
         ('Всего задач', AppColors.primary),
         ('В работе', Color(0xFF4A90C2)),
+      ], values: const [
+        ('—', 'медиана по закрытым задачам'),
+        ('0', '0 в работе / открыто'),
+        ('0', 'приоритет «Блокер»'),
+        ('0', 'открытые и закрытые с нарушением срока'),
+        ('0', '0 в статусе «В работе»'),
+        ('0', 'статус «В работе»'),
       ], skeleton: true);
     }
     final data = kpi!;
@@ -102,7 +109,7 @@ class TaskAnalyticsKpiGrid extends StatelessWidget {
                   value: values == null ? '' : values[index].$1,
                   color: cards[index].$2,
                   hint: values == null ? null : values[index].$2,
-                  skeleton: skeleton || values == null,
+                  skeleton: skeleton,
                 ),
               ),
           ],
@@ -234,7 +241,9 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
         : null;
 
     if (!wide) {
-      return Column(
+      return DashboardSkeletonScope(
+        loading: skeleton || data == null,
+        child: Column(
         children: [
           SizedBox(height: tallChartHeight, child: trendCard),
           SizedBox(height: gap),
@@ -251,10 +260,13 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
             SizedBox(height: chartHeight, child: executorBar),
           ],
         ],
+      ),
       );
     }
 
-    return Column(
+    return DashboardSkeletonScope(
+      loading: skeleton || data == null,
+      child: Column(
       children: [
         SizedBox(
           height: tallChartHeight,
@@ -287,6 +299,7 @@ class TaskAnalyticsChartGrid extends StatelessWidget {
           SizedBox(height: chartHeight, child: executorBar),
         ],
       ],
+    ),
     );
   }
 }

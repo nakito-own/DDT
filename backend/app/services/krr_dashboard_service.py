@@ -103,14 +103,19 @@ _RECORD_COLUMNS = (
 
 class KrrDashboardService:
     def query(self, spec: AnalyticsFilterSpec, *, table_limit: int) -> dict:
-        today = self._succeeded_day(offset_days=0)
-        if today is None:
+        current = self._succeeded_day(offset_days=0)
+        previous_offset = 1
+        if current is None:
+            # Today's fetch failed or has not run. Yesterday's snapshot still works.
+            current = self._succeeded_day(offset_days=1)
+            previous_offset = 2
+        if current is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Снимок за сегодня ещё не загружен. Запустите синхронизацию КРР.",
             )
-        snapshot_date, fetched_at, total_count = today
-        yesterday = self._succeeded_day(offset_days=1)
+        snapshot_date, fetched_at, total_count = current
+        yesterday = self._succeeded_day(offset_days=previous_offset)
         date_column = spec.date_column if spec.date_column in _DATE_KEYS else DEFAULT_DATE
         where, params = _conditions(spec, date_column)
         with get_db(read_timeout=60) as conn:

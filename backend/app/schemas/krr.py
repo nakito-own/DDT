@@ -25,6 +25,48 @@ class KrrSyncStatus(BaseModel):
     yesterday: KrrSnapshotStatus
 
 
+class KrrRelayBegin(BaseModel):
+    needed: bool
+    sync_id: str = ""
+    dataset_id: int
+    base_url: str = ""
+    login: str = ""
+    password: str = ""
+    page_size: int = 200
+    offset_param: str = "offset"
+    limit_param: str = "limit"
+    today: KrrSnapshotStatus
+    yesterday: KrrSnapshotStatus
+
+
+class KrrRelayPage(BaseModel):
+    sync_id: str = Field(min_length=16, max_length=64)
+    name: str = Field(default="", max_length=512)
+    total_count: int = Field(default=0, ge=0)
+    offset: int = Field(default=0, ge=0)
+    # Raw DTW page. The client forwards it without parsing, so the UI thread
+    # does not build the row objects.
+    payload: dict[str, Any] | None = None
+    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+
+
+class KrrRelayFinish(BaseModel):
+    sync_id: str = Field(min_length=16, max_length=64)
+
+
+class KrrRelayAbort(BaseModel):
+    sync_id: str = Field(min_length=16, max_length=64)
+    message: str = Field(default="", max_length=2000)
+
+
+class KrrRelayProgress(BaseModel):
+    stored_count: int
+    total_count: int
+    accepted: int = 0
+    row_count: int = 0
+    done: bool = False
+
+
 class KrrWorkSummary(BaseModel):
     id_unique: int
     name_work_version: str | None = None
