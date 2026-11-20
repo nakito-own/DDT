@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/app_section.dart';
+import '../utils/section_navigation.dart';
 import '../theme/ddt_icons.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
@@ -78,7 +78,7 @@ class AdditionsPage extends StatelessWidget {
         _AdditionTile(
           icon: section.icon,
           label: section.label,
-          onTap: () => context.go(section.routePath),
+          onTap: () => openAppSection(context, section),
         ),
       _AdditionTile(
         icon: DdtIcons.warning,

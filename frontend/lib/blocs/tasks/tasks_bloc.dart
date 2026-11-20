@@ -30,17 +30,20 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     TasksApi? api,
     this.archivedOnly = false,
     bool beginLoading = false,
+    TasksViewMode initialViewMode = TasksViewMode.list,
   }) : _api = api ?? tasksApi,
        super(
          TasksState(
            columns: {for (final s in TaskStatus.values) s: <Task>[]},
            statusFilters: Set.of(TaskStatus.values),
            isLoading: beginLoading,
+           viewMode: initialViewMode,
          ),
        ) {
     on<TasksBoardLoadRequested>(_onBoardLoadRequested);
     on<TasksBoardCleared>(_onBoardCleared);
     on<TasksViewModeChanged>(_onViewModeChanged);
+    on<TasksSpaceContextChanged>(_onSpaceContextChanged);
     on<TasksSearchQueryChanged>(_onSearchQueryChanged);
     on<TasksStatusFilterToggled>(_onStatusFilterToggled);
     on<TasksPriorityFilterChanged>(_onPriorityFilterChanged);
@@ -134,6 +137,9 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         columns: {for (final s in TaskStatus.values) s: <Task>[]},
         taskTypes: [],
         errorMessage: () => null,
+        viewMode: TasksViewMode.list,
+        spaceViewMode: TasksViewMode.list,
+        activeSpaceKey: () => null,
       ),
     );
   }
@@ -144,7 +150,24 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     TasksViewModeChanged event,
     Emitter<TasksState> emit,
   ) {
+    if (state.viewMode == event.mode) return;
     emit(state.copyWith(viewMode: event.mode));
+  }
+
+  void _onSpaceContextChanged(
+    TasksSpaceContextChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    if (state.spaceViewMode == event.viewMode &&
+        state.activeSpaceKey == event.spaceKey) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        spaceViewMode: event.viewMode,
+        activeSpaceKey: () => event.spaceKey,
+      ),
+    );
   }
 
   void _onSearchQueryChanged(
@@ -666,6 +689,7 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     putIfChanged('type_id', updated.typeId, original.typeId);
     putIfChanged('description', updated.description, original.description);
     putIfChanged('executor_id', updated.executorId, original.executorId);
+    putIfChanged('author_id', updated.authorId, original.authorId);
     putIfChanged(
       'responsible_id',
       updated.responsibleId,

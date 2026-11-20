@@ -35,6 +35,15 @@ enum TasksViewMode {
     return null;
   }
 
+  /// Канбан, список или гант. Архив и карточка задачи сюда не входят:
+  /// они не должны затирать сохранённый вид доски.
+  static TasksViewMode? boardModeFromRoute(String location) {
+    if (location.endsWith('/kanban')) return TasksViewMode.kanban;
+    if (location.endsWith('/gantt')) return TasksViewMode.gantt;
+    if (location.endsWith('/list')) return TasksViewMode.list;
+    return null;
+  }
+
   /// Активный режим: доска из адреса либо та, с которой открыли задачу.
   static TasksViewMode fromRoute(String location) {
     final board = boardFromRoute(location);

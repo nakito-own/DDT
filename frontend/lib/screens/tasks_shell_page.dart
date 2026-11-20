@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
+import '../models/tasks_view_mode.dart';
 import '../router/route_paths.dart';
 import '../services/tasks_api.dart';
 import '../theme/ddt_icons.dart';
@@ -15,6 +18,7 @@ import '../widgets/ddt_app_bar_section_actions.dart';
 import '../widgets/ddt_glass_fab.dart';
 import '../widgets/ddt_mobile_navigation_bar.dart';
 import '../widgets/ddt_scroll_to_top.dart';
+import '../widgets/ddt_tasks_view_transition.dart';
 import 'task_create_page.dart';
 import '../widgets/kanban_board_skeleton.dart';
 
@@ -42,15 +46,25 @@ class SpaceTasksHost extends StatefulWidget {
 }
 
 class _SpaceTasksHostState extends State<SpaceTasksHost> {
+  late final TasksBloc _root;
   late final TasksBloc _bloc;
+  late final StreamSubscription<TasksState> _viewSubscription;
 
   @override
   void initState() {
     super.initState();
+    _root = context.read<TasksBloc>();
     _bloc = TasksBloc(
       api: TasksApi(spaceKey: widget.spaceKey),
       beginLoading: true,
+      initialViewMode: _root.state.spaceViewMode,
     )..add(const TasksBoardLoadRequested());
+    _viewSubscription = _bloc.stream.listen((_) => _rememberSpace());
+    // Оболочка ниже в этом кадре ещё запишет вид из адреса.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _rememberSpace();
+    });
   }
 
   @override
@@ -58,11 +72,28 @@ class _SpaceTasksHostState extends State<SpaceTasksHost> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.spaceKey != widget.spaceKey) {
       _bloc.switchSpace(widget.spaceKey);
+      _rememberSpace();
     }
+  }
+
+  /// Корневой блок переживает уход из раздела, блок доски — нет.
+  void _rememberSpace() {
+    final root = _root.state;
+    if (root.spaceViewMode == _bloc.state.viewMode &&
+        root.activeSpaceKey == widget.spaceKey) {
+      return;
+    }
+    _root.add(
+      TasksSpaceContextChanged(
+        spaceKey: widget.spaceKey,
+        viewMode: _bloc.state.viewMode,
+      ),
+    );
   }
 
   @override
   void dispose() {
+    _viewSubscription.cancel();
     _bloc.close();
     super.dispose();
   }
@@ -88,6 +119,7 @@ class TasksShellPage extends StatefulWidget {
 
 class _TasksShellPageState extends State<TasksShellPage> {
   final _chrome = DdtFloatingChromeController();
+  String? _syncedPath;
 
   @override
   void dispose() {
@@ -102,6 +134,19 @@ class _TasksShellPageState extends State<TasksShellPage> {
     if (!bloc.state.isLoading) {
       bloc.add(const TasksBoardLoadRequested());
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final path = GoRouterState.of(context).uri.path;
+    if (path == _syncedPath) return;
+    _syncedPath = path;
+    final mode = TasksViewMode.boardModeFromRoute(path);
+    if (mode == null) return;
+    final bloc = context.read<TasksBloc>();
+    if (bloc.archivedOnly || bloc.state.viewMode == mode) return;
+    bloc.add(TasksViewModeChanged(mode));
   }
 
   @override
@@ -125,6 +170,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
         final path = GoRouterState.of(context).uri.path;
         final onBoard = RoutePaths.isTasksBoardRoute(path);
         final archiveOpen = RoutePaths.isArchiveRoute(path);
+        final boardMode = TasksViewMode.boardModeFromRoute(path);
 
         return DdtFloatingChrome(
           controller: _chrome,
@@ -136,7 +182,7 @@ class _TasksShellPageState extends State<TasksShellPage> {
                 child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  widget.child,
+                  DdtTasksViewTransition(mode: boardMode, child: widget.child),
                   if (compact && _chrome.visible && onBoard) ...[
                     Positioned(
                       left: 0,

@@ -100,6 +100,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
     super.key,
     this.multi = true,
     this.emptyLabel = 'Нет значений',
+    this.tint,
   });
 
   final String summary;
@@ -109,6 +110,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
   final ValueChanged<String> onSelected;
   final bool multi;
   final String emptyLabel;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +119,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
         return DdtFilterDropdownAnchor(
           label: summary,
           active: active,
+          tint: tint,
           badge: multi ? selected.length : 0,
           onTap: () => showDdtSearchableFilterMenu(
             context: context,
@@ -185,6 +188,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
     this.badge = 0,
     this.compact = false,
     this.frosted = false,
+    this.tint,
   });
 
   final String label;
@@ -194,6 +198,9 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
   final int badge;
   final bool compact;
   final bool frosted;
+
+  /// Цвет выбранного значения. Заливка, обводка и текст берутся из него.
+  final Color? tint;
 
   @override
   State<DdtFilterDropdownAnchor> createState() =>
@@ -206,7 +213,17 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fill = widget.frosted
+    final tint = widget.tint;
+    final tintText = tint == null
+        ? null
+        : (isDark
+              ? Color.lerp(tint, Colors.white, 0.42)
+              : Color.lerp(tint, Colors.black, 0.22));
+    final fill = tint != null
+        ? tint.withValues(
+            alpha: isDark ? (_hovered ? 0.28 : 0.20) : (_hovered ? 0.18 : 0.12),
+          )
+        : widget.frosted
         ? (isDark
               ? Colors.white.withValues(alpha: _hovered ? 0.10 : 0.05)
               : Colors.white.withValues(alpha: _hovered ? 0.72 : 0.56))
@@ -215,7 +232,13 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
         : _hovered
         ? DdtTheme.inputFillColorHover(context)
         : DdtTheme.inputFillColor(context);
-    final border = widget.frosted
+    final border = tint != null
+        ? tint.withValues(
+            alpha: isDark
+                ? (_hovered ? 0.62 : 0.46)
+                : (_hovered ? 0.48 : 0.34),
+          )
+        : widget.frosted
         ? (isDark
               ? Colors.white.withValues(alpha: 0.11)
               : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90))
@@ -282,7 +305,7 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
                     fontWeight: widget.active
                         ? FontWeight.w600
                         : FontWeight.w500,
-                    color: DdtTheme.textPrimary(context),
+                    color: tintText ?? DdtTheme.textPrimary(context),
                   ),
                   child: Text(
                     widget.label,
@@ -320,9 +343,10 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
               DdtIcon(
                 DdtIcons.chevronDown,
                 size: 12.sp,
-                color: widget.active || _hovered
-                    ? DdtTheme.textSecondary(context)
-                    : DdtTheme.textMuted(context),
+                color: tintText ??
+                    (widget.active || _hovered
+                        ? DdtTheme.textSecondary(context)
+                        : DdtTheme.textMuted(context)),
               ),
             ],
           ),

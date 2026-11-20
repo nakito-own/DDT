@@ -34,6 +34,20 @@ final class TasksViewModeChanged extends TasksEvent {
   List<Object?> get props => [mode];
 }
 
+/// Запомнить пространство и вид его доски в корневом блоке.
+final class TasksSpaceContextChanged extends TasksEvent {
+  const TasksSpaceContextChanged({
+    required this.spaceKey,
+    required this.viewMode,
+  });
+
+  final String spaceKey;
+  final TasksViewMode viewMode;
+
+  @override
+  List<Object?> get props => [spaceKey, viewMode];
+}
+
 /// Изменить строку поиска.
 final class TasksSearchQueryChanged extends TasksEvent {
   const TasksSearchQueryChanged(this.query);
