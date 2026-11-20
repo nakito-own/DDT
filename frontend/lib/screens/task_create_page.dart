@@ -25,6 +25,7 @@ import '../utils/ddt_date_time_picker.dart';
 import '../utils/ddt_toast.dart';
 import '../utils/task_formatters.dart';
 import '../utils/task_status_dates.dart';
+import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_app_input.dart';
 import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_filter_dropdown.dart';
@@ -269,7 +270,7 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
           onClose: _close,
           onSubmit: () => _submit(personal: personal),
         );
-        final parameters = _ParametersColumn(
+        final parameters = TaskParametersForm(
           personal: personal,
           taskTypes: state.taskTypes,
           candidates: candidates,
@@ -315,7 +316,7 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
           children: [
             Expanded(child: main),
             const DdtSidePanelDivider(),
-            SizedBox(width: 320.w, child: _CreateScroll(child: parameters)),
+            SizedBox(width: 400.w, child: _CreateScroll(child: parameters)),
           ],
         );
       },
@@ -379,7 +380,9 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
   @override
   Widget build(BuildContext context) {
     final topInset = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
-    final bottom = DdtShellMetrics.maybeOf(context)?.contentInsetBottom ?? 24.h;
+    final floatingBottom = DdtAdaptive.floatingBottomBar(context)
+        ? DdtShellMetrics.contentBottomPadding(context)
+        : 0.0;
     final titleStyle = DdtTheme.style(
       fontSize: DdtTypography.entityTitleSize,
       fontWeight: FontWeight.w700,
@@ -399,7 +402,12 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
             child: ListView(
               controller: _scroll,
               primary: false,
-              padding: EdgeInsets.fromLTRB(20.w, _chromeHeight, 20.w, bottom),
+              padding: EdgeInsets.fromLTRB(
+                20.w,
+                _chromeHeight + 8.h,
+                20.w,
+                24.h + floatingBottom,
+              ),
               children: [
                 DdtMarkdownDescriptionInput(
                   controller: widget.descriptionController,
@@ -451,13 +459,18 @@ class _CreateMainPaneState extends State<_CreateMainPane> {
                       onSubmit: widget.onSubmit,
                     ),
                     SizedBox(height: 8.h),
-                    _SkeletonTextField(
-                      controller: widget.titleController,
-                      hint: 'Название',
-                      autofocus: widget.autofocusTitle,
-                      style: titleStyle,
-                      onSubmitted: (_) =>
-                          widget.descriptionFocus.requestFocus(),
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: DdtRoundBackButton.contentLead(20.w),
+                      ),
+                      child: _SkeletonTextField(
+                        controller: widget.titleController,
+                        hint: 'Название',
+                        autofocus: widget.autofocusTitle,
+                        style: titleStyle,
+                        onSubmitted: (_) =>
+                            widget.descriptionFocus.requestFocus(),
+                      ),
                     ),
                   ],
                 ),
@@ -526,8 +539,9 @@ class _ChromeHeightReporterState extends State<_ChromeHeightReporter> {
   }
 }
 
-class _ParametersColumn extends StatelessWidget {
-  const _ParametersColumn({
+class TaskParametersForm extends StatelessWidget {
+  const TaskParametersForm({
+    super.key,
     required this.personal,
     required this.taskTypes,
     required this.candidates,
@@ -555,6 +569,7 @@ class _ParametersColumn extends StatelessWidget {
     required this.onDeadline,
     required this.onParent,
     required this.onToggleChild,
+    this.tintValues = false,
   });
 
   final bool personal;
@@ -585,6 +600,9 @@ class _ParametersColumn extends StatelessWidget {
   final ValueChanged<String> onParent;
   final ValueChanged<String> onToggleChild;
 
+  /// В просмотре поле окрашивается в цвет выбранного статуса, типа или приоритета.
+  final bool tintValues;
+
   @override
   Widget build(BuildContext context) {
     final parentSummary = parent == null
@@ -611,6 +629,7 @@ class _ParametersColumn extends StatelessWidget {
         _DropdownRow(
           label: 'Статус',
           summary: status.label,
+          tint: tintValues ? statusColumnColor(status) : null,
           active: true,
           selected: {status.value},
           options: [
@@ -622,6 +641,7 @@ class _ParametersColumn extends StatelessWidget {
         _DropdownRow(
           label: 'Тип',
           summary: _typeName(taskTypes, typeId) ?? 'Не указан',
+          tint: tintValues && typeId != null ? taskTypeColor(typeId!) : null,
           active: typeId != null,
           selected: {typeId?.toString() ?? ''},
           options: [
@@ -634,6 +654,9 @@ class _ParametersColumn extends StatelessWidget {
         _DropdownRow(
           label: 'Приоритет',
           summary: priority?.label ?? 'Не указан',
+          tint: tintValues && priority != null
+              ? priorityColor(priority!)
+              : null,
           active: priority != null,
           selected: {priority?.value ?? ''},
           options: [
@@ -913,14 +936,19 @@ class _CreateScroll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = DdtShellMetrics.maybeOf(context)?.contentInsetTop ?? 0;
-    final bottom = DdtShellMetrics.maybeOf(context)?.contentInsetBottom ?? 24.h;
+    final floatingBottom = DdtAdaptive.floatingBottomBar(context)
+        ? DdtShellMetrics.contentBottomPadding(context)
+        : 0.0;
 
-    return ScrollConfiguration(
-      behavior: const DdtScrollBehavior(),
-      child: ListView(
-        primary: false,
-        padding: EdgeInsets.fromLTRB(20.w, top + 16.h, 20.w, bottom),
-        children: [child],
+    return Padding(
+      padding: EdgeInsets.only(top: top, bottom: floatingBottom),
+      child: ScrollConfiguration(
+        behavior: const DdtScrollBehavior(),
+        child: ListView(
+          primary: false,
+          padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.w),
+          children: [child],
+        ),
       ),
     );
   }
@@ -938,6 +966,7 @@ class _DropdownRow extends StatelessWidget {
     this.emptyLabel = 'Нет значений',
     this.trailing,
     this.alignTop = false,
+    this.tint,
   });
 
   final String label;
@@ -950,6 +979,7 @@ class _DropdownRow extends StatelessWidget {
   final String emptyLabel;
   final Widget? trailing;
   final bool alignTop;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
@@ -975,6 +1005,7 @@ class _DropdownRow extends StatelessWidget {
                 DdtSearchableFilterDropdown(
                   summary: summary,
                   active: active,
+                  tint: tint,
                   options: options,
                   selected: selected,
                   onSelected: onSelected,

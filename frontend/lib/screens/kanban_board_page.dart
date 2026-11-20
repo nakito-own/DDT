@@ -400,7 +400,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                   index < TaskStatus.values.length;
                   index++
                 ) ...[
-                  if (index > 0) DdtTheme.horizontalGap(),
+                  if (index > 0) const _KanbanColumnGap(),
                   Expanded(child: _kanbanColumn(TaskStatus.values[index])),
                 ],
               ],
@@ -412,7 +412,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: TaskStatus.values.length,
-              separatorBuilder: (context, index) => DdtTheme.horizontalGap(),
+              separatorBuilder: (context, index) => const _KanbanColumnGap(),
               itemBuilder: (context, index) {
                 final status = TaskStatus.values[index];
 
@@ -423,6 +423,15 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
         },
       ),
     );
+  }
+}
+
+class _KanbanColumnGap extends StatelessWidget {
+  const _KanbanColumnGap();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: DdtTheme.shellSize(DdtTheme.kanbanColumnGap));
   }
 }
 

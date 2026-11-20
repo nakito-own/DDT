@@ -7,6 +7,7 @@ import '../blocs/mail/mail_bloc.dart';
 import '../models/app_section.dart';
 import '../models/tasks_view_mode.dart';
 import '../utils/ddt_toast.dart';
+import '../utils/section_navigation.dart';
 import '../widgets/ddt_shell_layout.dart';
 
 /// Оболочка основного приложения: навигационный рейл + аппбар + контент.
@@ -63,7 +64,7 @@ class MainShellPage extends StatelessWidget {
       child: DdtShellLayout(
         title: selectedSection.label,
         selectedSection: selectedSection,
-        onSectionSelected: (section) => context.go(section.routePath),
+        onSectionSelected: (section) => openAppSection(context, section),
         padContent: padsContentFor(selectedSection, location),
         child: child,
       ),

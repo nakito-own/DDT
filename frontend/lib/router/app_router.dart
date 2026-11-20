@@ -242,58 +242,12 @@ AppRouter createAppRouter(AuthBloc authBloc) {
             redirect: (context, state) =>
                 RoutePaths.spaceListFor(RoutePaths.defaultSpaceKey),
           ),
-          GoRoute(
-            path: RoutePaths.spaceRef,
-            name: RoutePaths.nameSpaceTaskDetails,
-            redirect: (context, state) {
-              final spaceKey = state.pathParameters['spaceKey'] ?? '';
-              if (RoutePaths.isTaskKey(spaceKey)) return null;
-              return RoutePaths.spaceListFor(spaceKey);
-            },
-            pageBuilder: (context, state) {
-              final taskKey = state.pathParameters['spaceKey'] ?? '';
-              final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
-              return _buildFullscreenPage(
-                key: state.pageKey,
-                child: RoutePaths.isTaskKey(taskKey)
-                    ? BlocProvider(
-                        create: (_) =>
-                            TasksBloc(api: TasksApi(spaceKey: spaceKey))
-                              ..add(const TasksBoardLoadRequested()),
-                        child: TaskDetailsPage(
-                          taskKey: taskKey,
-                          spaceKey: spaceKey,
-                        ),
-                      )
-                    : const _NotFoundPage(),
-              );
-            },
-          ),
-          GoRoute(
-            path: '/space/:taskKey/edit',
-            name: RoutePaths.nameSpaceTaskEdit,
-            pageBuilder: (context, state) {
-              final taskKey = state.pathParameters['taskKey'] ?? '';
-              final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
-              return _buildFullscreenPage(
-                key: state.pageKey,
-                child: RoutePaths.isTaskKey(taskKey)
-                    ? BlocProvider(
-                        create: (_) =>
-                            TasksBloc(api: TasksApi(spaceKey: spaceKey))
-                              ..add(const TasksBoardLoadRequested()),
-                        child: TaskEditPage(
-                          taskKey: taskKey,
-                          spaceKey: spaceKey,
-                        ),
-                      )
-                    : const _NotFoundPage(),
-              );
-            },
-          ),
           ShellRoute(
             pageBuilder: (context, state, child) {
-              final spaceKey = state.pathParameters['spaceKey'] ?? '';
+              var spaceKey = state.pathParameters['spaceKey'] ?? '';
+              if (RoutePaths.isTaskKey(spaceKey)) {
+                spaceKey = RoutePaths.spaceKeyFromTaskKey(spaceKey);
+              }
               if (spaceKey.isEmpty || RoutePaths.isTaskKey(spaceKey)) {
                 return const NoTransitionPage(child: _NotFoundPage());
               }
@@ -313,6 +267,39 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                   key: state.pageKey,
                   child: const TaskCreatePage(),
                 ),
+              ),
+              GoRoute(
+                path: '/space/:spaceKey/edit',
+                name: RoutePaths.nameSpaceTaskEdit,
+                pageBuilder: (context, state) {
+                  final taskKey = state.pathParameters['spaceKey'] ?? '';
+                  final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
+                  return _buildFullscreenPage(
+                    key: state.pageKey,
+                    child: RoutePaths.isTaskKey(taskKey)
+                        ? TaskEditPage(taskKey: taskKey, spaceKey: spaceKey)
+                        : const _NotFoundPage(),
+                  );
+                },
+              ),
+              GoRoute(
+                path: RoutePaths.spaceRef,
+                name: RoutePaths.nameSpaceTaskDetails,
+                redirect: (context, state) {
+                  final spaceKey = state.pathParameters['spaceKey'] ?? '';
+                  if (RoutePaths.isTaskKey(spaceKey)) return null;
+                  return RoutePaths.spaceListFor(spaceKey);
+                },
+                pageBuilder: (context, state) {
+                  final taskKey = state.pathParameters['spaceKey'] ?? '';
+                  final spaceKey = RoutePaths.spaceKeyFromTaskKey(taskKey);
+                  return _buildFullscreenPage(
+                    key: state.pageKey,
+                    child: RoutePaths.isTaskKey(taskKey)
+                        ? TaskDetailsPage(taskKey: taskKey, spaceKey: spaceKey)
+                        : const _NotFoundPage(),
+                  );
+                },
               ),
               GoRoute(
                 path: RoutePaths.spaceList,

@@ -32,7 +32,8 @@ class KanbanBoardSkeleton extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var index = 0; index < TaskStatus.values.length; index++) ...[
-                if (index > 0) DdtTheme.horizontalGap(),
+                if (index > 0)
+                  SizedBox(width: DdtTheme.shellSize(DdtTheme.kanbanColumnGap)),
                 Expanded(
                   child: _SkeletonColumn(status: TaskStatus.values[index]),
                 ),
@@ -46,7 +47,9 @@ class KanbanBoardSkeleton extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: TaskStatus.values.length,
-            separatorBuilder: (context, index) => DdtTheme.horizontalGap(),
+            separatorBuilder: (context, index) => SizedBox(
+              width: DdtTheme.shellSize(DdtTheme.kanbanColumnGap),
+            ),
             itemBuilder: (context, index) {
               return SizedBox(
                 width: 320.w,
