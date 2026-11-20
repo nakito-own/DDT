@@ -421,7 +421,7 @@ class _TaskEditPageState extends State<TaskEditPage> {
         final parameters = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ParametersColumn(
+            TaskParametersForm(
               personal: personal,
               taskTypes: state.taskTypes,
               candidates: candidates,
@@ -477,7 +477,7 @@ class _TaskEditPageState extends State<TaskEditPage> {
           children: [
             Expanded(child: main),
             const DdtSidePanelDivider(),
-            SizedBox(width: 320.w, child: _CreateScroll(child: parameters)),
+            SizedBox(width: 400.w, child: _CreateScroll(child: parameters)),
           ],
         );
       },

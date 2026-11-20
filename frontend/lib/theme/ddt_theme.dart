@@ -17,6 +17,9 @@ class DdtTheme {
   static const double inputHorizontalPadding = 12;
   static const double inputVerticalPadding = 10;
   static const double spacing = 16;
+
+  /// Зазор между колонками канбана. Внешние поля доски им не задаются.
+  static const double kanbanColumnGap = 8;
   static const double scrollbarThickness = 6;
   static const double scrollbarCrossAxisMargin = 2;
   static const double scrollbarMainAxisMargin = 4;

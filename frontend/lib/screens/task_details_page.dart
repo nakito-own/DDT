@@ -11,18 +11,19 @@ import '../theme/ddt_icons.dart';
 import '../blocs/tasks/tasks_bloc.dart';
 import '../models/task.dart';
 import '../models/task_link.dart';
+import '../models/task_priority.dart';
+import '../models/task_ref.dart';
+import '../models/task_status.dart';
+import '../models/task_type.dart';
 import '../router/route_paths.dart';
 import '../services/tasks_api.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/ddt_toast.dart';
-import '../models/user_profile.dart';
-import '../services/directory_users.dart';
-import '../utils/task_formatters.dart';
+import '../utils/task_status_dates.dart';
 import '../widgets/ddt_adaptive.dart';
 import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_round_back_button.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
-import '../widgets/ddt_user_chip.dart';
 import '../widgets/task_comments_section.dart';
 import 'task_create_page.dart';
 import '../theme/ddt_typography.dart';
@@ -159,6 +160,15 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     );
   }
 
+  void _saveParameters(Task updated) {
+    final original = _task;
+    if (original == null) return;
+    setState(() => _task = updated);
+    context.read<TasksBloc>().add(
+      TaskUpdateRequested(original: original, updated: updated),
+    );
+  }
+
   void _onEscape() {
     if (ddtPopOverlayIfAny(context)) return;
     final task = _task;
@@ -262,6 +272,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                 onTaskChanged: (updated) {
                   setState(() => _task = updated);
                 },
+                onParametersChanged: _saveParameters,
               )
             : SingleChildScrollView(
                 padding: DdtShellMetrics.scrollPadding(
@@ -287,7 +298,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                           SizedBox(height: 16.h),
                           _TaskDescription(task: task),
                           SizedBox(height: 20.h),
-                          _TaskParametersPanel(task: task, pinned: false),
+                          _TaskParametersPanel(
+                            task: task,
+                            pinned: false,
+                            onChanged: _saveParameters,
+                          ),
                           SizedBox(height: 24.h),
                           TaskCommentsSection(
                             key: ValueKey('task-comments-${task.id}'),
@@ -323,11 +338,13 @@ class _WideTaskLayout extends StatefulWidget {
     required this.task,
     required this.onEdit,
     required this.onTaskChanged,
+    required this.onParametersChanged,
   });
 
   final Task task;
   final VoidCallback onEdit;
   final ValueChanged<Task> onTaskChanged;
+  final ValueChanged<Task> onParametersChanged;
 
   @override
   State<_WideTaskLayout> createState() => _WideTaskLayoutState();
@@ -447,7 +464,7 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
         ),
         const DdtSidePanelDivider(),
         SizedBox(
-          width: 300.w,
+          width: 400.w,
           child: Padding(
             padding: EdgeInsets.only(top: topInset, bottom: floatingBottom),
             child: Listener(
@@ -456,6 +473,7 @@ class _WideTaskLayoutState extends State<_WideTaskLayout> {
                 task: widget.task,
                 pinned: true,
                 scrollController: _panelScroll,
+                onChanged: widget.onParametersChanged,
               ),
             ),
           ),
@@ -883,271 +901,266 @@ class _TaskDescription extends StatelessWidget {
   }
 }
 
+/// Копия задачи для правой панели. Ссылки не пересылаются, чтобы смена
+/// статуса или срока не перезаписывала их.
+Task _parameterEdit(
+  Task task, {
+  TaskStatus? status,
+  bool typeSpecified = false,
+  int? typeId,
+  bool typeObjectSpecified = false,
+  TaskType? type,
+  bool prioritySpecified = false,
+  TaskPriority? priority,
+  bool authorSpecified = false,
+  int? authorId,
+  bool executorSpecified = false,
+  int? executorId,
+  bool responsibleSpecified = false,
+  int? responsibleId,
+  DateTime? timeSet,
+  bool timeStartSpecified = false,
+  DateTime? timeStart,
+  bool timeEndSpecified = false,
+  DateTime? timeEnd,
+  bool deadlineSpecified = false,
+  DateTime? deadline,
+  bool parentSpecified = false,
+  TaskRef? parent,
+  List<TaskRef>? children,
+}) {
+  return Task(
+    id: task.id,
+    key: task.key,
+    title: task.title,
+    status: status ?? task.status,
+    typeId: typeSpecified ? typeId : task.typeId,
+    type: typeObjectSpecified ? type : task.type,
+    description: task.description,
+    executorId: executorSpecified ? executorId : task.executorId,
+    authorId: authorSpecified ? authorId : task.authorId,
+    responsibleId: responsibleSpecified ? responsibleId : task.responsibleId,
+    ownerId: task.ownerId,
+    spaceId: task.spaceId,
+    spaceKey: task.spaceKey,
+    parentId: parentSpecified ? parent?.id : task.parentId,
+    parent: parentSpecified ? parent : task.parent,
+    children: children ?? task.children,
+    timeSet: timeSet ?? task.timeSet,
+    timeStart: timeStartSpecified ? timeStart : task.timeStart,
+    timeEnd: timeEndSpecified ? timeEnd : task.timeEnd,
+    deadline: deadlineSpecified ? deadline : task.deadline,
+    priority: prioritySpecified ? priority : task.priority,
+    deleted: task.deleted,
+    archive: task.archive,
+    comments: task.comments,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  );
+}
+
 class _TaskParametersPanel extends StatelessWidget {
   const _TaskParametersPanel({
     required this.task,
     required this.pinned,
+    required this.onChanged,
     this.scrollController,
   });
 
   final Task task;
   final bool pinned;
+  final ValueChanged<Task> onChanged;
   final ScrollController? scrollController;
+
+  List<Task> _candidates(List<Task> tasks) {
+    final seen = <String>{};
+    return [
+      for (final item in tasks)
+        if (item.id > 0 &&
+            item.key.isNotEmpty &&
+            item.key != task.key &&
+            seen.add(item.key))
+          item,
+    ];
+  }
+
+  TaskRef _ref(Task item) {
+    return TaskRef(
+      id: item.id,
+      key: item.key,
+      title: item.title,
+      status: item.status,
+    );
+  }
+
+  void _setParent(String key, List<Task> candidates) {
+    if (key.isEmpty) {
+      onChanged(_parameterEdit(task, parentSpecified: true));
+      return;
+    }
+    for (final item in candidates) {
+      if (item.key != key) continue;
+      onChanged(
+        _parameterEdit(
+          task,
+          parentSpecified: true,
+          parent: _ref(item),
+          children: [
+            for (final child in task.children)
+              if (child.key != key) child,
+          ],
+        ),
+      );
+      return;
+    }
+  }
+
+  void _toggleChild(String key, List<Task> candidates) {
+    if (task.children.any((child) => child.key == key)) {
+      onChanged(
+        _parameterEdit(
+          task,
+          children: [
+            for (final child in task.children)
+              if (child.key != key) child,
+          ],
+        ),
+      );
+      return;
+    }
+    if (task.parent?.key == key) return;
+    for (final item in candidates) {
+      if (item.key != key) continue;
+      onChanged(
+        _parameterEdit(task, children: [...task.children, _ref(item)]),
+      );
+      return;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bloc = context.watch<TasksBloc>();
+    final personal = bloc.spaceKey == null;
+    final candidates = _candidates(bloc.state.allTasks);
+    final links = task.links ?? const <TaskLink>[];
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Параметры',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.labelSize,
-            fontWeight: FontWeight.w600,
-            color: DdtTheme.sidePanelTextMuted(context),
+        TaskParametersForm(
+          tintValues: true,
+          personal: personal,
+          taskTypes: bloc.state.taskTypes,
+          candidates: candidates,
+          status: task.status,
+          typeId: task.typeId,
+          priority: task.priority,
+          authorId: task.authorId,
+          executorId: task.executorId,
+          responsibleId: task.responsibleId,
+          timeSet: task.timeSet,
+          timeStart: task.timeStart,
+          timeEnd: task.timeEnd,
+          deadline: task.deadline,
+          parent: task.parent,
+          children: task.children,
+          onStatus: (status) {
+            final dated = applyTaskStatusDates(task, status);
+            onChanged(
+              _parameterEdit(
+                task,
+                status: dated.status,
+                timeStart: dated.timeStart,
+                timeStartSpecified: true,
+                timeEnd: dated.timeEnd,
+                timeEndSpecified: true,
+              ),
+            );
+          },
+          onType: (id) {
+            TaskType? type;
+            for (final item in bloc.state.taskTypes) {
+              if (item.id == id) type = item;
+            }
+            onChanged(
+              _parameterEdit(
+                task,
+                typeSpecified: true,
+                typeId: id,
+                typeObjectSpecified: true,
+                type: type,
+              ),
+            );
+          },
+          onPriority: (value) => onChanged(
+            _parameterEdit(
+              task,
+              prioritySpecified: true,
+              priority: value,
+            ),
           ),
+          onAuthor: (id) => onChanged(
+            _parameterEdit(task, authorSpecified: true, authorId: id),
+          ),
+          onExecutor: (id) => onChanged(
+            _parameterEdit(task, executorSpecified: true, executorId: id),
+          ),
+          onResponsible: (id) => onChanged(
+            _parameterEdit(
+              task,
+              responsibleSpecified: true,
+              responsibleId: id,
+            ),
+          ),
+          onTimeSet: (value) => onChanged(_parameterEdit(task, timeSet: value)),
+          onTimeStart: (value) => onChanged(
+            _parameterEdit(
+              task,
+              timeStartSpecified: true,
+              timeStart: value,
+            ),
+          ),
+          onTimeEnd: (value) => onChanged(
+            _parameterEdit(task, timeEndSpecified: true, timeEnd: value),
+          ),
+          onDeadline: (value) => onChanged(
+            _parameterEdit(
+              task,
+              deadlineSpecified: true,
+              deadline: value,
+            ),
+          ),
+          onParent: (key) => _setParent(key, candidates),
+          onToggleChild: (key) => _toggleChild(key, candidates),
         ),
-        SizedBox(height: 12.h),
-        _ParametersTable(
-          rows: [
-            _ParameterTableRow(
-              label: 'Статус',
-              value: _ParameterBadge(
-                label: task.status.label,
-                color: statusColumnColor(task.status),
-              ),
+        if (links.isNotEmpty) ...[
+          SizedBox(height: 8.h),
+          Text(
+            'Ссылки',
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSize,
+              fontWeight: FontWeight.w600,
+              color: DdtTheme.sidePanelTextMuted(context),
             ),
-            _ParameterTableRow(
-              label: 'Тип',
-              value: task.type == null
-                  ? const _MutedValue(text: 'Не указан')
-                  : _ParameterBadge(
-                      label: task.type!.name,
-                      color: taskTypeColor(task.type!.id),
-                    ),
-            ),
-            _ParameterTableRow(
-              label: 'Приоритет',
-              value: task.priority == null
-                  ? const _MutedValue(text: 'Не указан')
-                  : _ParameterBadge(
-                      label: task.priority!.label,
-                      color: priorityColor(task.priority!),
-                    ),
-            ),
-            _ParameterTableRow(
-              label: 'Автор',
-              value: _TaskPersonValue(userId: task.authorId),
-            ),
-            _ParameterTableRow(
-              label: 'Исполнитель',
-              value: _TaskPersonValue(userId: task.executorId),
-            ),
-            _ParameterTableRow(
-              label: 'Ответственный',
-              value: _TaskPersonValue(userId: task.responsibleId),
-            ),
-            _ParameterTableRow(
-              label: 'Создана',
-              value: Text(
-                formatTaskDateTime(task.timeSet.toLocal()),
-                style: _tableValueStyle(context),
-              ),
-            ),
-            _ParameterTableRow(
-              label: 'Начало',
-              value: Text(
-                task.timeStart == null
-                    ? 'Не указано'
-                    : formatTaskDateTime(task.timeStart!.toLocal()),
-                style: _tableValueStyle(context, muted: task.timeStart == null),
-              ),
-            ),
-            _ParameterTableRow(
-              label: 'Окончание',
-              value: Text(
-                task.timeEnd == null
-                    ? 'Не указано'
-                    : formatTaskDateTime(task.timeEnd!.toLocal()),
-                style: _tableValueStyle(context, muted: task.timeEnd == null),
-              ),
-            ),
-            _ParameterTableRow(
-              label: 'Родитель',
-              value: task.parent == null
-                  ? const _MutedValue(text: 'Нет')
-                  : _TaskKeyLink(taskKey: task.parent!.key, title: task.parent!.title),
-            ),
-            _ParameterTableRow(
-              label: 'Дочерние',
-              value: task.children.isEmpty
-                  ? const _MutedValue(text: 'Нет')
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final child in task.children)
-                          _TaskKeyLink(taskKey: child.key, title: child.title),
-                      ],
-                    ),
-            ),
-            _ParameterTableRow(
-              label: 'Дедлайн',
-              value: Text(
-                task.deadline == null
-                    ? 'Не указан'
-                    : formatTaskDateTime(task.deadline!.toLocal()),
-                style: _tableValueStyle(context, muted: task.deadline == null),
-              ),
-              isLast: task.links == null || task.links!.isEmpty,
-            ),
-            if (task.links != null && task.links!.isNotEmpty)
-              for (var i = 0; i < task.links!.length; i++)
-                _ParameterTableRow(
-                  label: i == 0 ? 'Ссылки' : '',
-                  value: _LinkRow(link: task.links![i]),
-                  isLast: i == task.links!.length - 1,
-                ),
+          ),
+          SizedBox(height: 8.h),
+          for (final link in links) ...[
+            _LinkRow(link: link),
+            SizedBox(height: 8.h),
           ],
-        ),
+        ],
       ],
     );
 
     if (!pinned) return content;
 
     return SizedBox(
-      width: 300.w,
+      width: 400.w,
       child: SingleChildScrollView(
         controller: scrollController,
         primary: false,
         padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.w),
         child: content,
-      ),
-    );
-  }
-}
-
-TextStyle _tableValueStyle(BuildContext context, {bool muted = false}) {
-  return DdtTheme.style(
-    fontSize: DdtTypography.labelSize,
-    fontWeight: FontWeight.w500,
-    color: muted
-        ? DdtTheme.sidePanelTextMuted(context)
-        : DdtTheme.sidePanelTextPrimary(context),
-  );
-}
-
-class _ParametersTable extends StatelessWidget {
-  const _ParametersTable({required this.rows});
-
-  final List<_ParameterTableRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    final labelStyle = DdtTheme.style(
-      fontSize: DdtTypography.labelSmallSize,
-      fontWeight: FontWeight.w600,
-      color: DdtTheme.sidePanelTextMuted(context),
-    );
-
-    return Table(
-      columnWidths: {0: FixedColumnWidth(108.w), 1: const FlexColumnWidth()},
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        for (var i = 0; i < rows.length; i++)
-          TableRow(
-            decoration: BoxDecoration(
-              border: rows[i].isLast
-                  ? null
-                  : Border(
-                      bottom: BorderSide(
-                        color: DdtTheme.sidePanelDivider(context),
-                      ),
-                    ),
-            ),
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(0, 10.h, 12.w, 10.h),
-                child: Text(rows[i].label, style: labelStyle),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 10.h),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: rows[i].value,
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-class _TaskPersonValue extends StatelessWidget {
-  const _TaskPersonValue({required this.userId});
-
-  final int? userId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (userId == null) {
-      return const _MutedValue(text: 'Не указан');
-    }
-
-    return FutureBuilder<List<UserProfile>>(
-      future: loadDirectoryUsers(),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <UserProfile>[];
-        final person = directoryUserById(users, userId);
-        final waiting =
-            snapshot.connectionState == ConnectionState.waiting &&
-            person == null;
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: DdtUserChip(
-            name: person?.label ?? (waiting ? 'Загрузка…' : 'Пользователь'),
-            userId: person?.id ?? userId,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ParameterTableRow {
-  const _ParameterTableRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  final String label;
-  final Widget value;
-  final bool isLast;
-}
-
-class _TaskKeyLink extends StatelessWidget {
-  const _TaskKeyLink({required this.taskKey, required this.title});
-
-  final String taskKey;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
-    return InkWell(
-      onTap: taskKey.isEmpty ? null : () => context.go(RoutePaths.task(taskKey)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 2.h),
-        child: Text(
-          title.isEmpty ? taskKey : '$taskKey · $title',
-          style: DdtTheme.style(
-            fontSize: DdtTypography.labelSize,
-            fontWeight: FontWeight.w600,
-            color: accent,
-          ),
-        ),
       ),
     );
   }
@@ -1197,61 +1210,3 @@ class _LinkRow extends StatelessWidget {
   }
 }
 
-class _MutedValue extends StatelessWidget {
-  const _MutedValue({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text, style: _tableValueStyle(context, muted: true));
-  }
-}
-
-class _ParameterBadge extends StatelessWidget {
-  const _ParameterBadge({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor = isDark
-        ? Color.lerp(color, Colors.white, 0.36)!
-        : Color.lerp(color, Colors.black, 0.14)!;
-    final dotColor = isDark
-        ? Color.lerp(color, Colors.white, 0.22)!
-        : color;
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.18 : 0.10),
-        borderRadius: DdtTheme.badgeBorderRadius,
-        border: Border.all(
-          color: color.withValues(alpha: isDark ? 0.38 : 0.24),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6.w,
-            height: 6.w,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-          ),
-          SizedBox(width: 6.w),
-          Text(
-            label,
-            style: DdtTheme.style(
-              fontSize: DdtTypography.labelSmallSize,
-              fontWeight: FontWeight.w600,
-              color: labelColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

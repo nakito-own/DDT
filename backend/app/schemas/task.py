@@ -115,6 +115,7 @@ class UpdateTaskRequest(BaseModel):
     type_id: int | None = None
     description: str | None = None
     executor_id: int | None = None
+    author_id: int | None = None
     responsible_id: int | None = None
     time_set: datetime | None = None
     time_start: datetime | None = None

@@ -7,6 +7,8 @@ final class TasksState extends Equatable {
     this.isLoading = false,
     this.errorMessage,
     this.viewMode = TasksViewMode.list,
+    this.spaceViewMode = TasksViewMode.list,
+    this.activeSpaceKey,
     this.searchQuery = '',
     this.statusFilters = const {},
     this.priorityFilter,
@@ -24,6 +26,15 @@ final class TasksState extends Equatable {
   final bool isLoading;
   final String? errorMessage;
   final TasksViewMode viewMode;
+
+  /// Вид доски пространства. Живёт в корневом блоке: блок пространства
+  /// пересоздаётся, когда пользователь уходит в другой раздел.
+  final TasksViewMode spaceViewMode;
+
+  /// Последнее открытое пространство. Вместе с [spaceViewMode] возвращает
+  /// пользователя на ту же доску.
+  final String? activeSpaceKey;
+
   final String searchQuery;
   final Set<TaskStatus> statusFilters;
   final TaskPriority? priorityFilter;
@@ -105,6 +116,8 @@ final class TasksState extends Equatable {
     bool? isLoading,
     String? Function()? errorMessage,
     TasksViewMode? viewMode,
+    TasksViewMode? spaceViewMode,
+    String? Function()? activeSpaceKey,
     String? searchQuery,
     Set<TaskStatus>? statusFilters,
     TaskPriority? Function()? priorityFilter,
@@ -122,6 +135,10 @@ final class TasksState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       viewMode: viewMode ?? this.viewMode,
+      spaceViewMode: spaceViewMode ?? this.spaceViewMode,
+      activeSpaceKey: activeSpaceKey != null
+          ? activeSpaceKey()
+          : this.activeSpaceKey,
       searchQuery: searchQuery ?? this.searchQuery,
       statusFilters: statusFilters ?? this.statusFilters,
       priorityFilter: priorityFilter != null
@@ -148,6 +165,8 @@ final class TasksState extends Equatable {
     isLoading,
     errorMessage,
     viewMode,
+    spaceViewMode,
+    activeSpaceKey,
     searchQuery,
     statusFilters,
     priorityFilter,

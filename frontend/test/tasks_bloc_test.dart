@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ddt_frontend/blocs/tasks/tasks_bloc.dart';
 import 'package:ddt_frontend/models/task.dart';
+import 'package:ddt_frontend/models/tasks_view_mode.dart';
 import 'package:ddt_frontend/models/task_link.dart';
 import 'package:ddt_frontend/models/task_ref.dart';
 import 'package:ddt_frontend/models/task_status.dart';
@@ -32,6 +33,42 @@ void main() {
       expect(settled.allTasks.where((task) => task.id < 0), isEmpty);
     },
   );
+
+  test('board view survives filters and a reload, and clears on logout', () async {
+    final bloc = TasksBloc(api: _FakeTasksApi(createdId: 1));
+    addTearDown(bloc.close);
+
+    bloc.add(const TasksViewModeChanged(TasksViewMode.gantt));
+    bloc.add(
+      const TasksSpaceContextChanged(
+        spaceKey: 'ALPHA',
+        viewMode: TasksViewMode.kanban,
+      ),
+    );
+    bloc.add(const TasksSearchQueryChanged('отчёт'));
+
+    final saved = await bloc.stream.firstWhere(
+      (state) =>
+          state.viewMode == TasksViewMode.gantt &&
+          state.spaceViewMode == TasksViewMode.kanban &&
+          state.activeSpaceKey == 'ALPHA' &&
+          state.searchQuery == 'отчёт',
+    );
+    expect(saved.viewMode, TasksViewMode.gantt);
+
+    bloc.add(const TasksBoardLoadRequested());
+    final reloaded = await bloc.stream.firstWhere((state) => !state.isLoading);
+    expect(reloaded.viewMode, TasksViewMode.gantt);
+    expect(reloaded.spaceViewMode, TasksViewMode.kanban);
+    expect(reloaded.activeSpaceKey, 'ALPHA');
+
+    bloc.add(const TasksBoardCleared());
+    final cleared = await bloc.stream.firstWhere(
+      (state) => state.viewMode == TasksViewMode.list,
+    );
+    expect(cleared.spaceViewMode, TasksViewMode.list);
+    expect(cleared.activeSpaceKey, isNull);
+  });
 
   test('personal and space blocs keep independent task collections', () async {
     final personalBloc = TasksBloc(api: _FakeTasksApi(createdId: 10));
