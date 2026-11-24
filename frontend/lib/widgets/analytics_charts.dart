@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:bolt_ui_kit/bolt_kit.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -11,21 +10,82 @@ import '../theme/ddt_typography.dart';
 import '../utils/analytics_formatters.dart';
 import 'ddt_section_refresh.dart';
 
-/// Closed and success series: muted sage-emerald green.
+/// Closed and success series outside charts (KPI stripes, tables).
 const analyticsPositiveColor = Color(0xFF3E9B74);
 
-List<Color> get _palette => [
-  DdtTheme.primaryColor,
-  analyticsPositiveColor,
-  const Color(0xFFD4943A),
-  const Color(0xFF7D6BC4),
-  const Color(0xFF4A90C2),
-  const Color(0xFFD1606A),
-  const Color(0xFF6B7C93),
-  const Color(0xFFD67249),
+Color analyticsPercentScaleColor(double percent) {
+  final t = (percent / 100).clamp(0.0, 1.0);
+  const red = Color(0xFFD65C5C);
+  const amber = Color(0xFFD4943A);
+  const green = Color(0xFF3E9B74);
+  if (t < 0.5) return Color.lerp(red, amber, t / 0.5)!;
+  return Color.lerp(amber, green, (t - 0.5) / 0.5)!;
+}
+
+/// Chart series: same hues, kept quieter and less saturated.
+const _chartBlue = Color(0xFF4E78C2);
+const _chartGreen = Color(0xFF3A9474);
+const _chartAmber = Color(0xFFC48A3C);
+const _chartViolet = Color(0xFF7468BE);
+const _chartCyan = Color(0xFF3E92BE);
+const _chartRose = Color(0xFFC25E6C);
+const _chartIndigo = Color(0xFF5C68B4);
+const _chartOrange = Color(0xFFC66A44);
+const _chartTeal = Color(0xFF3D8C84);
+const _chartPlum = Color(0xFF8E5C78);
+const _chartOlive = Color(0xFF7C8A48);
+const _chartGold = Color(0xFFA89050);
+const _chartClay = Color(0xFFA56A56);
+const _chartMoss = Color(0xFF5A8A64);
+const _chartSteel = Color(0xFF5A7A96);
+const _chartWine = Color(0xFF9A5568);
+const _chartNeutral = Color(0xFF738196);
+
+List<Color> get _palette => const [
+  _chartBlue,
+  _chartGreen,
+  _chartAmber,
+  _chartViolet,
+  _chartCyan,
+  _chartRose,
+  _chartIndigo,
+  _chartOrange,
+  _chartTeal,
+  _chartPlum,
+  _chartOlive,
+  _chartGold,
+  _chartClay,
+  _chartMoss,
+  _chartSteel,
+  _chartWine,
 ];
 
-const _chartDuration = Duration(milliseconds: 420);
+/// Pie slices close into a ring, so the last color must also differ from the first.
+List<Color> _donutSliceColors(
+  List<AnalyticsCountPoint> points, {
+  required bool preferStatusColors,
+}) {
+  final colors = <Color>[];
+  for (var index = 0; index < points.length; index++) {
+    final last = index == points.length - 1;
+    var shift = 0;
+    Color color;
+    while (true) {
+      color = preferStatusColors && shift == 0
+          ? analyticsSliceColor(points[index].label, index)
+          : _palette[(index + shift) % _palette.length];
+      final sameAsPrevious = colors.isNotEmpty && color == colors.last;
+      final sameAsFirst = last && colors.length > 1 && color == colors.first;
+      if (!sameAsPrevious && !sameAsFirst) break;
+      shift++;
+      if (shift > _palette.length) break;
+    }
+    colors.add(color);
+  }
+  return colors;
+}
+
+const _chartDuration = Duration(milliseconds: 200);
 const _chartCurve = Curves.easeOutCubic;
 const _axisChartHeight = 260.0;
 
@@ -55,10 +115,183 @@ const _tooltipPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 8);
 const _tooltipIn = Duration(milliseconds: 150);
 const _tooltipOut = Duration(milliseconds: 75);
 
-/// Slightly tighter than the previous rod caps.
-const _rodRadiusWide = 4.0;
-const _rodRadius = 3.0;
-const _rodRadiusThin = 2.0;
+const _rodRadiusWide = 6.0;
+const _rodRadius = 4.0;
+const _rodRadiusThin = 3.0;
+const _hoverGrow = 3.0;
+
+/// Tracks the series under the pointer so rods and slices can react.
+class _ChartHover extends StatefulWidget {
+  const _ChartHover({required this.builder});
+
+  final Widget Function(int? hover, ValueChanged<int?> setHover) builder;
+
+  @override
+  State<_ChartHover> createState() => _ChartHoverState();
+}
+
+class _ChartHoverState extends State<_ChartHover> {
+  int? _hover;
+
+  void _setHover(int? next) {
+    if (_hover == next) return;
+    setState(() => _hover = next);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_hover, _setHover);
+}
+
+Color _seriesPaint(Color color, {required bool hot, required bool dimmed}) {
+  if (dimmed) return color.withValues(alpha: 0.38);
+  if (hot) return Color.lerp(color, Colors.white, 0.16)!;
+  return color;
+}
+
+Gradient _rodGradient(Color color, {required bool hot, required bool dimmed}) {
+  if (dimmed) {
+    final faded = color.withValues(alpha: 0.38);
+    return LinearGradient(colors: [faded, faded]);
+  }
+  final top = Color.lerp(color, Colors.white, hot ? 0.16 : 0.08)!;
+  return LinearGradient(
+    begin: Alignment.bottomCenter,
+    end: Alignment.topCenter,
+    colors: [color, top],
+  );
+}
+
+BarChartRodData _chartRod({
+  required double toY,
+  required double width,
+  required double radius,
+  required Color color,
+  required bool hot,
+  required bool dimmed,
+  List<BarChartRodStackItem>? stack,
+}) {
+  final grown = hot && !dimmed ? width + _hoverGrow : width;
+  final paint = _seriesPaint(color, hot: hot, dimmed: dimmed);
+  return BarChartRodData(
+    toY: toY,
+    width: grown,
+    borderRadius: BorderRadius.circular(radius),
+    color: stack == null ? null : paint,
+    gradient: stack == null ? _rodGradient(color, hot: hot, dimmed: dimmed) : null,
+    rodStackItems: [
+      for (final item in stack ?? const <BarChartRodStackItem>[])
+        if (dimmed)
+          BarChartRodStackItem(
+            item.fromY,
+            item.toY,
+            item.color?.withValues(alpha: 0.38) ?? paint,
+          )
+        else
+          BarChartRodStackItem(
+            item.fromY,
+            item.toY,
+            null,
+            gradient: _rodGradient(item.color ?? color, hot: hot, dimmed: false),
+          ),
+    ],
+  );
+}
+
+BarTouchData _responsiveBarTouch({
+  required void Function(FlTouchEvent event, BarTouchResponse? response) onTouch,
+}) {
+  return BarTouchData(
+    enabled: true,
+    touchExtraThreshold: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+    mouseCursorResolver: (event, response) {
+      final index = response?.spot?.touchedBarGroupIndex ?? -1;
+      if (index >= 0) return SystemMouseCursors.click;
+      return MouseCursor.defer;
+    },
+    touchCallback: onTouch,
+    touchTooltipData: BarTouchTooltipData(
+      getTooltipItem: (_, _, _, _) => null,
+    ),
+  );
+}
+
+List<TouchedSpotIndicatorData> _spotIndicators(
+  LineChartBarData bar,
+  List<int> indexes,
+  Color surface,
+) {
+  final lineColor = (bar.color ?? _chartBlue).withValues(alpha: 0.55);
+  return [
+    for (final _ in indexes)
+      TouchedSpotIndicatorData(
+        FlLine(color: lineColor, strokeWidth: 1.5, dashArray: const [4, 4]),
+        FlDotData(
+          getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+            radius: 6.5,
+            color: barData.color ?? _chartBlue,
+            strokeWidth: 3,
+            strokeColor: surface,
+          ),
+        ),
+      ),
+  ];
+}
+
+LineTouchData _responsiveLineTouch(
+  BuildContext context, {
+  required void Function(FlTouchEvent event, LineTouchResponse? response) onTouch,
+}) {
+  final surface = DdtTheme.pickerSurfaceColor(context);
+  return LineTouchData(
+    handleBuiltInTouches: true,
+    touchSpotThreshold: 24,
+    mouseCursorResolver: (event, response) {
+      final spots = response?.lineBarSpots;
+      if (spots != null && spots.isNotEmpty) return SystemMouseCursors.click;
+      return MouseCursor.defer;
+    },
+    touchCallback: onTouch,
+    getTouchedSpotIndicator: (bar, indexes) =>
+        _spotIndicators(bar, indexes, surface),
+    touchTooltipData: LineTouchTooltipData(
+      getTooltipItems: (touched) => [for (final _ in touched) null],
+    ),
+  );
+}
+
+BarAreaData _lineArea(Color color) => BarAreaData(
+  show: true,
+  gradient: LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      color.withValues(alpha: 0.18),
+      color.withValues(alpha: 0.02),
+    ],
+  ),
+);
+
+FlDotData _lineDots(
+  BuildContext context,
+  Color color, {
+  bool show = true,
+}) {
+  return FlDotData(
+    show: show,
+    getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+      radius: 3.6,
+      color: color,
+      strokeWidth: 2,
+      strokeColor: DdtTheme.pickerSurfaceColor(context),
+    ),
+  );
+}
+
+Shadow _lineShadow(Color color) => Shadow(
+  color: color.withValues(alpha: 0.16),
+  blurRadius: 6,
+  offset: const Offset(0, 2),
+);
 
 /// Grows rods when the plot has spare width, and keeps [minWidth] when crowded.
 double _flexibleRodWidth({
@@ -387,22 +620,18 @@ Widget _chartPlot(
 
 Color analyticsStatusColor(String label) {
   final text = label.toLowerCase();
-  if (text.contains('закры') || text.contains('заверш')) {
-    return analyticsPositiveColor;
-  }
-  if (text.contains('ожидан')) return const Color(0xFFD4943A);
-  if (text.contains('процесс') || text.contains('работ')) {
-    return DdtTheme.primaryColor;
-  }
-  if (text.contains('назнач')) return const Color(0xFF7D6BC4);
-  return const Color(0xFF6B7C93);
+  if (text.contains('закры') || text.contains('заверш')) return _chartGreen;
+  if (text.contains('ожидан')) return _chartAmber;
+  if (text.contains('процесс') || text.contains('работ')) return _chartBlue;
+  if (text.contains('назнач')) return _chartViolet;
+  return _chartNeutral;
 }
 
 Color analyticsSeriesColor(int index) => _palette[index % _palette.length];
 
 Color analyticsSliceColor(String label, int index) {
   final status = analyticsStatusColor(label);
-  if (status != const Color(0xFF6B7C93)) return status;
+  if (status != _chartNeutral) return status;
   return analyticsSeriesColor(index);
 }
 
@@ -430,48 +659,54 @@ class AnalyticsPanel extends StatelessWidget {
   final bool skeleton;
 
   Widget _panel(BuildContext context, {required bool forMeasure}) {
-    final body = forMeasure ? const SizedBox.expand() : child;
     return DdtTheme.glass(
       context: context,
       padding: EdgeInsets.all(16.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final expand = expandChild && constraints.maxHeight.isFinite;
+          final body = forMeasure && expand ? const SizedBox.expand() : child;
+          return Column(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: DdtTheme.style(
-                        fontSize: DdtTypography.sectionTitleSize,
-                        fontWeight: FontWeight.w700,
-                        color: DdtTheme.textPrimary(context),
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      SizedBox(height: 4.h),
-                      Text(
-                        subtitle!,
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.captionSize,
-                          color: DdtTheme.textMuted(context),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: DdtTheme.style(
+                            fontSize: DdtTypography.sectionTitleSize,
+                            fontWeight: FontWeight.w700,
+                            color: DdtTheme.textPrimary(context),
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                        if (subtitle != null) ...[
+                          SizedBox(height: 4.h),
+                          Text(
+                            subtitle!,
+                            style: DdtTheme.style(
+                              fontSize: DdtTypography.captionSize,
+                              color: DdtTheme.textMuted(context),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (!forMeasure && headerTrailing != null)
+                    Align(alignment: Alignment.topRight, child: headerTrailing!),
+                ],
               ),
-              if (!forMeasure && headerTrailing != null)
-                Align(alignment: Alignment.topRight, child: headerTrailing!),
+              SizedBox(height: 16.h),
+              if (expand) Expanded(child: body) else body,
             ],
-          ),
-          SizedBox(height: 16.h),
-          if (expandChild) Expanded(child: body) else body,
-        ],
+          );
+        },
       ),
     );
   }
@@ -732,24 +967,32 @@ class AnalyticsDonutChart extends StatelessWidget {
     super.key,
     required this.points,
     this.preferStatusColors = false,
+    this.onSliceTap,
+    this.centerLabel,
+    this.centerCaption,
   });
 
   final List<AnalyticsCountPoint> points;
   final bool preferStatusColors;
+  final ValueChanged<String>? onSliceTap;
+  final String? centerLabel;
+  final String? centerCaption;
 
   @override
   Widget build(BuildContext context) {
     final total = points.fold<int>(0, (sum, item) => sum + item.value);
     if (total == 0) return const AnalyticsEmptyChart();
 
-    Color sliceColor(int index, AnalyticsCountPoint point) {
-      if (preferStatusColors) {
-        return analyticsSliceColor(point.label, index);
-      }
-      return analyticsSeriesColor(index);
-    }
+    final sliceColors = _donutSliceColors(
+      points,
+      preferStatusColors: preferStatusColors,
+    );
+    Color sliceColor(int index, AnalyticsCountPoint point) => sliceColors[index];
 
-    return _ChartTooltipHost(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12.w, 10.h, 12.w, 8.h),
+      child: _ChartHover(
+      builder: (hover, setHover) => _ChartTooltipHost(
       builder: (tooltip) => LayoutBuilder(
         builder: (context, constraints) {
           final boundedHeight =
@@ -775,19 +1018,32 @@ class AnalyticsDonutChart extends StatelessWidget {
                 PieChart(
                   PieChartData(
                     startDegreeOffset: -90,
-                    sectionsSpace: 2,
+                    sectionsSpace: 0.6,
                     centerSpaceRadius: chartSize * 0.32,
                     pieTouchData: PieTouchData(
                       enabled: true,
+                      mouseCursorResolver: (event, response) {
+                        final index =
+                            response?.touchedSection?.touchedSectionIndex ?? -1;
+                        if (index >= 0) return SystemMouseCursors.click;
+                        return MouseCursor.defer;
+                      },
                       touchCallback: (event, response) {
                         final index =
                             response?.touchedSection?.touchedSectionIndex ?? -1;
+                        if (event is FlTapUpEvent &&
+                            index >= 0 &&
+                            index < points.length) {
+                          onSliceTap?.call(points[index].label);
+                        }
                         if (!event.isInterestedForInteractions ||
                             index < 0 ||
                             index >= points.length) {
+                          setHover(null);
                           tooltip.hide();
                           return;
                         }
+                        setHover(index);
                         final point = points[index];
                         final percent = (point.value / total * 100).round();
                         _syncChartTooltip(
@@ -802,8 +1058,16 @@ class AnalyticsDonutChart extends StatelessWidget {
                       for (var index = 0; index < points.length; index++)
                         PieChartSectionData(
                           value: points[index].value.toDouble(),
-                          color: sliceColor(index, points[index]),
-                          radius: chartSize * 0.2,
+                          color: () {
+                            final base = sliceColor(index, points[index]);
+                            final hot = hover == index;
+                            final dimmed = hover != null && !hot;
+                            if (dimmed) return base.withValues(alpha: 0.4);
+                            if (hot) return Color.lerp(base, Colors.white, 0.12)!;
+                            return base;
+                          }(),
+                          radius: chartSize * (hover == index ? 0.27 : 0.2),
+                          cornerRadius: 4,
                           title: points[index].value / total * 100 >= 12
                               ? '${(points[index].value / total * 100).round()}%'
                               : '',
@@ -822,7 +1086,7 @@ class AnalyticsDonutChart extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '$total',
+                      centerLabel ?? '$total',
                       style: DdtTheme.style(
                         fontSize: DdtTypography.sectionTitleSize,
                         fontWeight: FontWeight.w800,
@@ -830,7 +1094,7 @@ class AnalyticsDonutChart extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'всего',
+                      centerCaption ?? 'всего',
                       style: DdtTheme.style(
                         fontSize: DdtTypography.microSize,
                         color: DdtTheme.textMuted(context),
@@ -842,7 +1106,7 @@ class AnalyticsDonutChart extends StatelessWidget {
             ),
           );
 
-          final legendGap = 36.w;
+          final legendGap = 16.w;
           final legendWidth = sideBySide
               ? math.min(
                   268.w,
@@ -854,55 +1118,107 @@ class AnalyticsDonutChart extends StatelessWidget {
             final point = points[index];
             final percent = (point.value / total * 100).round();
             final color = sliceColor(index, point);
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(top: 3.h),
-                  child: Container(
-                    width: 10.w,
-                    height: 10.w,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(3.r),
+            final hot = hover == index;
+            final dimmed = hover != null && !hot;
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setHover(index),
+              onExit: (_) => setHover(null),
+              child: GestureDetector(
+              onTap: onSliceTap == null
+                  ? null
+                  : () => onSliceTap!(points[index].label),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: hot
+                      ? color.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(top: 3.h),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        width: hot ? 12.w : 10.w,
+                        height: hot ? 12.w : 10.w,
+                        decoration: BoxDecoration(
+                          color: dimmed ? color.withValues(alpha: 0.4) : color,
+                          borderRadius: BorderRadius.circular(3.r),
+                          boxShadow: hot
+                              ? [
+                                  BoxShadow(
+                                    color: color.withValues(alpha: 0.28),
+                                    blurRadius: 8,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                Expanded(
-                  child: Text(
-                    point.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.labelSmallSize,
-                      color: DdtTheme.textSecondary(context),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Text(
+                        point.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.labelSmallSize,
+                          fontWeight: hot ? FontWeight.w700 : FontWeight.w500,
+                          color: dimmed
+                              ? DdtTheme.textMuted(context)
+                              : DdtTheme.textSecondary(context),
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(width: 8.w),
+                    Text(
+                      '${point.value} · $percent%',
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSmallSize,
+                        fontWeight: FontWeight.w700,
+                        color: dimmed
+                            ? DdtTheme.textMuted(context)
+                            : DdtTheme.textPrimary(context),
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 8.w),
-                Text(
-                  '${point.value} · $percent%',
-                  style: DdtTheme.style(
-                    fontSize: DdtTypography.labelSmallSize,
-                    fontWeight: FontWeight.w700,
-                    color: DdtTheme.textPrimary(context),
-                  ),
-                ),
-              ],
+              ),
+              ),
             );
           }
 
           final legendPanel = SizedBox(
             width: legendWidth,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < points.length; index++) ...[
-                  if (index > 0) SizedBox(height: 8.h),
-                  legendRow(index),
-                ],
-              ],
+            child: LayoutBuilder(
+              builder: (context, legendConstraints) {
+                final maxHeight = legendConstraints.maxHeight;
+                final column = Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var index = 0; index < points.length; index++) ...[
+                      if (index > 0) SizedBox(height: 4.h),
+                      legendRow(index),
+                    ],
+                  ],
+                );
+                if (!maxHeight.isFinite || maxHeight <= 0) return column;
+                return FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: legendWidth),
+                    child: column,
+                  ),
+                );
+              },
             ),
           );
 
@@ -940,6 +1256,97 @@ class AnalyticsDonutChart extends StatelessWidget {
           );
         },
       ),
+    ),
+    ),
+    );
+  }
+}
+
+class AnalyticsFillGauge extends StatelessWidget {
+  const AnalyticsFillGauge({super.key, required this.percent});
+
+  final double? percent;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.maxHeight.isFinite || constraints.maxHeight <= 0) {
+          return const SizedBox.shrink();
+        }
+        final side = math.min(constraints.maxWidth, constraints.maxHeight);
+        if (side <= 0) return const SizedBox.shrink();
+        final value = (percent ?? 0).clamp(0, 100).toDouble();
+        final rest = math.max(0.0, 100 - value);
+        final color = percent == null
+            ? _chartNeutral
+            : value >= 90
+            ? _chartGreen
+            : value >= 70
+            ? _chartAmber
+            : _chartRose;
+        final label = percent == null ? '—' : '${value.round()}%';
+        return Center(
+          child: SizedBox(
+            width: side,
+            height: side,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(
+                  PieChartData(
+                    startDegreeOffset: -90,
+                    sectionsSpace: 0,
+                    centerSpaceRadius: side * 0.34,
+                    sections: [
+                      PieChartSectionData(
+                        value: value <= 0 ? 0.001 : value,
+                        color: color,
+                        radius: side * 0.12,
+                        showTitle: false,
+                      ),
+                      PieChartSectionData(
+                        value: rest <= 0 ? 0.001 : rest,
+                        color: Colors.transparent,
+                        radius: side * 0.12,
+                        showTitle: false,
+                      ),
+                    ],
+                  ),
+                  duration: _chartDuration,
+                  curve: _chartCurve,
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: side * 0.56,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          style: DdtTheme.style(
+                            fontSize: 56,
+                            fontWeight: FontWeight.w800,
+                            color: DdtTheme.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'индекс',
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.microSize,
+                        color: DdtTheme.textMuted(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -980,7 +1387,8 @@ class AnalyticsBarChart extends StatelessWidget {
           axisReserve: 28,
           maxWidth: 52,
         );
-        final chart = _ChartTooltipHost(
+        final chart = _ChartHover(
+          builder: (hover, setHover) => _ChartTooltipHost(
           builder: (tooltip) => BarChart(
             BarChartData(
               maxY: maxValue * 1.18,
@@ -1014,9 +1422,8 @@ class AnalyticsBarChart extends StatelessWidget {
                   angled: points.length > 6,
                 ),
               ),
-              barTouchData: BarTouchData(
-                enabled: true,
-                touchCallback: (event, response) {
+              barTouchData: _responsiveBarTouch(
+                onTouch: (event, response) {
                   final spot = response?.spot;
                   if (event is FlTapUpEvent &&
                       spot != null &&
@@ -1027,6 +1434,7 @@ class AnalyticsBarChart extends StatelessWidget {
                   if (spot == null ||
                       spot.touchedBarGroupIndex < 0 ||
                       spot.touchedBarGroupIndex >= points.length) {
+                    setHover(null);
                     _syncChartTooltip(
                       tooltip: tooltip,
                       event: event,
@@ -1035,6 +1443,7 @@ class AnalyticsBarChart extends StatelessWidget {
                     );
                     return;
                   }
+                  setHover(spot.touchedBarGroupIndex);
                   final point = points[spot.touchedBarGroupIndex];
                   _syncChartTooltip(
                     tooltip: tooltip,
@@ -1044,22 +1453,21 @@ class AnalyticsBarChart extends StatelessWidget {
                     chartLocal: spot.offset,
                   );
                 },
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipItem: (_, _, _, _) => null,
-                ),
               ),
               barGroups: [
                 for (var index = 0; index < points.length; index++)
                   BarChartGroupData(
                     x: index,
                     barRods: [
-                      BarChartRodData(
+                      _chartRod(
                         toY: points[index].value.toDouble(),
                         width: rodWidth,
-                        borderRadius: BorderRadius.circular(_rodRadiusWide),
+                        radius: _rodRadiusWide,
                         color:
                             colorForIndex?.call(index) ??
                             analyticsSeriesColor(index),
+                        hot: hover == index,
+                        dimmed: hover != null && hover != index,
                       ),
                     ],
                   ),
@@ -1068,6 +1476,7 @@ class AnalyticsBarChart extends StatelessWidget {
             duration: _chartDuration,
             curve: _chartCurve,
           ),
+        ),
         );
 
         return _chartPlot(context, child: chart);
@@ -1112,9 +1521,9 @@ class AnalyticsWeeklyChart extends StatelessWidget {
                 FlLine(color: gridColor, strokeWidth: 1),
           ),
           borderData: FlBorderData(show: false),
-          lineTouchData: LineTouchData(
-            handleBuiltInTouches: true,
-            touchCallback: (event, response) {
+          lineTouchData: _responsiveLineTouch(
+            context,
+            onTouch: (event, response) {
               final spots = response?.lineBarSpots;
               if (spots == null || spots.isEmpty) {
                 _syncChartTooltip(
@@ -1138,9 +1547,6 @@ class AnalyticsWeeklyChart extends StatelessWidget {
                 message: '${points[index].label}\n${spot.y.toInt()}',
               );
             },
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (touched) => [for (final _ in touched) null],
-            ),
           ),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(),
@@ -1180,22 +1586,12 @@ class AnalyticsWeeklyChart extends StatelessWidget {
               spots: spots,
               isCurved: true,
               preventCurveOverShooting: true,
-              color: AppColors.primary,
-              barWidth: 3,
+              color: _chartBlue,
+              barWidth: 3.2,
               isStrokeCapRound: true,
-              dotData: FlDotData(
-                getDotPainter: (spot, percent, bar, index) =>
-                    FlDotCirclePainter(
-                      radius: 3.5,
-                      color: AppColors.primary,
-                      strokeWidth: 2,
-                      strokeColor: DdtTheme.pickerSurfaceColor(context),
-                    ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                color: AppColors.primary.withValues(alpha: 0.16),
-              ),
+              shadow: _lineShadow(_chartBlue),
+              dotData: _lineDots(context, _chartBlue),
+              belowBarData: _lineArea(_chartBlue),
             ),
           ],
         ),
@@ -1212,6 +1608,7 @@ class AnalyticsTrendChart extends StatelessWidget {
     required this.trend,
     required this.isLine,
     this.seriesName,
+    this.secondarySeriesName = 'Закрыто',
   });
 
   final AnalyticsTrendBuckets trend;
@@ -1219,6 +1616,7 @@ class AnalyticsTrendChart extends StatelessWidget {
 
   /// When set, only the first series is drawn and labeled with this name.
   final String? seriesName;
+  final String secondarySeriesName;
 
   @override
   Widget build(BuildContext context) {
@@ -1228,8 +1626,8 @@ class AnalyticsTrendChart extends StatelessWidget {
     final primaryLabel = seriesName ?? 'Создано';
     final legend = _ChartLegend(
       items: [
-        _LegendItem(primaryLabel, DdtTheme.primaryColor),
-        if (!single) const _LegendItem('Закрыто', analyticsPositiveColor),
+        _LegendItem(primaryLabel, _palette[0]),
+        if (!single) _LegendItem(secondarySeriesName, _palette[1]),
       ],
     );
     final maxValue = (single ? trend.created : [...trend.created, ...trend.closed])
@@ -1277,9 +1675,9 @@ class AnalyticsTrendChart extends StatelessWidget {
                     ),
                     borderData: FlBorderData(show: false),
                     titlesData: axisTitles,
-                    lineTouchData: LineTouchData(
-                      handleBuiltInTouches: true,
-                      touchCallback: (event, response) {
+                    lineTouchData: _responsiveLineTouch(
+                      context,
+                      onTouch: (event, response) {
                         final spots = response?.lineBarSpots;
                         if (spots == null || spots.isEmpty) {
                           tooltip.hide();
@@ -1292,7 +1690,7 @@ class AnalyticsTrendChart extends StatelessWidget {
                             if (spot.x.toInt() >= 0 &&
                                 spot.x.toInt() < trend.labels.length)
                               '${trend.labels[spot.x.toInt()]}\n'
-                                  '${single || spot.barIndex == 0 ? primaryLabel : 'Закрыто'}: '
+                                  '${single || spot.barIndex == 0 ? primaryLabel : secondarySeriesName}: '
                                   '${spot.y.toInt()}',
                         ];
                         if (lines.isEmpty) {
@@ -1306,48 +1704,34 @@ class AnalyticsTrendChart extends StatelessWidget {
                           message: lines.join('\n'),
                         );
                       },
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipItems: (touched) => [
-                          for (final _ in touched) null,
-                        ],
-                      ),
                     ),
                     lineBarsData: [
                       LineChartBarData(
                         spots: createdSpots,
                         isCurved: true,
+                        isStrokeCapRound: true,
                         color: _palette[0],
-                        barWidth: 2.5,
-                        dotData: FlDotData(
+                        barWidth: 3,
+                        shadow: _lineShadow(_palette[0]),
+                        belowBarData: _lineArea(_palette[0]),
+                        dotData: _lineDots(
+                          context,
+                          _palette[0],
                           show: trend.labels.length <= 24,
-                          getDotPainter: (spot, percent, bar, index) =>
-                              FlDotCirclePainter(
-                                radius: 3,
-                                color: _palette[0],
-                                strokeWidth: 1.5,
-                                strokeColor: DdtTheme.pickerSurfaceColor(
-                                  context,
-                                ),
-                              ),
                         ),
                       ),
                       if (!single)
                         LineChartBarData(
                           spots: closedSpots,
                           isCurved: true,
+                          isStrokeCapRound: true,
                           color: _palette[1],
-                          barWidth: 2.5,
-                          dotData: FlDotData(
+                          barWidth: 3,
+                          shadow: _lineShadow(_palette[1]),
+                          dotData: _lineDots(
+                            context,
+                            _palette[1],
                             show: trend.labels.length <= 24,
-                            getDotPainter: (spot, percent, bar, index) =>
-                                FlDotCirclePainter(
-                                  radius: 3,
-                                  color: _palette[1],
-                                  strokeWidth: 1.5,
-                                  strokeColor: DdtTheme.pickerSurfaceColor(
-                                    context,
-                                  ),
-                                ),
                           ),
                         ),
                     ],
@@ -1380,7 +1764,8 @@ class AnalyticsTrendChart extends StatelessWidget {
                   axisReserve: 32,
                   maxWidth: 28,
                 );
-                return _ChartTooltipHost(
+                return _ChartHover(
+                  builder: (hover, setHover) => _ChartTooltipHost(
                   builder: (tooltip) => BarChart(
                     BarChartData(
                       maxY: maxValue * 1.22,
@@ -1397,20 +1782,22 @@ class AnalyticsTrendChart extends StatelessWidget {
                       ),
                       borderData: FlBorderData(show: false),
                       titlesData: axisTitles,
-                      barTouchData: BarTouchData(
-                        touchCallback: (event, response) {
+                      barTouchData: _responsiveBarTouch(
+                        onTouch: (event, response) {
                           final spot = response?.spot;
                           final index = spot?.touchedBarGroupIndex;
                           if (spot == null ||
                               index == null ||
                               index < 0 ||
                               index >= trend.labels.length) {
+                            setHover(null);
                             tooltip.hide();
                             return;
                           }
+                          setHover(index);
                           final kind = single || spot.touchedRodDataIndex == 0
                               ? primaryLabel
-                              : 'Закрыто';
+                              : secondarySeriesName;
                           _syncChartTooltip(
                             tooltip: tooltip,
                             event: event,
@@ -1420,9 +1807,6 @@ class AnalyticsTrendChart extends StatelessWidget {
                             chartLocal: spot.offset,
                           );
                         },
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (_, _, _, _) => null,
-                        ),
                       ),
                       barGroups: [
                         for (
@@ -1433,20 +1817,22 @@ class AnalyticsTrendChart extends StatelessWidget {
                           BarChartGroupData(
                             x: index,
                             barRods: [
-                              BarChartRodData(
+                              _chartRod(
                                 toY: trend.created[index].toDouble(),
                                 width: rodWidth,
-                                borderRadius: BorderRadius.circular(_rodRadius),
+                                radius: _rodRadius,
                                 color: _palette[0],
+                                hot: hover == index,
+                                dimmed: hover != null && hover != index,
                               ),
                               if (!single)
-                                BarChartRodData(
+                                _chartRod(
                                   toY: trend.closed[index].toDouble(),
                                   width: rodWidth,
-                                  borderRadius: BorderRadius.circular(
-                                    _rodRadius,
-                                  ),
+                                  radius: _rodRadius,
                                   color: _palette[1],
+                                  hot: hover == index,
+                                  dimmed: hover != null && hover != index,
                                 ),
                             ],
                           ),
@@ -1455,6 +1841,7 @@ class AnalyticsTrendChart extends StatelessWidget {
                     duration: _chartDuration,
                     curve: _chartCurve,
                   ),
+                ),
                 );
               },
             ),
@@ -1470,6 +1857,8 @@ class AnalyticsHorizontalBarChart extends StatelessWidget {
     super.key,
     required List<AnalyticsCountPoint> points,
     this.limit = 10,
+    this.onSelect,
+    this.percentScale = false,
   }) : _entries = [for (final p in points) (p.label, p.value.toDouble())],
        _format = _formatCount;
 
@@ -1477,12 +1866,16 @@ class AnalyticsHorizontalBarChart extends StatelessWidget {
     super.key,
     required List<AnalyticsHoursPoint> points,
     this.limit = 1 << 20,
+    this.onSelect,
+    this.percentScale = false,
   }) : _entries = [for (final p in points) (p.label, p.hours)],
        _format = formatAnalyticsHoursAxis;
 
   final List<(String, double)> _entries;
   final String Function(double value) _format;
   final int limit;
+  final ValueChanged<String>? onSelect;
+  final bool percentScale;
 
   static String _formatCount(double value) => '${value.round()}';
 
@@ -1491,10 +1884,9 @@ class AnalyticsHorizontalBarChart extends StatelessWidget {
     if (_entries.isEmpty) return const AnalyticsEmptyChart();
 
     final visible = _entries.take(limit).toList();
-    final maxValue = visible.fold<double>(
-      1,
-      (max, item) => math.max(max, item.$2),
-    );
+    final maxValue = percentScale
+        ? 100.0
+        : visible.fold<double>(1, (max, item) => math.max(max, item.$2));
 
     final valueStyle = DdtTheme.style(
       fontSize: DdtTypography.labelSmallSize,
@@ -1526,50 +1918,24 @@ class AnalyticsHorizontalBarChart extends StatelessWidget {
                   child: Builder(
                     builder: (context) {
                       final (label, value) = visible[index];
-                      final fraction = value / maxValue;
-                      return _chartHoverTooltip(
-                        context: context,
-                        message: '$label\n${_format(value)}',
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              flex: 11,
-                              child: Text(
-                                label,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.left,
-                                style: labelStyle,
-                              ),
-                            ),
-                            SizedBox(width: 8.w),
-                            Expanded(
-                              flex: 13,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(99),
-                                child: LinearProgressIndicator(
-                                  value: fraction,
-                                  minHeight: barHeight,
-                                  backgroundColor: DdtTheme.textMuted(
-                                    context,
-                                  ).withValues(alpha: 0.12),
-                                  color: analyticsSeriesColor(index),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 6.w),
-                            SizedBox(
-                              width: 36.w,
-                              child: Text(
-                                _format(value),
-                                maxLines: 1,
-                                overflow: TextOverflow.fade,
-                                textAlign: TextAlign.right,
-                                style: valueStyle,
-                              ),
-                            ),
-                          ],
+                      final fraction = (value / maxValue).clamp(0.0, 1.0);
+                      final row = _ShareBarRow(
+                        label: label,
+                        valueText: percentScale ? '${value.round()}%' : _format(value),
+                        fraction: fraction,
+                        color: percentScale
+                            ? analyticsPercentScaleColor(value)
+                            : analyticsSeriesColor(index),
+                        barHeight: barHeight,
+                        labelStyle: labelStyle,
+                        valueStyle: valueStyle,
+                      );
+                      if (onSelect == null) return row;
+                      return MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () => onSelect!(label),
+                          child: row,
                         ),
                       );
                     },
@@ -1600,11 +1966,11 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _ChartLegend(
+        _ChartLegend(
           items: [
-            _LegendItem('Закрыто', analyticsPositiveColor),
-            _LegendItem('В работе', DdtTheme.primaryColor),
-            _LegendItem('Ожидание действий от клиента', Color(0xFFD4943A)),
+            _LegendItem('Закрыто', _palette[1]),
+            _LegendItem('В работе', _palette[0]),
+            _LegendItem('Ожидание действий от клиента', _palette[2]),
           ],
         ),
         SizedBox(height: 8.h),
@@ -1621,7 +1987,8 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                   axisReserve: 28,
                   maxWidth: 56,
                 );
-                return _ChartTooltipHost(
+                return _ChartHover(
+                  builder: (hover, setHover) => _ChartTooltipHost(
                   builder: (tooltip) => BarChart(
                     BarChartData(
                       maxY: maxValue * 1.15,
@@ -1660,17 +2027,19 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                           angled: true,
                         ),
                       ),
-                      barTouchData: BarTouchData(
-                        touchCallback: (event, response) {
+                      barTouchData: _responsiveBarTouch(
+                        onTouch: (event, response) {
                           final spot = response?.spot;
                           final index = spot?.touchedBarGroupIndex;
                           if (spot == null ||
                               index == null ||
                               index < 0 ||
                               index >= data.categories.length) {
+                            setHover(null);
                             tooltip.hide();
                             return;
                           }
+                          setHover(index);
                           _syncChartTooltip(
                             tooltip: tooltip,
                             event: event,
@@ -1683,9 +2052,6 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                             chartLocal: spot.offset,
                           );
                         },
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (_, _, _, _) => null,
-                        ),
                       ),
                       barGroups: [
                         for (
@@ -1696,15 +2062,18 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                           BarChartGroupData(
                             x: index,
                             barRods: [
-                              BarChartRodData(
+                              _chartRod(
                                 toY:
                                     (data.closed[index] +
                                             data.inProgress[index] +
                                             data.waiting[index])
                                         .toDouble(),
                                 width: rodWidth,
-                                borderRadius: BorderRadius.circular(_rodRadius),
-                                rodStackItems: [
+                                radius: _rodRadius,
+                                color: _palette[0],
+                                hot: hover == index,
+                                dimmed: hover != null && hover != index,
+                                stack: [
                                   BarChartRodStackItem(
                                     0,
                                     data.closed[index].toDouble(),
@@ -1712,14 +2081,12 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                                   ),
                                   BarChartRodStackItem(
                                     data.closed[index].toDouble(),
-                                    (data.closed[index] +
-                                            data.inProgress[index])
+                                    (data.closed[index] + data.inProgress[index])
                                         .toDouble(),
                                     _palette[0],
                                   ),
                                   BarChartRodStackItem(
-                                    (data.closed[index] +
-                                            data.inProgress[index])
+                                    (data.closed[index] + data.inProgress[index])
                                         .toDouble(),
                                     (data.closed[index] +
                                             data.inProgress[index] +
@@ -1736,6 +2103,7 @@ class AnalyticsStackedStatusChart extends StatelessWidget {
                     duration: _chartDuration,
                     curve: _chartCurve,
                   ),
+                ),
                 );
               },
             ),
@@ -1838,16 +2206,11 @@ class AnalyticsDailyDetailChart extends StatelessWidget {
                               ],
                               isCurved: true,
                               preventCurveOverShooting: true,
+                              isStrokeCapRound: true,
                               color: reactionColor,
-                              barWidth: 2,
-                              dotData: FlDotData(
-                                getDotPainter: (spot, percent, bar, index) =>
-                                    FlDotCirclePainter(
-                                      radius: 2.5,
-                                      color: reactionColor,
-                                      strokeWidth: 0,
-                                    ),
-                              ),
+                              barWidth: 2.8,
+                              shadow: _lineShadow(reactionColor),
+                              dotData: _lineDots(context, reactionColor),
                             ),
                           ],
                         ),
@@ -1881,24 +2244,27 @@ class AnalyticsDailyDetailChart extends StatelessWidget {
           axisReserve: 32,
           maxWidth: 22,
         );
-        return BarChart(
+        return _ChartHover(
+          builder: (hover, setHover) => BarChart(
           BarChartData(
             maxY: maxCount * 1.18,
             alignment: BarChartAlignment.spaceAround,
             borderData: FlBorderData(show: false),
             gridData: FlGridData(show: false),
             titlesData: titles,
-            barTouchData: BarTouchData(
-              touchCallback: (event, response) {
+            barTouchData: _responsiveBarTouch(
+              onTouch: (event, response) {
                 final spot = response?.spot;
                 final index = spot?.touchedBarGroupIndex;
                 if (spot == null ||
                     index == null ||
                     index < 0 ||
                     index >= buckets.length) {
+                  setHover(null);
                   tooltip.hide();
                   return;
                 }
+                setHover(index);
                 final bucket = buckets[index];
                 _syncChartTooltip(
                   tooltip: tooltip,
@@ -1912,26 +2278,27 @@ class AnalyticsDailyDetailChart extends StatelessWidget {
                   chartLocal: spot.offset,
                 );
               },
-              touchTooltipData: BarTouchTooltipData(
-                getTooltipItem: (_, _, _, _) => null,
-              ),
             ),
             barGroups: [
               for (var index = 0; index < buckets.length; index++)
                 BarChartGroupData(
                   x: index,
                   barRods: [
-                    BarChartRodData(
+                    _chartRod(
                       toY: buckets[index].created.toDouble(),
                       width: rodWidth,
-                      borderRadius: BorderRadius.circular(_rodRadiusThin),
+                      radius: _rodRadiusThin,
                       color: _palette[0],
+                      hot: hover == index,
+                      dimmed: hover != null && hover != index,
                     ),
-                    BarChartRodData(
+                    _chartRod(
                       toY: buckets[index].closed.toDouble(),
                       width: rodWidth,
-                      borderRadius: BorderRadius.circular(_rodRadiusThin),
+                      radius: _rodRadiusThin,
                       color: _palette[1],
+                      hot: hover == index,
+                      dimmed: hover != null && hover != index,
                     ),
                   ],
                 ),
@@ -1939,6 +2306,7 @@ class AnalyticsDailyDetailChart extends StatelessWidget {
           ),
           duration: _chartDuration,
           curve: _chartCurve,
+        ),
         );
       },
     );
@@ -1963,10 +2331,10 @@ class AnalyticsSolvedChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _ChartLegend(
+        _ChartLegend(
           items: [
-            _LegendItem('Решено', analyticsPositiveColor),
-            _LegendItem('Подтверждение', DdtTheme.primaryColor),
+            _LegendItem('Решено', _palette[1]),
+            _LegendItem('Подтверждение', _palette[0]),
           ],
         ),
         SizedBox(height: 8.h),
@@ -1983,7 +2351,8 @@ class AnalyticsSolvedChart extends StatelessWidget {
                   axisReserve: 28,
                   maxWidth: 28,
                 );
-                return _ChartTooltipHost(
+                return _ChartHover(
+                  builder: (hover, setHover) => _ChartTooltipHost(
                   builder: (tooltip) => BarChart(
                     BarChartData(
                       maxY: maxValue * 1.18,
@@ -2014,17 +2383,19 @@ class AnalyticsSolvedChart extends StatelessWidget {
                           maxLabels: 6,
                         ),
                       ),
-                      barTouchData: BarTouchData(
-                        touchCallback: (event, response) {
+                      barTouchData: _responsiveBarTouch(
+                        onTouch: (event, response) {
                           final spot = response?.spot;
                           final index = spot?.touchedBarGroupIndex;
                           if (spot == null ||
                               index == null ||
                               index < 0 ||
                               index >= data.labels.length) {
+                            setHover(null);
                             tooltip.hide();
                             return;
                           }
+                          setHover(index);
                           final kind = spot.touchedRodDataIndex == 0
                               ? 'Решено'
                               : 'Подтверждение';
@@ -2037,26 +2408,27 @@ class AnalyticsSolvedChart extends StatelessWidget {
                             chartLocal: spot.offset,
                           );
                         },
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipItem: (_, _, _, _) => null,
-                        ),
                       ),
                       barGroups: [
                         for (var index = 0; index < data.labels.length; index++)
                           BarChartGroupData(
                             x: index,
                             barRods: [
-                              BarChartRodData(
+                              _chartRod(
                                 toY: data.solved[index].toDouble(),
                                 width: rodWidth,
-                                borderRadius: BorderRadius.circular(_rodRadius),
+                                radius: _rodRadius,
                                 color: _palette[1],
+                                hot: hover == index,
+                                dimmed: hover != null && hover != index,
                               ),
-                              BarChartRodData(
+                              _chartRod(
                                 toY: data.confirmed[index].toDouble(),
                                 width: rodWidth,
-                                borderRadius: BorderRadius.circular(_rodRadius),
+                                radius: _rodRadius,
                                 color: _palette[0],
+                                hot: hover == index,
+                                dimmed: hover != null && hover != index,
                               ),
                             ],
                           ),
@@ -2065,6 +2437,7 @@ class AnalyticsSolvedChart extends StatelessWidget {
                     duration: _chartDuration,
                     curve: _chartCurve,
                   ),
+                ),
                 );
               },
             ),
@@ -2117,9 +2490,9 @@ class AnalyticsResolutionTrendChart extends StatelessWidget {
             maxLabels: 8,
             angled: points.length > 10,
           ),
-          lineTouchData: LineTouchData(
-            handleBuiltInTouches: true,
-            touchCallback: (event, response) {
+          lineTouchData: _responsiveLineTouch(
+            context,
+            onTouch: (event, response) {
               final spots = response?.lineBarSpots;
               if (spots == null || spots.isEmpty) {
                 tooltip.hide();
@@ -2140,9 +2513,6 @@ class AnalyticsResolutionTrendChart extends StatelessWidget {
                     'Ср. время решения: ${formatAnalyticsDuration(bucket.avgResolutionHours)}',
               );
             },
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (touched) => [for (final _ in touched) null],
-            ),
           ),
           lineBarsData: [
             LineChartBarData(
@@ -2155,16 +2525,12 @@ class AnalyticsResolutionTrendChart extends StatelessWidget {
               ],
               isCurved: true,
               preventCurveOverShooting: true,
+              isStrokeCapRound: true,
               color: lineColor,
-              barWidth: 2.5,
-              dotData: FlDotData(
-                getDotPainter: (spot, percent, bar, index) =>
-                    FlDotCirclePainter(
-                      radius: 2.5,
-                      color: lineColor,
-                      strokeWidth: 0,
-                    ),
-              ),
+              barWidth: 3,
+              shadow: _lineShadow(lineColor),
+              belowBarData: _lineArea(lineColor),
+              dotData: _lineDots(context, lineColor),
             ),
           ],
         ),
@@ -2227,7 +2593,33 @@ class AnalyticsExecutorTrendChart extends StatelessWidget {
                   maxLabels: 8,
                   angled: trend.labels.length > 8,
                 ),
-                lineTouchData: const LineTouchData(enabled: false),
+                lineTouchData: _responsiveLineTouch(
+                  context,
+                  onTouch: (event, response) {
+                    final spots = response?.lineBarSpots;
+                    if (spots == null || spots.isEmpty) {
+                      tooltip.hide();
+                      return;
+                    }
+                    final index = spots.first.x.toInt();
+                    if (index < 0 || index >= trend.labels.length) {
+                      tooltip.hide();
+                      return;
+                    }
+                    final lines = <String>[
+                      trend.labels[index],
+                      for (final series in trend.series)
+                        if (index < series.values.length)
+                          '${series.name}: ${series.values[index]}',
+                    ];
+                    _syncChartTooltip(
+                      tooltip: tooltip,
+                      event: event,
+                      visible: true,
+                      message: lines.join('\n'),
+                    );
+                  },
+                ),
                 lineBarsData: [
                   for (var index = 0; index < trend.series.length; index++)
                     LineChartBarData(
@@ -2240,8 +2632,10 @@ class AnalyticsExecutorTrendChart extends StatelessWidget {
                       ],
                       isCurved: true,
                       preventCurveOverShooting: true,
+                      isStrokeCapRound: true,
                       color: analyticsSeriesColor(index),
-                      barWidth: 2,
+                      barWidth: 2.6,
+                      shadow: _lineShadow(analyticsSeriesColor(index)),
                       dotData: const FlDotData(show: false),
                     ),
                 ],
@@ -2252,6 +2646,104 @@ class AnalyticsExecutorTrendChart extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ShareBarRow extends StatefulWidget {
+  const _ShareBarRow({
+    required this.label,
+    required this.valueText,
+    required this.fraction,
+    required this.color,
+    required this.barHeight,
+    required this.labelStyle,
+    required this.valueStyle,
+  });
+
+  final String label;
+  final String valueText;
+  final double fraction;
+  final Color color;
+  final double barHeight;
+  final TextStyle labelStyle;
+  final TextStyle valueStyle;
+
+  @override
+  State<_ShareBarRow> createState() => _ShareBarRowState();
+}
+
+class _ShareBarRowState extends State<_ShareBarRow> {
+  bool _hot = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _hot
+        ? Color.lerp(widget.color, Colors.white, 0.18)!
+        : widget.color;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hot = true),
+      onExit: (_) => setState(() => _hot = false),
+      child: _chartHoverTooltip(
+        context: context,
+        message: '${widget.label}\n${widget.valueText}',
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+          decoration: BoxDecoration(
+            color: _hot
+                ? widget.color.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 11,
+                child: Text(
+                  widget.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: widget.labelStyle.copyWith(
+                    fontWeight: _hot ? FontWeight.w700 : FontWeight.w500,
+                    color: _hot ? DdtTheme.textPrimary(context) : null,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                flex: 13,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: widget.fraction,
+                    minHeight: _hot ? widget.barHeight + 3 : widget.barHeight,
+                    backgroundColor: widget.color.withValues(
+                      alpha: _hot ? 0.18 : 0.1,
+                    ),
+                    color: color,
+                  ),
+                ),
+              ),
+              SizedBox(width: 6.w),
+              SizedBox(
+                width: 36.w,
+                child: Text(
+                  widget.valueText,
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  textAlign: TextAlign.right,
+                  style: widget.valueStyle.copyWith(
+                    color: _hot ? widget.color : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

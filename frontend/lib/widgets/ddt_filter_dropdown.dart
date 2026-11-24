@@ -52,6 +52,7 @@ class DdtFilterOption {
     this.count,
     this.enabled = true,
     this.searchText,
+    this.leading,
     this.content,
   });
 
@@ -62,6 +63,9 @@ class DdtFilterOption {
 
   /// Дополнительная строка для поиска. Подпись и так участвует в поиске.
   final String? searchText;
+
+  /// Заменяет отметку выбора слева. Подпись остаётся обычным текстом.
+  final WidgetBuilder? leading;
 
   /// Содержимое строки вместо обычной подписи. Поиск идёт по [label] и [searchText].
   final WidgetBuilder? content;
@@ -234,9 +238,7 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
         : DdtTheme.inputFillColor(context);
     final border = tint != null
         ? tint.withValues(
-            alpha: isDark
-                ? (_hovered ? 0.62 : 0.46)
-                : (_hovered ? 0.48 : 0.34),
+            alpha: isDark ? (_hovered ? 0.62 : 0.46) : (_hovered ? 0.48 : 0.34),
           )
         : widget.frosted
         ? (isDark
@@ -265,92 +267,95 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
               sigmaY: widget.frosted ? 12 : 0,
             ),
             child: AnimatedContainer(
-          duration: DdtTheme.selectionAnimationDuration,
-          curve: DdtTheme.selectionAnimationCurve,
-          width: double.infinity,
-          height: widget.compact
-              ? kDdtCompactFilterDropdownHeight
-              : DdtTheme.compactInputControlHeight,
-          alignment: Alignment.center,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 10.w : 12.w,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: widget.frosted
-                ? BorderRadius.circular(999)
-                : DdtTheme.inputControlBorderRadius,
-            border: Border.all(color: border),
-            color: fill,
-          ),
-          child: Row(
-            children: [
-              if (widget.icon != null) ...[
-                DdtIcon(
-                  widget.icon!,
-                  size: (widget.compact ? 13 : 14).sp,
-                  color: widget.active
-                      ? (isDark ? DdtTheme.accentColor : DdtTheme.primaryColor)
-                      : DdtTheme.textMuted(context),
-                ),
-                SizedBox(width: (widget.compact ? 6 : 8).w),
-              ],
-              Expanded(
-                child: AnimatedDefaultTextStyle(
-                  duration: DdtTheme.selectionAnimationDuration,
-                  curve: DdtTheme.selectionAnimationCurve,
-                  style: DdtTheme.style(
-                    fontSize: widget.compact
-                        ? DdtTypography.labelSmallSize
-                        : DdtTypography.labelSize,
-                    fontWeight: widget.active
-                        ? FontWeight.w600
-                        : FontWeight.w500,
-                    color: tintText ?? DdtTheme.textPrimary(context),
+              duration: DdtTheme.selectionAnimationDuration,
+              curve: DdtTheme.selectionAnimationCurve,
+              width: double.infinity,
+              height: widget.compact
+                  ? kDdtCompactFilterDropdownHeight
+                  : DdtTheme.compactInputControlHeight,
+              alignment: Alignment.center,
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.compact ? 10.w : 12.w,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: widget.frosted
+                    ? BorderRadius.circular(999)
+                    : DdtTheme.inputControlBorderRadius,
+                border: Border.all(color: border),
+                color: fill,
+              ),
+              child: Row(
+                children: [
+                  if (widget.icon != null) ...[
+                    DdtIcon(
+                      widget.icon!,
+                      size: (widget.compact ? 13 : 14).sp,
+                      color: widget.active
+                          ? (isDark
+                                ? DdtTheme.accentColor
+                                : DdtTheme.primaryColor)
+                          : DdtTheme.textMuted(context),
+                    ),
+                    SizedBox(width: (widget.compact ? 6 : 8).w),
+                  ],
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: DdtTheme.selectionAnimationDuration,
+                      curve: DdtTheme.selectionAnimationCurve,
+                      style: DdtTheme.style(
+                        fontSize: widget.compact
+                            ? DdtTypography.labelSmallSize
+                            : DdtTypography.labelSize,
+                        fontWeight: widget.active
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: tintText ?? DdtTheme.textPrimary(context),
+                      ),
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    widget.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  AnimatedSwitcher(
+                    duration: DdtTheme.selectionAnimationDuration,
+                    switchInCurve: DdtTheme.selectionAnimationCurve,
+                    child: widget.active && widget.badge > 0
+                        ? Container(
+                            key: ValueKey(widget.badge),
+                            margin: EdgeInsets.only(right: 6.w),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6.w,
+                              vertical: 1.5.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: DdtTheme.primaryColor,
+                              borderRadius: DdtTheme.badgeBorderRadius,
+                            ),
+                            child: Text(
+                              '${widget.badge}',
+                              style: DdtTheme.style(
+                                fontSize: DdtTypography.microSize,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(key: ValueKey('no-badge')),
                   ),
-                ),
+                  DdtIcon(
+                    DdtIcons.chevronDown,
+                    size: 12.sp,
+                    color:
+                        tintText ??
+                        (widget.active || _hovered
+                            ? DdtTheme.textSecondary(context)
+                            : DdtTheme.textMuted(context)),
+                  ),
+                ],
               ),
-              AnimatedSwitcher(
-                duration: DdtTheme.selectionAnimationDuration,
-                switchInCurve: DdtTheme.selectionAnimationCurve,
-                child: widget.active && widget.badge > 0
-                    ? Container(
-                        key: ValueKey(widget.badge),
-                        margin: EdgeInsets.only(right: 6.w),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 6.w,
-                          vertical: 1.5.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DdtTheme.primaryColor,
-                          borderRadius: DdtTheme.badgeBorderRadius,
-                        ),
-                        child: Text(
-                          '${widget.badge}',
-                          style: DdtTheme.style(
-                            fontSize: DdtTypography.microSize,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('no-badge')),
-              ),
-              DdtIcon(
-                DdtIcons.chevronDown,
-                size: 12.sp,
-                color: tintText ??
-                    (widget.active || _hovered
-                        ? DdtTheme.textSecondary(context)
-                        : DdtTheme.textMuted(context)),
-              ),
-            ],
-          ),
-        ),
+            ),
           ),
         ),
       ),
@@ -433,23 +438,26 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+    final showSearch = widget.options.length >= 7;
     return DdtTheme.contextMenuGlass(
       context: context,
-      padding: EdgeInsets.fromLTRB(8.w, 8.h, 8.w, 6.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
       child: SizedBox(
         width: widget.menuWidth ?? 280.w,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DdtAppInput(
-              hint: 'Поиск',
-              controller: _query,
-              variant: DdtInputVariant.compact,
-              prefixIcon: DdtIcons.search,
-              autofocus: true,
-              onChanged: (_) => setState(() {}),
-            ),
-            SizedBox(height: 6.h),
+            if (showSearch) ...[
+              DdtAppInput(
+                hint: 'Поиск',
+                controller: _query,
+                variant: DdtInputVariant.compact,
+                prefixIcon: DdtIcons.search,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+              ),
+              SizedBox(height: 6.h),
+            ],
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: 260.h),
               child: AnimatedSwitcher(
@@ -466,21 +474,27 @@ class _DdtSearchableFilterMenuState extends State<_DdtSearchableFilterMenu> {
                         key: ValueKey('none'),
                         text: 'Ничего не найдено',
                       )
-                    : ListView.builder(
-                        key: ValueKey('list-${visible.length}'),
-                        shrinkWrap: true,
-                        itemCount: visible.length,
-                        itemBuilder: (context, index) {
-                          final option = visible[index];
-                          return _DdtFilterOptionRow(
-                            option: option,
-                            checked: _selected.contains(option.key),
-                            multi: widget.multi,
-                            onTap: option.enabled
-                                ? () => _select(option.key)
-                                : null,
-                          );
-                        },
+                    : ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(
+                          context,
+                        ).copyWith(scrollbars: false),
+                        child: ListView.builder(
+                          key: ValueKey('list-${visible.length}'),
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: visible.length,
+                          itemBuilder: (context, index) {
+                            final option = visible[index];
+                            return _DdtFilterOptionRow(
+                              option: option,
+                              checked: _selected.contains(option.key),
+                              multi: widget.multi,
+                              onTap: option.enabled
+                                  ? () => _select(option.key)
+                                  : null,
+                            );
+                          },
+                        ),
                       ),
               ),
             ),
@@ -571,7 +585,9 @@ class _DdtFilterOptionRowState extends State<_DdtFilterOptionRow> {
             ),
             child: Row(
               children: [
-                if (widget.multi)
+                if (widget.option.leading != null)
+                  widget.option.leading!(context)
+                else if (widget.multi)
                   IgnorePointer(
                     child: DdtCheckbox(
                       value: widget.checked,

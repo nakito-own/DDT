@@ -51,10 +51,14 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
     super.dispose();
   }
 
-  Future<void> _pickDateTime({required bool isStart}) async {
+  Future<void> _pickDateTime(
+    BuildContext anchor, {
+    required bool isStart,
+  }) async {
     final initial = isStart ? _start : _end;
     final value = await showDdtDateTimePicker(
       context: context,
+      anchorContext: anchor,
       initialDateTime: initial,
     );
     if (value == null || !mounted) {
@@ -104,49 +108,51 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
   Widget _dateTile({
     required String label,
     required DateTime value,
-    required VoidCallback onTap,
+    required ValueChanged<BuildContext> onTap,
   }) {
     final format = DateFormat('dd.MM.yyyy HH:mm');
 
     return Padding(
       padding: EdgeInsets.only(bottom: 8.h),
-      child: DdtTappable(
-        onTap: onTap,
-        enableHoverFill: true,
-        borderRadius: DdtTheme.inputControlBorderRadius,
-        backgroundColor: DdtTheme.inputFillColor(context),
-        border: Border.all(color: DdtTheme.borderSubtle(context)),
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.labelSmallSize,
-                      color: DdtTheme.textSecondary(context),
+      child: Builder(
+        builder: (anchor) => DdtTappable(
+          onTap: () => onTap(anchor),
+          enableHoverFill: true,
+          borderRadius: DdtTheme.inputControlBorderRadius,
+          backgroundColor: DdtTheme.inputFillColor(context),
+          border: Border.all(color: DdtTheme.borderSubtle(context)),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSmallSize,
+                        color: DdtTheme.textSecondary(context),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 2.h),
-                  Text(
-                    format.format(value),
-                    style: DdtTheme.style(
-                      fontSize: DdtTypography.bodySize,
-                      fontWeight: FontWeight.w500,
+                    SizedBox(height: 2.h),
+                    Text(
+                      format.format(value),
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.bodySize,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            DdtIcon(
-              DdtIcons.calendarDay,
-              size: 16.sp,
-              color: DdtTheme.textSecondary(context),
-            ),
-          ],
+              DdtIcon(
+                DdtIcons.calendarDay,
+                size: 16.sp,
+                color: DdtTheme.textSecondary(context),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -195,12 +201,12 @@ class _ComposeEventPanelState extends State<ComposeEventPanel> {
               _dateTile(
                 label: 'Начало',
                 value: _start,
-                onTap: () => _pickDateTime(isStart: true),
+                onTap: (anchor) => _pickDateTime(anchor, isStart: true),
               ),
               _dateTile(
                 label: 'Окончание',
                 value: _end,
-                onTap: () => _pickDateTime(isStart: false),
+                onTap: (anchor) => _pickDateTime(anchor, isStart: false),
               ),
               SizedBox(height: 12.h),
               DdtAppInput(label: 'Место', controller: _locationController),

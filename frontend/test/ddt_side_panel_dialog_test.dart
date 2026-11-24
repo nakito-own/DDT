@@ -99,17 +99,42 @@ void main() {
 
     expect(result, isNull);
   });
+
+  testWidgets('a narrow layout keeps the centered picker', (tester) async {
+    DateTime? result;
+
+    await tester.pumpWidget(
+      _DialogTestApp(
+        width: 390,
+        onPressed: (context) async {
+          result = await showDdtDateTimePicker(
+            context: context,
+            initialDateTime: DateTime(2026, 9, 1, 10, 30),
+          );
+        },
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    await tester.tap(find.text('ОК'));
+    await tester.pumpAndSettle();
+
+    expect(result, DateTime(2026, 9, 1, 10, 30));
+  });
 }
 
 class _DialogTestApp extends StatelessWidget {
-  const _DialogTestApp({required this.onPressed});
+  const _DialogTestApp({required this.onPressed, this.width = 1440});
 
   final Future<void> Function(BuildContext context) onPressed;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return MediaQuery(
-      data: const MediaQueryData(size: Size(1440, 2400)),
+      data: MediaQueryData(size: Size(width, 2400)),
       child: DdtScaleScope(
         builder: (_, _) => MaterialApp(
           theme: DdtTheme.light(),

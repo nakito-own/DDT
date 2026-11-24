@@ -35,11 +35,13 @@ class AnalyticsDataTable extends StatelessWidget {
     required this.columns,
     required this.rows,
     this.maxHeight = 520,
+    this.fitContent = false,
   });
 
   final List<AnalyticsTableColumn> columns;
   final List<List<Widget>> rows;
   final double maxHeight;
+  final bool fitContent;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +127,23 @@ class AnalyticsDataTable extends StatelessWidget {
             widths.fold<double>(0, (sum, width) => sum + width) +
             gutter.horizontal;
 
+        final tableRows = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            header,
+            for (final row in rows)
+              _HoverRow(
+                borderColor: borderColor,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    for (var i = 0; i < columns.length; i++) cell(i, row[i]),
+                  ],
+                ),
+              ),
+          ],
+        );
+        if (fitContent) return tableRows;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(

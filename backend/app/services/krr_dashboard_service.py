@@ -3,11 +3,20 @@
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+import pymysql
 from fastapi import HTTPException, status
 
+from app.config import settings
 from app.db import get_db
 from app.services.analytics_processor import analytics_now
 from app.services.analytics_queries import AnalyticsFilterSpec
+from app.services.krr_insights import build_insights, list_krr_issues
+from app.services.dashboard_cache import (
+    DashboardTimeoutError,
+    dashboard_slot,
+    filter_cache_key,
+    krr_dashboard_cache,
+)
 
 EMPTY = "__empty__"
 EMPTY_LABEL = "Не указано"
@@ -115,15 +124,112 @@ class KrrDashboardService:
                 detail="Снимок за сегодня ещё не загружен. Запустите синхронизацию КРР.",
             )
         snapshot_date, fetched_at, total_count = current
+        version = f"{snapshot_date.isoformat()}|{fetched_at}|{total_count}|bi2"
+        key = filter_cache_key(
+            "krr",
+            spec,
+            version=version,
+            table_limit=table_limit,
+        )
+        return krr_dashboard_cache.compute_once(
+            key,
+            lambda: self._aggregate(
+                spec,
+                table_limit=table_limit,
+                snapshot_date=snapshot_date,
+                fetched_at=fetched_at,
+                total_count=total_count,
+                previous_offset=previous_offset,
+            ),
+        )
+
+    def _aggregate(
+        self,
+        spec: AnalyticsFilterSpec,
+        *,
+        table_limit: int,
+        snapshot_date: date,
+        fetched_at: datetime | None,
+        total_count: int,
+        previous_offset: int,
+    ) -> dict:
+        with dashboard_slot():
+            return self._aggregate_locked(
+                spec,
+                table_limit=table_limit,
+                snapshot_date=snapshot_date,
+                fetched_at=fetched_at,
+                total_count=total_count,
+                previous_offset=previous_offset,
+            )
+
+    def _aggregate_locked(
+        self,
+        spec: AnalyticsFilterSpec,
+        *,
+        table_limit: int,
+        snapshot_date: date,
+        fetched_at: datetime | None,
+        total_count: int,
+        previous_offset: int,
+    ) -> dict:
         yesterday = self._succeeded_day(offset_days=previous_offset)
         date_column = spec.date_column if spec.date_column in _DATE_KEYS else DEFAULT_DATE
         where, params = _conditions(spec, date_column)
-        with get_db(read_timeout=60) as conn:
+        timeout_ms = max(1000, settings.krr_query_timeout_ms)
+        try:
+            return self._read_dashboard(
+                snapshot_date=snapshot_date,
+                fetched_at=fetched_at,
+                total_count=total_count,
+                date_column=date_column,
+                where=where,
+                params=params,
+                yesterday=yesterday,
+                table_limit=table_limit,
+                timeout_ms=timeout_ms,
+                exclude_weekends=spec.exclude_weekends,
+            )
+        except pymysql.err.OperationalError as exc:
+            code = exc.args[0] if exc.args else None
+            if code in {2013, 2006, 3024}:
+                raise DashboardTimeoutError() from exc
+            raise
+
+    def _read_dashboard(
+        self,
+        *,
+        snapshot_date: date,
+        fetched_at: datetime | None,
+        total_count: int,
+        date_column: str,
+        where: str,
+        params: list,
+        yesterday,
+        table_limit: int,
+        timeout_ms: int,
+        exclude_weekends: bool,
+    ) -> dict:
+        with get_db(read_timeout=timeout_ms // 1000 + 5, max_execution_time_ms=timeout_ms) as conn:
             with conn.cursor() as cursor:
                 kpi = _kpi(cursor, snapshot_date, where, params, yesterday)
                 charts = {
-                    "created": _timelines(cursor, snapshot_date, where, params, "created_date_version"),
-                    "changed": _timelines(cursor, snapshot_date, where, params, "changed_date_version"),
+                    "created": _timelines(
+                        cursor,
+                        snapshot_date,
+                        where,
+                        params,
+                        "created_date_version",
+                        exclude_weekends=exclude_weekends,
+                    ),
+                    "changed": _timelines(
+                        cursor,
+                        snapshot_date,
+                        where,
+                        params,
+                        "changed_date_version",
+                        exclude_weekends=exclude_weekends,
+                    ),
                     "oiv_class": _distribution(cursor, snapshot_date, where, params, "departmental_oiv_class_name", TOP_PIE),
                     "stage": _distribution(cursor, snapshot_date, where, params, "stage", TOP_PIE),
                     "district": _distribution(cursor, snapshot_date, where, params, "adm_district", TOP_BAR),
@@ -131,7 +237,24 @@ class KrrDashboardService:
                     "status": _distribution(cursor, snapshot_date, where, params, "status_id_name", TOP_BAR),
                     "year": _distribution(cursor, snapshot_date, where, params, "work_year", 20),
                     "activation": _distribution(cursor, snapshot_date, where, params, "activation_status", TOP_PIE),
+                    "created_work": _timelines(
+                        cursor, snapshot_date, where, params, "created_date_work",
+                        exclude_weekends=exclude_weekends,
+                    ),
+                    "changed_work": _timelines(
+                        cursor, snapshot_date, where, params, "changed_data_work",
+                        exclude_weekends=exclude_weekends,
+                    ),
+                    "created_card": _timelines(
+                        cursor, snapshot_date, where, params, "date_creation",
+                        exclude_weekends=exclude_weekends,
+                    ),
+                    "changed_card": _timelines(
+                        cursor, snapshot_date, where, params, "date_change",
+                        exclude_weekends=exclude_weekends,
+                    ),
                 }
+                insights = build_insights(cursor, snapshot_date, where, params)
                 columns = [
                     _column_meta(cursor, snapshot_date, where, params, column)
                     for column in COLUMNS
@@ -150,6 +273,7 @@ class KrrDashboardService:
             "kpi": kpi,
             "charts": charts,
             "records": records,
+            "insights": insights,
         }
 
     def _succeeded_day(self, *, offset_days: int) -> tuple[date, datetime | None, int] | None:
@@ -173,6 +297,28 @@ class KrrDashboardService:
         if isinstance(snapshot_date, datetime):
             snapshot_date = snapshot_date.date()
         return snapshot_date, row["finished_at"], int(row["stored_count"] or 0)
+
+    def issues(self, spec: AnalyticsFilterSpec, issue: str, limit: int) -> dict:
+        current = self._succeeded_day(offset_days=0) or self._succeeded_day(offset_days=1)
+        if current is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Снимок за сегодня ещё не загружен. Запустите синхронизацию КРР.",
+            )
+        snapshot_date = current[0]
+        date_column = spec.date_column if spec.date_column in _DATE_KEYS else DEFAULT_DATE
+        where, params = _conditions(spec, date_column)
+        timeout_ms = max(1000, settings.krr_query_timeout_ms)
+        with get_db(read_timeout=timeout_ms // 1000 + 5, max_execution_time_ms=timeout_ms) as conn:
+            with conn.cursor() as cursor:
+                return list_krr_issues(
+                    cursor,
+                    snapshot_date,
+                    where,
+                    params,
+                    issue,
+                    min(200, max(1, limit)),
+                )
 
 
 def _conditions(spec: AnalyticsFilterSpec, date_column: str) -> tuple[str, list]:
@@ -283,7 +429,15 @@ def _filled_expr(column: _Column) -> str:
     return f"(`{column.key}` IS NOT NULL)"
 
 
-def _timelines(cursor, snapshot_date: date, where: str, params: list, column: str) -> dict:
+def _timelines(
+    cursor,
+    snapshot_date: date,
+    where: str,
+    params: list,
+    column: str,
+    *,
+    exclude_weekends: bool = False,
+) -> dict:
     extra = f"AND {where}" if where else ""
     cursor.execute(
         f"""
@@ -303,17 +457,24 @@ def _timelines(cursor, snapshot_date: date, where: str, params: list, column: st
         if isinstance(day, date):
             daily.append((day, int(row["value"] or 0)))
     return {
-        "day": _series(daily, "day"),
+        "day": _series(daily, "day", exclude_weekends=exclude_weekends),
         "week": _series(daily, "week"),
         "month": _series(daily, "month"),
     }
 
 
-def _series(daily: list[tuple[date, int]], group: str) -> list[dict]:
+def _series(
+    daily: list[tuple[date, int]],
+    group: str,
+    *,
+    exclude_weekends: bool = False,
+) -> list[dict]:
     if not daily:
         return []
     grouped: dict[date, int] = {}
     for day, value in daily:
+        if exclude_weekends and group == "day" and day.weekday() >= 5:
+            continue
         if group == "week":
             key = day - timedelta(days=day.weekday())
         elif group == "month":
@@ -322,11 +483,12 @@ def _series(daily: list[tuple[date, int]], group: str) -> list[dict]:
             key = day
         grouped[key] = grouped.get(key, 0) + value
     keys = sorted(grouped)
-    if group == "day" and (keys[-1] - keys[0]).days <= 120:
+    if group == "day" and keys and (keys[-1] - keys[0]).days <= 120:
         filled: list[date] = []
         cursor = keys[0]
         while cursor <= keys[-1]:
-            filled.append(cursor)
+            if not (exclude_weekends and cursor.weekday() >= 5):
+                filled.append(cursor)
             cursor += timedelta(days=1)
         keys = filled
     return [

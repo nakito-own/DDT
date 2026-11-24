@@ -269,7 +269,7 @@ gunzip -c /opt/ddt/shared/backups/BACKUP.sql.gz | \
 
 docker compose --project-name ddt \
   --env-file /opt/ddt/shared/.env \
-  -f compose.production.yml up -d backend frontend caddy
+  -f compose.production.yml up -d backend mail analytics frontend caddy
 ```
 
 Восстановление backup удаляет данные, появившиеся после его создания; перед
@@ -285,7 +285,7 @@ docker compose --project-name ddt \
 
 docker compose --project-name ddt \
   --env-file /opt/ddt/shared/.env \
-  -f compose.production.yml logs --tail=200 backend frontend caddy mysql
+  -f compose.production.yml logs --tail=200 backend mail analytics frontend caddy mysql
 
 curl -fsS https://YOUR_DOMAIN/api/health
 ```

@@ -29,6 +29,7 @@ abstract final class DdtIcons {
   static const FaIconData briefcase = FontAwesomeIcons.briefcase;
   static const FaIconData chevronLeft = FontAwesomeIcons.chevronLeft;
   static const FaIconData chevronRight = FontAwesomeIcons.chevronRight;
+  static const FaIconData chevronUp = FontAwesomeIcons.chevronUp;
   static const FaIconData chevronDown = FontAwesomeIcons.chevronDown;
   static const FaIconData check = FontAwesomeIcons.check;
   static const FaIconData checkCircle = FontAwesomeIcons.circleCheck;

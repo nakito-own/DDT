@@ -2,7 +2,7 @@
 
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
@@ -148,10 +148,45 @@ def parse_datetime(value: str | None, time_value: str | None = None) -> datetime
     return parsed
 
 
-def hours_between(start: datetime | None, end: datetime | None) -> float | None:
+def hours_between(
+    start: datetime | None,
+    end: datetime | None,
+    *,
+    exclude_weekends: bool = False,
+) -> float | None:
+    """Часы между метками. При exclude_weekends суббота и воскресенье не входят в интервал."""
     if start is None or end is None:
         return None
-    return round((end - start).total_seconds() / 3600, 2)
+    start = start.replace(tzinfo=None)
+    end = end.replace(tzinfo=None)
+    if not exclude_weekends:
+        return round((end - start).total_seconds() / 3600, 2)
+    sign = 1
+    if end < start:
+        start, end = end, start
+        sign = -1
+    return round(sign * _weekday_seconds(start, end) / 3600, 2)
+
+
+def _weekday_seconds(start: datetime, end: datetime) -> float:
+    total = 0.0
+    cursor = start
+    while cursor < end:
+        if cursor.weekday() >= 5:
+            days_until_monday = 7 - cursor.weekday()
+            cursor = datetime.combine(
+                cursor.date() + timedelta(days=days_until_monday),
+                datetime.min.time(),
+            )
+            continue
+        next_midnight = datetime.combine(
+            cursor.date() + timedelta(days=1),
+            datetime.min.time(),
+        )
+        stop = end if end < next_midnight else next_midnight
+        total += (stop - cursor).total_seconds()
+        cursor = stop
+    return total
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -356,6 +391,7 @@ def _waiting_metrics(
     return {
         "waiting_started_at": _iso(waiting_start),
         "client_response_hours": client_response_hours,
+        "waiting_ended_at": _iso(end) if waiting_start is not None else None,
         "has_waiting_episode": waiting_start is not None or status_group == "waiting",
     }
 
@@ -451,6 +487,7 @@ def build_ticket(
         "module": module,
         "resource": resource,
         "created_at": _iso(created_at),
+        "comment1_at": _iso(comment1_at),
         "work_taken_at": _iso(comment2_at),
         "completed_at": _iso(completed_at),
         "sla_target": _iso(sla_target),

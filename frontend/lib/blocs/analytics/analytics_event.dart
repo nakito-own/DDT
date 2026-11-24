@@ -60,6 +60,15 @@ final class AnalyticsColumnQueryChanged extends AnalyticsEvent {
   List<Object?> get props => [columnKey, query];
 }
 
+final class AnalyticsExcludeWeekendsChanged extends AnalyticsEvent {
+  const AnalyticsExcludeWeekendsChanged(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 final class AnalyticsFiltersCleared extends AnalyticsEvent {
   const AnalyticsFiltersCleared();
 }

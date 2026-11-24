@@ -18,7 +18,7 @@ import 'ddt_filter_dropdown.dart';
 import 'ddt_panel_primary_button.dart';
 import 'ddt_section_sidebar.dart';
 import 'ddt_switch.dart';
-import 'ddt_user_chip.dart';
+import 'ddt_user_avatar.dart';
 
 class TasksFiltersPanel extends StatefulWidget {
   const TasksFiltersPanel({super.key, this.onCreatePressed});
@@ -171,199 +171,193 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
             ],
           ),
           children: [
-              DdtSectionSidebarField(
-                label: 'Поиск',
-                gapAbove: false,
-                child: DdtAppInput(
-                  hint: 'Поиск по названию',
-                  controller: _searchController,
-                  type: InputType.search,
-                  variant: DdtInputVariant.compact,
-                  prefixIcon: DdtIcons.search,
-                  borderRadius: DdtTheme.inputControlBorderRadius,
-                ),
+            DdtSectionSidebarField(
+              label: 'Поиск',
+              gapAbove: false,
+              child: DdtAppInput(
+                hint: 'Поиск по названию',
+                controller: _searchController,
+                type: InputType.search,
+                variant: DdtInputVariant.compact,
+                prefixIcon: DdtIcons.search,
+                borderRadius: DdtTheme.inputControlBorderRadius,
               ),
-              DdtSectionSidebarField(
-                label: 'Статус',
-                child: DdtSearchableFilterDropdown(
-                  summary: ddtFilterSelectionSummary(
-                    selectedStatuses,
-                    statusOptions,
-                    emptyLabel: 'Все статусы',
-                  ),
-                  active: !allStatusesSelected,
-                  options: statusOptions,
-                  selected: selectedStatuses,
-                  emptyLabel: 'Нет статусов',
-                  onSelected: (key) {
-                    final status = _statusFromKey(key);
-                    if (status != null) {
-                      context.read<TasksBloc>().add(
-                        TasksStatusFilterToggled(status),
-                      );
-                    }
-                  },
+            ),
+            DdtSectionSidebarField(
+              label: 'Статус',
+              child: DdtSearchableFilterDropdown(
+                summary: ddtFilterSelectionSummary(
+                  selectedStatuses,
+                  statusOptions,
+                  emptyLabel: 'Все статусы',
                 ),
+                active: !allStatusesSelected,
+                options: statusOptions,
+                selected: selectedStatuses,
+                emptyLabel: 'Нет статусов',
+                onSelected: (key) {
+                  final status = _statusFromKey(key);
+                  if (status != null) {
+                    context.read<TasksBloc>().add(
+                      TasksStatusFilterToggled(status),
+                    );
+                  }
+                },
               ),
+            ),
+            DdtSectionSidebarField(
+              label: 'Приоритет',
+              child: DdtSearchableFilterDropdown(
+                summary: state.priorityFilter?.label ?? 'Все приоритеты',
+                active: state.priorityFilter != null,
+                options: priorityOptions,
+                selected: selectedPriority,
+                multi: false,
+                onSelected: (key) {
+                  context.read<TasksBloc>().add(
+                    TasksPriorityFilterChanged(_priorityFromKey(key)),
+                  );
+                },
+              ),
+            ),
+            if (state.taskTypes.isNotEmpty)
               DdtSectionSidebarField(
-                label: 'Приоритет',
+                label: 'Тип',
                 child: DdtSearchableFilterDropdown(
-                  summary: state.priorityFilter?.label ?? 'Все приоритеты',
-                  active: state.priorityFilter != null,
-                  options: priorityOptions,
-                  selected: selectedPriority,
+                  summary:
+                      state.taskTypes
+                          .where((t) => t.id == state.typeFilter)
+                          .map((t) => t.name)
+                          .firstOrNull ??
+                      'Все типы',
+                  active: state.typeFilter != null,
+                  options: typeOptions,
+                  selected: selectedType,
                   multi: false,
                   onSelected: (key) {
+                    final typeId = key.isEmpty ? null : int.tryParse(key);
                     context.read<TasksBloc>().add(
-                      TasksPriorityFilterChanged(_priorityFromKey(key)),
+                      TasksTypeFilterChanged(typeId),
                     );
                   },
                 ),
               ),
-              if (state.taskTypes.isNotEmpty)
-                DdtSectionSidebarField(
-                  label: 'Тип',
-                  child: DdtSearchableFilterDropdown(
-                    summary:
-                        state.taskTypes
-                            .where((t) => t.id == state.typeFilter)
-                            .map((t) => t.name)
-                            .firstOrNull ??
-                        'Все типы',
-                    active: state.typeFilter != null,
-                    options: typeOptions,
-                    selected: selectedType,
-                    multi: false,
-                    onSelected: (key) {
-                      final typeId = key.isEmpty ? null : int.tryParse(key);
-                      context.read<TasksBloc>().add(
-                        TasksTypeFilterChanged(typeId),
-                      );
-                    },
-                  ),
-                ),
-              if (inSpace) ...[
-                _PersonFilterField(
-                  label: 'Автор',
-                  emptyLabel: 'Все авторы',
-                  userId: state.authorFilter,
-                  onChanged: (userId) => context.read<TasksBloc>().add(
-                    TasksAuthorFilterChanged(userId),
-                  ),
-                ),
-                _PersonFilterField(
-                  label: 'Исполнитель',
-                  emptyLabel: 'Все исполнители',
-                  userId: state.executorFilter,
-                  onChanged: (userId) => context.read<TasksBloc>().add(
-                    TasksExecutorFilterChanged(userId),
-                  ),
-                ),
-                _PersonFilterField(
-                  label: 'Ответственный',
-                  emptyLabel: 'Все ответственные',
-                  userId: state.responsibleFilter,
-                  onChanged: (userId) => context.read<TasksBloc>().add(
-                    TasksResponsibleFilterChanged(userId),
-                  ),
-                ),
-                for (final field in TaskDateField.values)
-                  _DateFilterField(
-                    field: field,
-                    start: state.dateFilters.bounds(field).$1,
-                    end: state.dateFilters.bounds(field).$2,
-                  ),
-              ],
-              DdtSectionSidebarField(
-                label: 'Сортировка',
-                child: DdtSearchableFilterDropdown(
-                  summary: state.sortOption.label,
-                  active: state.sortOption != TasksSortOption.deadlineAsc,
-                  options: sortOptions,
-                  selected: selectedSort,
-                  multi: false,
-                  onSelected: (key) {
-                    final option = _sortFromKey(key);
-                    if (option != null) {
-                      context.read<TasksBloc>().add(
-                        TasksSortOptionChanged(option),
-                      );
-                    }
-                  },
+            if (inSpace) ...[
+              _PersonFilterField(
+                label: 'Автор',
+                emptyLabel: 'Все авторы',
+                userId: state.authorFilter,
+                onChanged: (userId) => context.read<TasksBloc>().add(
+                  TasksAuthorFilterChanged(userId),
                 ),
               ),
-              if (!context.read<TasksBloc>().archivedOnly) ...[
-                SizedBox(height: DdtSectionSidebar.fieldGap),
-                _ShowArchivedSwitch(enabled: state.showArchived),
-              ],
-              SizedBox(height: DdtSectionSidebar.blockGap),
-              Divider(height: 1, thickness: 1, color: dividerColor),
-              SizedBox(height: DdtSectionSidebar.afterDividerGap),
-              DdtSectionSidebarField(
-                gapAbove: false,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 9.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: DdtTheme.inputFillColor(context),
-                    borderRadius: DdtTheme.inputControlBorderRadius,
-                    border: Border.all(color: DdtTheme.borderSubtle(context)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Найдено задач',
-                        style: DdtTheme.style(
-                          fontSize: DdtTypography.labelSmallSize,
-                          fontWeight: FontWeight.w500,
-                          color: DdtTheme.textMuted(context),
-                        ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 7.w,
-                          vertical: 2.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: DdtTheme.primaryColor.withValues(
-                            alpha:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? 0.20
-                                : 0.10,
-                          ),
-                          borderRadius: DdtTheme.badgeBorderRadius,
-                        ),
-                        child: Text(
-                          '${state.filteredTasks.length}',
-                          style: DdtTheme.style(
-                            fontSize: DdtTypography.captionSize,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? DdtTheme.accentColor
-                                : DdtTheme.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              _PersonFilterField(
+                label: 'Исполнитель',
+                emptyLabel: 'Все исполнители',
+                userId: state.executorFilter,
+                onChanged: (userId) => context.read<TasksBloc>().add(
+                  TasksExecutorFilterChanged(userId),
                 ),
               ),
-              if (_hasActiveFilters(state))
-                DdtSectionSidebarField(
-                  child: Button(
-                    text: 'Сбросить фильтры',
-                    type: ButtonType.outlined,
-                    width: double.infinity,
-                    onPressed: () => context.read<TasksBloc>().add(
-                      const TasksFiltersReset(),
+              _PersonFilterField(
+                label: 'Ответственный',
+                emptyLabel: 'Все ответственные',
+                userId: state.responsibleFilter,
+                onChanged: (userId) => context.read<TasksBloc>().add(
+                  TasksResponsibleFilterChanged(userId),
+                ),
+              ),
+              for (final field in TaskDateField.values)
+                _DateFilterField(
+                  field: field,
+                  start: state.dateFilters.bounds(field).$1,
+                  end: state.dateFilters.bounds(field).$2,
+                ),
+            ],
+            DdtSectionSidebarField(
+              label: 'Сортировка',
+              child: DdtSearchableFilterDropdown(
+                summary: state.sortOption.label,
+                active: state.sortOption != TasksSortOption.deadlineAsc,
+                options: sortOptions,
+                selected: selectedSort,
+                multi: false,
+                onSelected: (key) {
+                  final option = _sortFromKey(key);
+                  if (option != null) {
+                    context.read<TasksBloc>().add(
+                      TasksSortOptionChanged(option),
+                    );
+                  }
+                },
+              ),
+            ),
+            if (!context.read<TasksBloc>().archivedOnly) ...[
+              SizedBox(height: DdtSectionSidebar.fieldGap),
+              _ShowArchivedSwitch(enabled: state.showArchived),
+            ],
+            SizedBox(height: DdtSectionSidebar.blockGap),
+            Divider(height: 1, thickness: 1, color: dividerColor),
+            SizedBox(height: DdtSectionSidebar.afterDividerGap),
+            DdtSectionSidebarField(
+              gapAbove: false,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 9.h),
+                decoration: BoxDecoration(
+                  color: DdtTheme.inputFillColor(context),
+                  borderRadius: DdtTheme.inputControlBorderRadius,
+                  border: Border.all(color: DdtTheme.borderSubtle(context)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Найдено задач',
+                      style: DdtTheme.style(
+                        fontSize: DdtTypography.labelSmallSize,
+                        fontWeight: FontWeight.w500,
+                        color: DdtTheme.textMuted(context),
+                      ),
                     ),
-                    borderRadius: DdtTheme.inputControlBorderRadius,
-                  ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 7.w,
+                        vertical: 2.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: DdtTheme.primaryColor.withValues(
+                          alpha: Theme.of(context).brightness == Brightness.dark
+                              ? 0.20
+                              : 0.10,
+                        ),
+                        borderRadius: DdtTheme.badgeBorderRadius,
+                      ),
+                      child: Text(
+                        '${state.filteredTasks.length}',
+                        style: DdtTheme.style(
+                          fontSize: DdtTypography.captionSize,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? DdtTheme.accentColor
+                              : DdtTheme.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+            if (_hasActiveFilters(state))
+              DdtSectionSidebarField(
+                child: Button(
+                  text: 'Сбросить фильтры',
+                  type: ButtonType.outlined,
+                  width: double.infinity,
+                  onPressed: () =>
+                      context.read<TasksBloc>().add(const TasksFiltersReset()),
+                  borderRadius: DdtTheme.inputControlBorderRadius,
+                ),
+              ),
           ],
         );
       },
@@ -404,14 +398,22 @@ class _PersonFilterField extends StatelessWidget {
             summary: summary,
             active: userId != null,
             options: [
-              DdtFilterOption(key: '', label: emptyLabel),
+              DdtFilterOption(
+                key: '',
+                label: emptyLabel,
+                leading: (_) => const DdtFilterUserAvatar(),
+              ),
               for (final user in users)
                 DdtFilterOption(
                   key: '${user.id}',
                   label: user.label,
                   searchText: '${user.label} ${user.email}',
-                  content: (context) =>
-                      DdtUserChip(name: user.label, userId: user.id),
+                  leading: (_) => DdtFilterUserAvatar(
+                    userId: user.id,
+                    email: user.email,
+                    name: user.label,
+                    avatarVersion: user.avatarVersion,
+                  ),
                 ),
             ],
             selected: {if (userId != null) '$userId' else ''},

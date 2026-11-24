@@ -8,6 +8,7 @@ from app.dependencies import get_current_session
 from app.schemas.analytics import AnalyticsQueryRequest
 from app.schemas.krr import (
     KrrDashboardResponse,
+    KrrIssuePage,
     KrrRelayAbort,
     KrrRelayBegin,
     KrrRelayFinish,
@@ -18,6 +19,7 @@ from app.schemas.krr import (
 )
 from app.services.analytics_queries import AnalyticsFilterSpec
 from app.services.dtw_client import DtwError
+from app.services.dashboard_cache import DashboardBusyError, DashboardTimeoutError
 from app.services.krr_dashboard_service import krr_dashboard_service
 from app.services.krr_dataset_service import (
     KrrRelayError,
@@ -130,8 +132,48 @@ def query_krr_dashboard(
         period_end=body.period_end,
         selected=body.selected,
         queries=body.queries,
+        exclude_weekends=body.exclude_weekends,
     )
-    return krr_dashboard_service.query(spec, table_limit=body.table_limit)
+    try:
+        return krr_dashboard_service.query(spec, table_limit=body.table_limit)
+    except DashboardBusyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except DashboardTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/issues", response_model=KrrIssuePage)
+def query_krr_issues(
+    body: AnalyticsQueryRequest,
+    issue: str = Query(min_length=1, max_length=300),
+    _context: SessionContext = Depends(get_current_session),
+):
+    spec = AnalyticsFilterSpec(
+        date_column=body.date_column,
+        period_start=body.period_start,
+        period_end=body.period_end,
+        selected=body.selected,
+        queries=body.queries,
+        exclude_weekends=body.exclude_weekends,
+    )
+    try:
+        return krr_dashboard_service.issues(spec, issue, body.table_limit)
+    except DashboardBusyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except DashboardTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/sync", response_model=KrrSyncStatus)

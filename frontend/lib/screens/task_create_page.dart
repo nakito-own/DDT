@@ -36,7 +36,7 @@ import '../widgets/ddt_round_back_button.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
-import '../widgets/ddt_user_chip.dart';
+import '../widgets/ddt_user_avatar.dart';
 
 part 'task_edit_page.dart';
 
@@ -232,8 +232,7 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
       executorId: assigned(_executorId),
       responsibleId: assigned(_responsibleId),
       timeSet: _timeSet,
-      timeStart:
-          _timeStart ?? (_status == TaskStatus.inProgress ? now : null),
+      timeStart: _timeStart ?? (_status == TaskStatus.inProgress ? now : null),
       timeEnd: _timeEnd ?? (_status == TaskStatus.done ? now : null),
       deadline: _deadline,
       priority: _priority,
@@ -261,66 +260,69 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
       onCommandEnter: () =>
           _submit(personal: context.read<TasksBloc>().spaceKey == null),
       child: LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 760;
-        final main = _CreateMainPane(
-          titleController: _titleController,
-          descriptionController: _descriptionController,
-          descriptionFocus: _descriptionFocus,
-          onClose: _close,
-          onSubmit: () => _submit(personal: personal),
-        );
-        final parameters = TaskParametersForm(
-          personal: personal,
-          taskTypes: state.taskTypes,
-          candidates: candidates,
-          status: _status,
-          typeId: _typeId,
-          priority: _priority,
-          authorId: _authorId,
-          executorId: _executorId,
-          responsibleId: _responsibleId,
-          timeSet: _timeSet,
-          timeStart: _timeStart,
-          timeEnd: _timeEnd,
-          deadline: _deadline,
-          parent: _parent,
-          children: _children,
-          onStatus: _setStatus,
-          onType: (id) => setState(() => _typeId = id),
-          onPriority: (value) => setState(() => _priority = value),
-          onAuthor: (id) => setState(() => _authorId = id),
-          onExecutor: (id) => setState(() => _executorId = id),
-          onResponsible: (id) => setState(() => _responsibleId = id),
-          onTimeSet: (value) => setState(() => _timeSet = value),
-          onTimeStart: (value) => setState(() => _timeStart = value),
-          onTimeEnd: (value) => setState(() => _timeEnd = value),
-          onDeadline: (value) => setState(() => _deadline = value),
-          onParent: (key) => _setParentKey(key, candidates),
-          onToggleChild: (key) => _toggleChildKey(key, candidates),
-        );
-
-        if (!wide) {
-          return _CreateMainPane(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 760;
+          final main = _CreateMainPane(
             titleController: _titleController,
             descriptionController: _descriptionController,
             descriptionFocus: _descriptionFocus,
             onClose: _close,
             onSubmit: () => _submit(personal: personal),
-            trailing: parameters,
           );
-        }
+          final parameters = TaskParametersForm(
+            personal: personal,
+            taskTypes: state.taskTypes,
+            candidates: candidates,
+            status: _status,
+            typeId: _typeId,
+            priority: _priority,
+            authorId: _authorId,
+            executorId: _executorId,
+            responsibleId: _responsibleId,
+            timeSet: _timeSet,
+            timeStart: _timeStart,
+            timeEnd: _timeEnd,
+            deadline: _deadline,
+            parent: _parent,
+            children: _children,
+            onStatus: _setStatus,
+            onType: (id) => setState(() => _typeId = id),
+            onPriority: (value) => setState(() => _priority = value),
+            onAuthor: (id) => setState(() => _authorId = id),
+            onExecutor: (id) => setState(() => _executorId = id),
+            onResponsible: (id) => setState(() => _responsibleId = id),
+            onTimeSet: (value) => setState(() => _timeSet = value),
+            onTimeStart: (value) => setState(() => _timeStart = value),
+            onTimeEnd: (value) => setState(() => _timeEnd = value),
+            onDeadline: (value) => setState(() => _deadline = value),
+            onParent: (key) => _setParentKey(key, candidates),
+            onToggleChild: (key) => _toggleChildKey(key, candidates),
+          );
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: main),
-            const DdtSidePanelDivider(),
-            SizedBox(width: 400.w, child: _CreateScroll(child: parameters)),
-          ],
-        );
-      },
-    ),
+          if (!wide) {
+            return _CreateMainPane(
+              titleController: _titleController,
+              descriptionController: _descriptionController,
+              descriptionFocus: _descriptionFocus,
+              onClose: _close,
+              onSubmit: () => _submit(personal: personal),
+              trailing: parameters,
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: main),
+              const DdtSidePanelDivider(),
+              SizedBox(
+                width: 400.w,
+                child: _CreateScroll(child: parameters),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -664,9 +666,8 @@ class TaskParametersForm extends StatelessWidget {
             for (final item in TaskPriority.values)
               DdtFilterOption(key: item.value, label: item.label),
           ],
-          onSelected: (key) => onPriority(
-            key.isEmpty ? null : TaskPriority.fromValue(key),
-          ),
+          onSelected: (key) =>
+              onPriority(key.isEmpty ? null : TaskPriority.fromValue(key)),
         ),
         if (!personal) ...[
           _PersonDropdownRow(
@@ -803,7 +804,9 @@ class _CreateToolbar extends StatelessWidget {
               fontSize: DdtTypography.labelSize,
               height: 1,
               fontWeight: FontWeight.w500,
-              color: DdtTheme.sidePanelTextMuted(context).withValues(alpha: 0.55),
+              color: DdtTheme.sidePanelTextMuted(
+                context,
+              ).withValues(alpha: 0.55),
             ),
           ),
         ),
@@ -1035,9 +1038,10 @@ class _DateDropdownRow extends StatelessWidget {
   final ValueChanged<DateTime?> onChanged;
   final bool nullable;
 
-  Future<void> _pick(BuildContext context) async {
+  Future<void> _pick(BuildContext anchor) async {
     final picked = await showDdtDateTimePicker(
-      context: context,
+      context: anchor,
+      anchorContext: anchor,
       initialDateTime: value ?? DateTime.now(),
     );
     if (picked == null) return;
@@ -1057,12 +1061,14 @@ class _DateDropdownRow extends StatelessWidget {
           ),
           SizedBox(width: 12.w),
           Expanded(
-            child: DdtFilterDropdownAnchor(
-              label: hasValue
-                  ? formatTaskDateTime(value!.toLocal())
-                  : 'Не указано',
-              active: hasValue,
-              onTap: () => _pick(context),
+            child: Builder(
+              builder: (anchor) => DdtFilterDropdownAnchor(
+                label: hasValue
+                    ? formatTaskDateTime(value!.toLocal())
+                    : 'Не указано',
+                active: hasValue,
+                onTap: () => _pick(anchor),
+              ),
             ),
           ),
           if (nullable && hasValue) ...[
@@ -1109,14 +1115,22 @@ class _PersonDropdownRow extends StatelessWidget {
           selected: {userId?.toString() ?? ''},
           emptyLabel: loading ? 'Загрузка…' : 'Нет пользователей',
           options: [
-            const DdtFilterOption(key: '', label: 'Не указан'),
+            DdtFilterOption(
+              key: '',
+              label: 'Не указан',
+              leading: (_) => const DdtFilterUserAvatar(),
+            ),
             for (final user in users)
               DdtFilterOption(
                 key: '${user.id}',
                 label: user.label,
                 searchText: '${user.label} ${user.email}',
-                content: (context) =>
-                    DdtUserChip(name: user.label, userId: user.id),
+                leading: (_) => DdtFilterUserAvatar(
+                  userId: user.id,
+                  email: user.email,
+                  name: user.label,
+                  avatarVersion: user.avatarVersion,
+                ),
               ),
           ],
           onSelected: (key) =>
