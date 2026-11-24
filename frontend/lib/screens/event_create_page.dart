@@ -148,9 +148,10 @@ class _EventCreatePageState extends State<EventCreatePage> {
     context.go(RoutePaths.calendar);
   }
 
-  Future<void> _pick({required bool isStart}) async {
+  Future<void> _pick(BuildContext anchor, {required bool isStart}) async {
     final picked = await showDdtDateTimePicker(
       context: context,
+      anchorContext: anchor,
       initialDateTime: isStart ? _start : _end,
     );
     if (picked == null || !mounted) return;
@@ -313,8 +314,8 @@ class _EventCreatePageState extends State<EventCreatePage> {
       participants: _participants,
       peopleResults: _peopleResults,
       searchingPeople: _searchingPeople,
-      onPickStart: () => _pick(isStart: true),
-      onPickEnd: () => _pick(isStart: false),
+      onPickStart: (anchor) => _pick(anchor, isStart: true),
+      onPickEnd: (anchor) => _pick(anchor, isStart: false),
       onPeopleQueryChanged: _onPeopleQueryChanged,
       onPeopleQuerySubmitted: _submitPeopleQuery,
       onAddParticipant: _addParticipant,
@@ -335,69 +336,72 @@ class _EventCreatePageState extends State<EventCreatePage> {
       },
       onCommandEnter: _submit,
       child: LayoutBuilder(
-      builder: (context, constraints) {
-        final padding = _shellPadding(context);
-        final wide = constraints.maxWidth >= 980;
-        if (!wide) {
-          return _EventScroll(
+        builder: (context, constraints) {
+          final padding = _shellPadding(context);
+          final wide = constraints.maxWidth >= 980;
+          if (!wide) {
+            return _EventScroll(
+              padding: padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _EventToolbar(onClose: _close, onSubmit: _submit),
+                  SizedBox(height: 20.h),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: 20.w - DdtRoundBackButton.screenInset,
+                    ),
+                    child: form,
+                  ),
+                  SizedBox(height: 28.h),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: 20.w - DdtRoundBackButton.screenInset,
+                    ),
+                    child: SizedBox(height: 560, child: assistant),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final formWidth = (constraints.maxWidth * 0.30).clamp(320.0, 400.0);
+          return Padding(
             padding: padding,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _EventToolbar(onClose: _close, onSubmit: _submit),
-                SizedBox(height: 20.h),
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: 20.w - DdtRoundBackButton.screenInset,
+                SizedBox(height: 12.h),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: formWidth,
+                        child: _EventScroll(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: 20.w - DdtRoundBackButton.screenInset,
+                            ),
+                            child: form,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        color: DdtTheme.borderSubtle(context),
+                      ),
+                      SizedBox(width: 20.w),
+                      Expanded(child: assistant),
+                    ],
                   ),
-                  child: form,
-                ),
-                SizedBox(height: 28.h),
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: 20.w - DdtRoundBackButton.screenInset,
-                  ),
-                  child: SizedBox(height: 560, child: assistant),
                 ),
               ],
             ),
           );
-        }
-
-        final formWidth = (constraints.maxWidth * 0.30).clamp(320.0, 400.0);
-        return Padding(
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _EventToolbar(onClose: _close, onSubmit: _submit),
-              SizedBox(height: 12.h),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: formWidth,
-                      child: _EventScroll(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: 20.w - DdtRoundBackButton.screenInset,
-                          ),
-                          child: form,
-                        ),
-                      ),
-                    ),
-                    Container(width: 1, color: DdtTheme.borderSubtle(context)),
-                    SizedBox(width: 20.w),
-                    Expanded(child: assistant),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
+        },
+      ),
     );
   }
 
@@ -445,8 +449,8 @@ class _EventForm extends StatelessWidget {
   final List<CalendarPerson> participants;
   final List<CalendarPerson> peopleResults;
   final bool searchingPeople;
-  final VoidCallback onPickStart;
-  final VoidCallback onPickEnd;
+  final ValueChanged<BuildContext> onPickStart;
+  final ValueChanged<BuildContext> onPickEnd;
   final ValueChanged<String> onPeopleQueryChanged;
   final ValueChanged<String> onPeopleQuerySubmitted;
   final ValueChanged<CalendarPerson> onAddParticipant;
@@ -1003,16 +1007,18 @@ class _EventDateRow extends StatelessWidget {
 
   final String label;
   final DateTime value;
-  final VoidCallback onTap;
+  final ValueChanged<BuildContext> onTap;
 
   @override
   Widget build(BuildContext context) {
     return _EventFieldRow(
       label: label,
-      child: DdtFilterDropdownAnchor(
-        label: formatTaskDateTime(value.toLocal()),
-        active: true,
-        onTap: onTap,
+      child: Builder(
+        builder: (anchor) => DdtFilterDropdownAnchor(
+          label: formatTaskDateTime(value.toLocal()),
+          active: true,
+          onTap: () => onTap(anchor),
+        ),
       ),
     );
   }

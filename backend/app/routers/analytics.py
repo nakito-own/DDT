@@ -13,6 +13,7 @@ from app.services.analytics_service import (
     AnalyticsNotConfiguredError,
     analytics_service,
 )
+from app.services.dashboard_cache import DashboardBusyError, DashboardTimeoutError
 from app.services.google_sheets_client import GoogleSheetsAccessError
 from app.services.session_service import SessionContext
 
@@ -33,10 +34,10 @@ def _map_errors(exc: Exception) -> HTTPException:
         else:
             status_code = status.HTTP_502_BAD_GATEWAY
         return HTTPException(status_code=status_code, detail=str(exc))
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, (TimeoutError, DashboardTimeoutError, DashboardBusyError)):
         return HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Сервис аналитики не ответил вовремя. Повторите запрос.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc) if str(exc) else "Сервис аналитики занят. Повторите запрос.",
         )
     raise exc
 
@@ -52,6 +53,7 @@ async def query_dashboard(
         period_end=body.period_end,
         selected=body.selected,
         queries=body.queries,
+        exclude_weekends=body.exclude_weekends,
     )
     try:
         payload = await asyncio.to_thread(
@@ -62,7 +64,13 @@ async def query_dashboard(
             refresh=body.refresh,
             allow_stale=body.allow_stale,
         )
-    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError, TimeoutError) as exc:
+    except (
+        AnalyticsNotConfiguredError,
+        GoogleSheetsAccessError,
+        TimeoutError,
+        DashboardBusyError,
+        DashboardTimeoutError,
+    ) as exc:
         raise _map_errors(exc) from exc
     return payload
 
@@ -77,6 +85,12 @@ async def get_applications(
             analytics_service.get_applications,
             refresh=refresh,
         )
-    except (AnalyticsNotConfiguredError, GoogleSheetsAccessError, TimeoutError) as exc:
+    except (
+        AnalyticsNotConfiguredError,
+        GoogleSheetsAccessError,
+        TimeoutError,
+        DashboardBusyError,
+        DashboardTimeoutError,
+    ) as exc:
         raise _map_errors(exc) from exc
     return payload

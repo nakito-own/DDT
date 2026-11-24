@@ -14,6 +14,7 @@ import 'ddt_load_progress.dart';
 import '../theme/ddt_theme.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/analytics_charts.dart';
+import 'krr_insights_panels.dart';
 import '../widgets/analytics_filters_panel.dart';
 import '../widgets/ddt_filter_dropdown.dart';
 import '../widgets/ddt_section_refresh.dart';
@@ -39,6 +40,7 @@ class KrrAnalyticsView extends StatelessWidget {
     this.onResync,
     required this.onDateColumnChanged,
     required this.onPeriodChanged,
+    required this.onExcludeWeekendsChanged,
     required this.onValueToggled,
     required this.onQueryChanged,
     required this.onFiltersCleared,
@@ -56,6 +58,7 @@ class KrrAnalyticsView extends StatelessWidget {
   final VoidCallback? onResync;
   final ValueChanged<String> onDateColumnChanged;
   final void Function(DateTime? start, DateTime? end) onPeriodChanged;
+  final ValueChanged<bool> onExcludeWeekendsChanged;
   final void Function(String column, String value) onValueToggled;
   final void Function(String column, String query) onQueryChanged;
   final VoidCallback onFiltersCleared;
@@ -71,37 +74,69 @@ class KrrAnalyticsView extends StatelessWidget {
         final chartHeight = wide ? 340.h : 300.h;
         final dashboard = this.dashboard;
         final filtered = filters.hasPeriod || filters.hasColumnFilters;
+        final compact = DdtAdaptive.isCompact(context);
+        final topInset = DdtShellMetrics.of(context).contentInsetTop;
+        final controls = _KrrSectionControls(
+          section: section,
+          isRefreshing: isRefreshing,
+          onSectionChanged: onSectionChanged,
+          onResync: onResync,
+        );
         final body = CustomScrollView(
           key: PageStorageKey('krr-${section.name}'),
           slivers: [
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: DdtShellMetrics.of(context).contentInsetTop,
-              ),
-            ),
+            SliverToBoxAdapter(child: SizedBox(height: topInset)),
             SliverPadding(
               padding: EdgeInsets.only(bottom: 12.h),
               sliver: SliverToBoxAdapter(
                 child: _KrrHeader(
                   dashboard: skeleton ? null : dashboard,
                   filtered: filtered,
-                  section: section,
-                  isRefreshing: isRefreshing,
                   errorMessage: errorMessage,
-                  onSectionChanged: onSectionChanged,
-                  onRefresh: onRefresh,
-                  onResync: onResync,
+                  controlsSpacer: controls,
+                  compact: compact,
                 ),
               ),
             ),
-            if (!skeleton && section == AnalyticsSection.table && dashboard != null)
+            if (!skeleton && section == AnalyticsSection.table && dashboard != null) ...[
               SliverToBoxAdapter(
                 child: _KrrTable(records: dashboard.records, onMore: onTableMore),
-              )
-            else ...[
+              ),
+              SliverPadding(
+                padding: EdgeInsets.only(top: 12.h),
+                sliver: SliverToBoxAdapter(
+                  child: KrrMissingAreaTable(
+                    rows: dashboard.insights.missingArea,
+                    total: dashboard.insights.missingAreaTotal,
+                    onOpen: () => showKrrIssueDialog(
+                      context,
+                      filters: filters,
+                      issue: 'missing_area:all',
+                      title: 'Работы без округа и района',
+                    ),
+                  ),
+                ),
+              ),
+            ] else if (section == AnalyticsSection.quality) ...[
+              SliverToBoxAdapter(
+                child: KrrQualityPanels(
+                  insights: skeleton ? null : dashboard?.insights,
+                  skeleton: skeleton || dashboard == null,
+                  chartHeight: chartHeight,
+                  wide: wide,
+                  onOpen: (issue, title) => showKrrIssueDialog(
+                    context,
+                    filters: filters,
+                    issue: issue,
+                    title: title,
+                  ),
+                ),
+              ),
+            ] else ...[
               SliverToBoxAdapter(
                 child: _KrrKpiGrid(
                   kpi: skeleton ? null : dashboard?.kpi,
+                  insights: skeleton ? null : dashboard?.insights,
                   skeleton: skeleton || dashboard == null,
                 ),
               ),
@@ -116,6 +151,24 @@ class KrrAnalyticsView extends StatelessWidget {
                   ),
                 ),
               ),
+              SliverPadding(
+                padding: EdgeInsets.only(top: 12.h),
+                sliver: SliverToBoxAdapter(
+                  child: KrrWorkInsightPanels(
+                    insights: skeleton ? null : dashboard?.insights,
+                    charts: skeleton ? null : dashboard?.charts,
+                    skeleton: skeleton || dashboard == null,
+                    wide: wide,
+                    chartHeight: chartHeight,
+                    onOpen: (issue, title) => showKrrIssueDialog(
+                      context,
+                      filters: filters,
+                      issue: issue,
+                      title: title,
+                    ),
+                  ),
+                ),
+              ),
             ],
             SliverPadding(
               padding: EdgeInsets.only(
@@ -125,9 +178,18 @@ class KrrAnalyticsView extends StatelessWidget {
             ),
           ],
         );
-        final scroll = DdtSectionRefreshOverlay(
-          isRefreshing: isRefreshing,
-          child: DdtScrollEdgeFade(child: body),
+        final scroll = Stack(
+          children: [
+            DdtSectionRefreshOverlay(
+              isRefreshing: isRefreshing,
+              child: DdtScrollEdgeFade(child: body),
+            ),
+            Positioned(
+              top: topInset,
+              right: 0,
+              child: controls,
+            ),
+          ],
         );
         final filtersPanel = AnalyticsFiltersPanel(
           loading: skeleton || dashboard == null,
@@ -137,6 +199,7 @@ class KrrAnalyticsView extends StatelessWidget {
           filters: filters,
           onDateColumnChanged: onDateColumnChanged,
           onPeriodChanged: onPeriodChanged,
+          onExcludeWeekendsChanged: onExcludeWeekendsChanged,
           onValueToggled: onValueToggled,
           onQueryChanged: onQueryChanged,
           onCleared: onFiltersCleared,
@@ -176,45 +239,36 @@ class KrrAnalyticsView extends StatelessWidget {
   }
 }
 
-class _KrrHeader extends StatelessWidget {
-  const _KrrHeader({
-    required this.dashboard,
-    required this.filtered,
+class _KrrSectionControls extends StatelessWidget {
+  const _KrrSectionControls({
     required this.section,
     required this.isRefreshing,
     required this.onSectionChanged,
-    required this.onRefresh,
     this.onResync,
-    this.errorMessage,
   });
 
-  final KrrDashboard? dashboard;
-  final bool filtered;
   final AnalyticsSection section;
   final bool isRefreshing;
   final ValueChanged<AnalyticsSection> onSectionChanged;
-  final VoidCallback onRefresh;
   final VoidCallback? onResync;
-  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
-    final loaded = dashboard;
-    final fetched = loaded == null
-        ? ''
-        : DateFormat('dd.MM.yyyy HH:mm').format(loaded.fetchedAt.toLocal());
-    final count = loaded == null
-        ? ''
-        : filtered
-        ? 'показано ${loaded.filteredCount} из ${loaded.totalCount}'
-        : '${loaded.totalCount} версий';
-    final controls = Row(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         DdtSegmentedControl<AnalyticsSection>(
           segments: [
             for (final item in AnalyticsSection.forDashboard(AnalyticsDashboardKind.krrWorks))
-              DdtSegmentedControlSegment(value: item, label: item.label),
+              DdtSegmentedControlSegment(
+                value: item,
+                label: switch (item) {
+                  AnalyticsSection.overview => 'Общая аналитика',
+                  AnalyticsSection.quality => 'Качество данных',
+                  AnalyticsSection.table => 'Таблица',
+                  _ => item.label,
+                },
+              ),
           ],
           selected: section,
           onChanged: onSectionChanged,
@@ -232,6 +286,35 @@ class _KrrHeader extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+class _KrrHeader extends StatelessWidget {
+  const _KrrHeader({
+    required this.dashboard,
+    required this.filtered,
+    required this.controlsSpacer,
+    required this.compact,
+    this.errorMessage,
+  });
+
+  final KrrDashboard? dashboard;
+  final bool filtered;
+  final Widget controlsSpacer;
+  final bool compact;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final loaded = dashboard;
+    final fetched = loaded == null
+        ? ''
+        : DateFormat('dd.MM.yyyy HH:mm').format(loaded.fetchedAt.toLocal());
+    final count = loaded == null
+        ? ''
+        : filtered
+        ? 'показано ${loaded.filteredCount} из ${loaded.totalCount}'
+        : '${loaded.totalCount} версий';
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -269,30 +352,43 @@ class _KrrHeader extends StatelessWidget {
           ),
       ],
     );
-    if (DdtAdaptive.isCompact(context)) {
+    final reserved = Visibility(
+      visible: false,
+      maintainSize: true,
+      maintainState: true,
+      maintainAnimation: true,
+      child: controlsSpacer,
+    );
+    if (compact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           title,
           SizedBox(height: 10.h),
-          SingleChildScrollView(scrollDirection: Axis.horizontal, child: controls),
+          Align(alignment: Alignment.centerRight, child: reserved),
         ],
       );
     }
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: title),
         SizedBox(width: 12.w),
-        controls,
+        reserved,
       ],
     );
   }
 }
 
 class _KrrKpiGrid extends StatelessWidget {
-  const _KrrKpiGrid({required this.kpi, this.skeleton = false});
+  const _KrrKpiGrid({
+    required this.kpi,
+    required this.insights,
+    this.skeleton = false,
+  });
 
   final KrrKpi? kpi;
+  final KrrInsights? insights;
   final bool skeleton;
 
   @override
@@ -307,6 +403,10 @@ class _KrrKpiGrid extends StatelessWidget {
         ('Включено в ДК', analyticsPositiveColor),
         ('Дата последнего изменения', Color(0xFFD4943A)),
         ('Заполненность', Color(0xFF3E9B74)),
+        ('Завершённые работы', analyticsPositiveColor),
+        ('В процессе реализации', Color(0xFF4A90C2)),
+        ('Отменённые работы', Color(0xFFD65C5C)),
+        ('Средняя площадь', Color(0xFF4A90C2)),
       ], values: const [
         ('0', 'в текущей выборке'),
         ('0', 'по идентификатору работы'),
@@ -316,10 +416,16 @@ class _KrrKpiGrid extends StatelessWidget {
         ('0', 'записи с признаком ДК'),
         ('—', 'по дате изменения версии'),
         ('0%', 'доля заполненных значений'),
+        ('0', 'последняя версия работы'),
+        ('0', 'последняя версия работы'),
+        ('0', 'последняя версия работы'),
+        ('—', 'средняя square'),
       ], skeleton: true);
     }
     final data = kpi!;
+    final insight = insights;
     final delta = data.delta;
+    final average = insight?.squareAvg;
     final lastChanged = data.lastChanged == null
         ? '—'
         : DateFormat('dd.MM.yyyy').format(data.lastChanged!.toLocal());
@@ -341,6 +447,15 @@ class _KrrKpiGrid extends StatelessWidget {
       ('Включено в ДК', '${data.dkCount}', analyticsPositiveColor, 'записи с признаком ДК'),
       ('Дата последнего изменения', lastChanged, const Color(0xFFD4943A), 'по дате изменения версии'),
       ('Заполненность', '${data.fillPercent.toStringAsFixed(1)}%', const Color(0xFF3E9B74), 'доля заполненных значений'),
+      ('Завершённые работы', '${insight?.completed ?? 0}', analyticsPositiveColor, 'последняя версия, статус завершения'),
+      ('В процессе реализации', '${insight?.inProgress ?? 0}', const Color(0xFF4A90C2), 'последняя версия работы'),
+      ('Отменённые работы', '${insight?.cancelled ?? 0}', const Color(0xFFD65C5C), 'последняя версия работы'),
+      (
+        'Средняя площадь',
+        average == null ? 'Недоступно' : formatKrrNumber(average, digits: 1),
+        const Color(0xFF4A90C2),
+        average == null ? 'нет положительных значений square' : 'по работам с площадью',
+      ),
     ];
     return _wrap(context, [
       for (final item in items) (item.$1, item.$3),
@@ -673,6 +788,7 @@ class _KrrTable extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AnalyticsDataTable(
+            fitContent: true,
             columns: const [
               AnalyticsTableColumn('Версия', width: 220),
               AnalyticsTableColumn('Год', width: 70),

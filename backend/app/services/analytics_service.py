@@ -7,6 +7,11 @@ from time import monotonic
 from app.config import settings
 from app.services.analytics_processor import build_dataset
 from app.services.analytics_queries import AnalyticsFilterSpec, query_dashboard
+from app.services.dashboard_cache import (
+    dashboard_slot,
+    filter_cache_key,
+    sheets_dashboard_cache,
+)
 from app.services.google_sheets_client import (
     GoogleSheetsAccessError,
     GoogleSheetsConfigError,
@@ -42,17 +47,31 @@ class AnalyticsService:
         allow_stale: bool = False,
     ) -> dict:
         dataset = self._load(refresh=refresh, allow_stale=allow_stale)
+        fetched_at = dataset["fetched_at"]
+        key = filter_cache_key(
+            "sheets",
+            spec,
+            fetched_at=fetched_at,
+            table_limit=table_limit,
+            table_offset=table_offset,
+        )
+
+        def build() -> dict:
+            with dashboard_slot():
+                return query_dashboard(
+                    dataset,
+                    spec,
+                    table_limit=table_limit,
+                    table_offset=table_offset,
+                )
+
+        aggregated = sheets_dashboard_cache.compute_once(key, build)
         return {
             "spreadsheet_id": dataset["spreadsheet_id"],
             "sheet_name": dataset["sheet_name"],
-            "fetched_at": dataset["fetched_at"],
+            "fetched_at": fetched_at,
             "itsm_base_url": settings.analytics_itsm_base_url,
-            **query_dashboard(
-                dataset,
-                spec,
-                table_limit=table_limit,
-                table_offset=table_offset,
-            ),
+            **aggregated,
         }
 
     def get_applications(self, *, refresh: bool = False) -> dict:

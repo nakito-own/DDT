@@ -41,6 +41,7 @@ class EwsKeepaliveService:
             try:
                 from app.services.session_service import session_service
 
+                session_service.purge_expired()
                 session_service.refresh_live_exchange_sessions()
             except Exception:
                 logger.exception("EWS keepalive cycle failed")

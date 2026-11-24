@@ -178,6 +178,25 @@ class KrrApi {
     return KrrDashboard.fromJson(ApiClient.decodeMap(response));
   }
 
+  Future<KrrIssuePage> issues({
+    required AnalyticsFilters filters,
+    required String issue,
+  }) async {
+    final response = await _client.post(
+      '/api/krr/issues',
+      query: {'issue': issue},
+      body: {
+        ...filters.toQueryJson(),
+        'table_limit': 100,
+        'table_offset': 0,
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_messageFor(response));
+    }
+    return KrrIssuePage.fromJson(ApiClient.decodeMap(response));
+  }
+
   int _asInt(Object? value, {int fallback = 0}) {
     if (value is int) return value;
     if (value is num) return value.toInt();

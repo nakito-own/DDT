@@ -109,6 +109,34 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
     });
   }
 
+  void _selectPreset(_PeriodPreset preset) {
+    final today = _dateOnly(DateTime.now());
+    final start = switch (preset) {
+      _PeriodPreset.week => today.subtract(const Duration(days: 6)),
+      _PeriodPreset.month => _shiftMonths(today, -1),
+      _PeriodPreset.year => _shiftMonths(today, -12),
+    };
+    setState(() {
+      _start = start;
+      _end = today;
+      _visibleMonth = DateTime(today.year, today.month);
+    });
+  }
+
+  DateTime _shiftMonths(DateTime value, int months) {
+    final total = value.year * 12 + (value.month - 1) + months;
+    final year = total ~/ 12;
+    final month = total % 12 + 1;
+    final lastDay = DateTime(year, month + 1, 0).day;
+    final day = value.day > lastDay ? lastDay : value.day;
+    return DateTime(year, month, day);
+  }
+
+  bool _sameDay(DateTime? a, DateTime? b) {
+    if (a == null || b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   bool _inRange(DateTime day) {
     if (_start == null) return false;
     final end = _end ?? _start!;
@@ -165,6 +193,20 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
             SizedBox(height: 8.h),
             Row(
               children: [
+                for (final preset in _PeriodPreset.values) ...[
+                  if (preset != _PeriodPreset.week) SizedBox(width: 6.w),
+                  Expanded(
+                    child: _PresetButton(
+                      label: preset.label,
+                      onTap: () => _selectPreset(preset),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
                 for (final weekday in _weekdays)
                   Expanded(
                     child: Text(
@@ -179,28 +221,41 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
               ],
             ),
             SizedBox(height: 6.h),
-            ..._monthWeeks().map(
-              (week) => Padding(
-                padding: EdgeInsets.only(bottom: 4.h),
+            ..._monthWeeks().map((week) {
+              final span =
+                  _start != null && _end != null && !_sameDay(_start, _end);
+              return Padding(
+                padding: EdgeInsets.only(bottom: 2.h),
                 child: Row(
                   children: [
-                    for (final day in week)
+                    for (var index = 0; index < week.length; index++)
                       Expanded(
-                        child: day == null
+                        child: week[index] == null
                             ? const SizedBox(height: 32)
                             : _DayCell(
-                                day: day,
-                                selected: _inRange(day),
-                                isEdge:
-                                    _dateOnly(day) == _start ||
-                                    _dateOnly(day) == _end,
-                                onTap: () => _select(day),
+                                day: week[index]!,
+                                isStart: _sameDay(week[index], _start),
+                                isEnd: _sameDay(week[index], _end ?? _start),
+                                showRange: span && _inRange(week[index]!),
+                                continuesLeft:
+                                    span &&
+                                    index > 0 &&
+                                    week[index - 1] != null &&
+                                    _inRange(week[index - 1]!) &&
+                                    _inRange(week[index]!),
+                                continuesRight:
+                                    span &&
+                                    index < week.length - 1 &&
+                                    week[index + 1] != null &&
+                                    _inRange(week[index]!) &&
+                                    _inRange(week[index + 1]!),
+                                onTap: () => _select(week[index]!),
                               ),
                       ),
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
             SizedBox(height: 8.h),
             Row(
               children: [
@@ -254,14 +309,20 @@ class _AnalyticsPeriodCalendarState extends State<AnalyticsPeriodCalendar> {
 class _DayCell extends StatefulWidget {
   const _DayCell({
     required this.day,
-    required this.selected,
-    required this.isEdge,
+    required this.isStart,
+    required this.isEnd,
+    required this.showRange,
+    required this.continuesLeft,
+    required this.continuesRight,
     required this.onTap,
   });
 
   final DateTime day;
-  final bool selected;
-  final bool isEdge;
+  final bool isStart;
+  final bool isEnd;
+  final bool showRange;
+  final bool continuesLeft;
+  final bool continuesRight;
   final VoidCallback onTap;
 
   @override
@@ -274,22 +335,22 @@ class _DayCellState extends State<_DayCell> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final day = widget.day;
-    final selected = widget.selected;
-    final isEdge = widget.isEdge;
     final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
-    final color = isEdge
-        ? DdtTheme.primaryColor
-        : selected
-        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.20 : 0.12)
-        : _hovered
-        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.12 : 0.08)
-        : Colors.transparent;
-    final textColor = isEdge
+    final edge = widget.isStart || widget.isEnd;
+    final fill = DdtTheme.primaryColor.withValues(alpha: isDark ? 0.28 : 0.14);
+    final textColor = edge
         ? Colors.white
-        : selected || _hovered
+        : _hovered && !widget.showRange
         ? accent
         : DdtTheme.textPrimary(context);
+    const radius = Radius.circular(8);
+    final background = edge
+        ? DdtTheme.primaryColor
+        : widget.showRange
+        ? fill
+        : _hovered
+        ? DdtTheme.primaryColor.withValues(alpha: isDark ? 0.16 : 0.10)
+        : Colors.transparent;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -297,32 +358,73 @@ class _DayCellState extends State<_DayCell> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: DdtTheme.selectionAnimationDuration,
           curve: DdtTheme.selectionAnimationCurve,
           height: 32,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: isEdge
-                ? [
-                    BoxShadow(
-                      color: DdtTheme.primaryColor.withValues(alpha: 0.24),
-                      blurRadius: 6,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
+            color: background,
+            borderRadius: BorderRadius.horizontal(
+              left: widget.continuesLeft ? Radius.zero : radius,
+              right: widget.continuesRight ? Radius.zero : radius,
+            ),
           ),
-          child: AnimatedDefaultTextStyle(
-            duration: DdtTheme.selectionAnimationDuration,
+          child: Text(
+            '${widget.day.day}',
             style: DdtTheme.style(
               fontSize: DdtTypography.labelSmallSize,
               fontWeight: FontWeight.w600,
               color: textColor,
             ),
-            child: Text('${day.day}'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _PeriodPreset { week, month, year }
+
+extension on _PeriodPreset {
+  String get label => switch (this) {
+    _PeriodPreset.week => 'Неделя',
+    _PeriodPreset.month => 'Месяц',
+    _PeriodPreset.year => 'Год',
+  };
+}
+
+class _PresetButton extends StatelessWidget {
+  const _PresetButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: DdtTheme.primaryColor.withValues(
+              alpha: isDark ? 0.16 : 0.08,
+            ),
+          ),
+          child: Text(
+            label,
+            style: DdtTheme.style(
+              fontSize: DdtTypography.labelSmallSize,
+              fontWeight: FontWeight.w600,
+              color: isDark ? DdtTheme.accentColor : DdtTheme.primaryColor,
+            ),
           ),
         ),
       ),

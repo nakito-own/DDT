@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     ews_credentials_key: str = ""
     ews_session_ttl_hours: int = 24
     ews_remember_ttl_days: int = 30
+    # How long a loaded session is served from memory before a cheap DB check.
+    session_cache_ttl_seconds: int = 120
     ews_refresh_interval_hours: int = 12
     ews_refresh_check_seconds: int = 300
     ews_timezone: str = "Europe/Moscow"
@@ -57,6 +59,12 @@ class Settings(BaseSettings):
 
     analytics_timezone: str = "Europe/Moscow"
     analytics_itsm_base_url: str = "https://sc-tech-solutions.itsm.mos.ru/requests/"
+
+    # all — один процесс (локальный запуск). api / mail / analytics — отдельные
+    # процессы в compose, у почты и аналитики свой потолок CPU.
+    app_role: Literal["all", "api", "mail", "analytics"] = "all"
+    dashboard_queue_timeout_seconds: float = 5.0
+    krr_query_timeout_ms: int = 20000
 
 
 settings = Settings()

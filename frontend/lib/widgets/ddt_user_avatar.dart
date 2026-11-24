@@ -201,3 +201,53 @@ class _DdtUserAvatarState extends State<DdtUserAvatar> {
     );
   }
 }
+
+/// Avatar in a user dropdown, in place of the selection mark.
+class DdtFilterUserAvatar extends StatelessWidget {
+  const DdtFilterUserAvatar({
+    super.key,
+    this.userId,
+    this.email,
+    this.name,
+    this.avatarVersion,
+  });
+
+  static const double size = 22;
+
+  final int? userId;
+  final String? email;
+  final String? name;
+  final int? avatarVersion;
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId == null) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: DdtTheme.primaryColor.withValues(alpha: isDark ? 0.22 : 0.12),
+        ),
+        alignment: Alignment.center,
+        child: DdtIcon(
+          DdtIcons.user,
+          size: size * 0.46,
+          color: accent,
+          fitParent: true,
+        ),
+      );
+    }
+
+    return DdtUserAvatar(
+      size: size,
+      userId: userId,
+      email: email,
+      name: name,
+      avatarVersion: avatarVersion,
+      versionIsKnown: true,
+    );
+  }
+}

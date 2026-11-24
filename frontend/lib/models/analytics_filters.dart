@@ -9,6 +9,7 @@ class AnalyticsFilters extends Equatable {
     this.periodEnd,
     this.selectedValues = const {},
     this.queries = const {},
+    this.excludeWeekends = false,
   });
 
   final String? dateColumnKey;
@@ -16,6 +17,7 @@ class AnalyticsFilters extends Equatable {
   final DateTime? periodEnd;
   final Map<String, Set<String>> selectedValues;
   final Map<String, String> queries;
+  final bool excludeWeekends;
 
   bool get hasPeriod => periodStart != null || periodEnd != null;
 
@@ -29,6 +31,7 @@ class AnalyticsFilters extends Equatable {
     DateTime? Function()? periodEnd,
     Map<String, Set<String>>? selectedValues,
     Map<String, String>? queries,
+    bool? excludeWeekends,
   }) {
     return AnalyticsFilters(
       dateColumnKey: dateColumnKey != null
@@ -38,6 +41,7 @@ class AnalyticsFilters extends Equatable {
       periodEnd: periodEnd != null ? periodEnd() : this.periodEnd,
       selectedValues: selectedValues ?? this.selectedValues,
       queries: queries ?? this.queries,
+      excludeWeekends: excludeWeekends ?? this.excludeWeekends,
     );
   }
 
@@ -96,6 +100,7 @@ class AnalyticsFilters extends Equatable {
         for (final entry in queries.entries)
           if (entry.value.trim().isNotEmpty) entry.key: entry.value.trim(),
       },
+      'exclude_weekends': excludeWeekends,
     };
   }
 
@@ -114,5 +119,6 @@ class AnalyticsFilters extends Equatable {
     periodEnd,
     selectedValues,
     queries,
+    excludeWeekends,
   ];
 }

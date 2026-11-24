@@ -24,18 +24,13 @@ import '../theme/ddt_typography.dart';
 import '../utils/calendar_body_html.dart';
 import '../utils/ddt_toast.dart';
 import 'ddt_adaptive.dart';
+import 'ddt_arrow_tooltip.dart';
 import 'ddt_icon.dart';
 import 'ddt_side_panel.dart';
 import 'ddt_user_chip.dart';
 
 const _tooltipDuration = Duration(milliseconds: 280);
-const _arrowLength = 10.0;
-const _arrowHalf = 8.0;
-const _tipRadius = 16.0;
-const _tipGap = 8.0;
 const _contentPad = 16.0;
-const _maxTooltipWidth = 640.0;
-const _maxTooltipHeight = 380.0;
 
 /// Marks the calendar surface so the event tooltip stays inside it.
 class CalendarTooltipHost extends StatefulWidget {
@@ -131,230 +126,6 @@ Rect? _anchorInOverlay(BuildContext context) {
   return offset & box.size;
 }
 
-enum _ArrowSide { left, right, top, bottom }
-
-class _TooltipPlacement {
-  const _TooltipPlacement({
-    required this.outer,
-    required this.side,
-    required this.arrowCenter,
-    required this.showArrow,
-  });
-
-  /// Box that contains the bubble and the arrow, in overlay coordinates.
-  final Rect outer;
-
-  /// Edge of the bubble the arrow sits on. [left] means the bubble is to the
-  /// right of the event and the arrow points left.
-  final _ArrowSide side;
-  final double arrowCenter;
-  final bool showArrow;
-}
-
-_TooltipPlacement _placeTooltip({
-  required Size screen,
-  required EdgeInsets padding,
-  required Rect? anchor,
-  Rect? limit,
-}) {
-  const margin = 8.0;
-  var bounds = Rect.fromLTRB(
-    padding.left + margin,
-    padding.top + margin,
-    math.max(padding.left + margin + 1, screen.width - padding.right - margin),
-    math.max(padding.top + margin + 1, screen.height - padding.bottom - margin),
-  );
-  if (limit != null && limit.width > 48 && limit.height > 48) {
-    final limited = limit.deflate(margin);
-    if (limited.width > 48 && limited.height > 48) {
-      final next = bounds.intersect(limited);
-      if (next.width > 48 && next.height > 48) bounds = next;
-    }
-  }
-  final preferredWidth = math.min(_maxTooltipWidth, bounds.width);
-  final preferredHeight = math.min(_maxTooltipHeight, bounds.height);
-
-  if (anchor == null) {
-    final width = math.min(preferredWidth, bounds.width);
-    final height = math.min(preferredHeight, bounds.height);
-    return _TooltipPlacement(
-      outer: Rect.fromCenter(
-        center: bounds.center,
-        width: width,
-        height: height,
-      ),
-      side: _ArrowSide.left,
-      arrowCenter: height / 2,
-      showArrow: false,
-    );
-  }
-
-  int bySpace(_ArrowSide a, _ArrowSide b) => _sideSpace(
-    bounds,
-    anchor,
-    b,
-  ).compareTo(_sideSpace(bounds, anchor, a));
-  final ranked = <_ArrowSide>[
-    ...([_ArrowSide.left, _ArrowSide.right]..sort(bySpace)),
-    ...([_ArrowSide.top, _ArrowSide.bottom]..sort(bySpace)),
-  ];
-
-  for (final side in ranked) {
-    final placed = _placeOnSide(
-      bounds: bounds,
-      anchor: anchor,
-      side: side,
-      preferredWidth: preferredWidth,
-      preferredHeight: preferredHeight,
-      allowShrink: false,
-    );
-    if (placed != null) return placed;
-  }
-  for (final side in ranked) {
-    final placed = _placeOnSide(
-      bounds: bounds,
-      anchor: anchor,
-      side: side,
-      preferredWidth: preferredWidth,
-      preferredHeight: preferredHeight,
-      allowShrink: true,
-    );
-    if (placed != null) return placed;
-  }
-
-  final width = math.min(preferredWidth, bounds.width);
-  final height = math.min(preferredHeight, bounds.height);
-  return _TooltipPlacement(
-    outer: Rect.fromCenter(center: bounds.center, width: width, height: height),
-    side: _ArrowSide.left,
-    arrowCenter: height / 2,
-    showArrow: false,
-  );
-}
-
-Rect _fitInside(Rect outer, Rect? limit) {
-  if (limit == null) return outer;
-  var left = outer.left;
-  var top = outer.top;
-  var width = math.min(outer.width, limit.width);
-  var height = math.min(outer.height, limit.height);
-  if (left < limit.left) left = limit.left;
-  if (top < limit.top) top = limit.top;
-  if (left + width > limit.right) left = limit.right - width;
-  if (top + height > limit.bottom) top = limit.bottom - height;
-  return Rect.fromLTWH(left, top, width, height);
-}
-
-double _sideSpace(Rect bounds, Rect anchor, _ArrowSide side) {
-  final clearance = _tipGap + _arrowLength;
-  return switch (side) {
-    _ArrowSide.left => bounds.right - anchor.right - clearance,
-    _ArrowSide.right => anchor.left - bounds.left - clearance,
-    _ArrowSide.top => bounds.bottom - anchor.bottom - clearance,
-    _ArrowSide.bottom => anchor.top - bounds.top - clearance,
-  };
-}
-
-_TooltipPlacement? _placeOnSide({
-  required Rect bounds,
-  required Rect anchor,
-  required _ArrowSide side,
-  required double preferredWidth,
-  required double preferredHeight,
-  required bool allowShrink,
-}) {
-  final clearance = _tipGap + _arrowLength;
-  final minExtent = allowShrink ? 160.0 : 220.0;
-  final space = _sideSpace(bounds, anchor, side);
-  if (space < minExtent) return null;
-
-  final horizontal = side == _ArrowSide.left || side == _ArrowSide.right;
-  final width = horizontal
-      ? math.min(preferredWidth, space)
-      : math.min(preferredWidth, bounds.width);
-  final height = horizontal
-      ? math.min(preferredHeight, bounds.height)
-      : math.min(preferredHeight, space);
-  if (width < 140 || height < 160) return null;
-
-  late final double left;
-  late final double top;
-  switch (side) {
-    case _ArrowSide.left:
-      left = anchor.right + clearance;
-      top = (anchor.center.dy - height / 2).clamp(
-        bounds.top,
-        math.max(bounds.top, bounds.bottom - height),
-      );
-    case _ArrowSide.right:
-      left = anchor.left - clearance - width;
-      top = (anchor.center.dy - height / 2).clamp(
-        bounds.top,
-        math.max(bounds.top, bounds.bottom - height),
-      );
-    case _ArrowSide.top:
-      top = anchor.bottom + clearance;
-      left = (anchor.center.dx - width / 2).clamp(
-        bounds.left,
-        math.max(bounds.left, bounds.right - width),
-      );
-    case _ArrowSide.bottom:
-      top = anchor.top - clearance - height;
-      left = (anchor.center.dx - width / 2).clamp(
-        bounds.left,
-        math.max(bounds.left, bounds.right - width),
-      );
-  }
-
-  final bubble = Rect.fromLTWH(left, top, width, height);
-  if (bubble.overlaps(anchor)) return null;
-
-  final along = switch (side) {
-    _ArrowSide.left ||
-    _ArrowSide.right => (anchor.center.dy - bubble.top).clamp(
-      _tipRadius + _arrowHalf,
-      height - _tipRadius - _arrowHalf,
-    ),
-    _ArrowSide.top ||
-    _ArrowSide.bottom => (anchor.center.dx - bubble.left).clamp(
-      _tipRadius + _arrowHalf,
-      width - _tipRadius - _arrowHalf,
-    ),
-  };
-  final outerRect = switch (side) {
-    _ArrowSide.left => Rect.fromLTWH(
-      bubble.left - _arrowLength,
-      bubble.top,
-      bubble.width + _arrowLength,
-      bubble.height,
-    ),
-    _ArrowSide.right => Rect.fromLTWH(
-      bubble.left,
-      bubble.top,
-      bubble.width + _arrowLength,
-      bubble.height,
-    ),
-    _ArrowSide.top => Rect.fromLTWH(
-      bubble.left,
-      bubble.top - _arrowLength,
-      bubble.width,
-      bubble.height + _arrowLength,
-    ),
-    _ArrowSide.bottom => Rect.fromLTWH(
-      bubble.left,
-      bubble.top,
-      bubble.width,
-      bubble.height + _arrowLength,
-    ),
-  };
-  return _TooltipPlacement(
-    outer: outerRect,
-    side: side,
-    arrowCenter: along,
-    showArrow: true,
-  );
-}
-
 class _CalendarEventTooltipLayer extends StatefulWidget {
   const _CalendarEventTooltipLayer({
     required this.anchor,
@@ -411,13 +182,13 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final limit = widget.readBounds();
-    final placement = _placeTooltip(
+    final placement = ddtPlaceArrowTooltip(
       screen: media.size,
       padding: media.padding,
       anchor: widget.anchor,
       limit: limit,
     );
-    final rect = _fitInside(placement.outer, limit);
+    final rect = ddtFitTipInside(placement.outer, limit);
 
     return Focus(
       autofocus: true,
@@ -434,16 +205,11 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
         builder: (context, child) {
           final t = _animation.value;
           final slide = (1 - t) * 8;
-          final offset = switch (placement.side) {
-            _ArrowSide.left => Offset(slide, 0),
-            _ArrowSide.right => Offset(-slide, 0),
-            _ArrowSide.top => Offset(0, slide),
-            _ArrowSide.bottom => Offset(0, -slide),
-          };
+          final offset = ddtTipSlideOffset(placement.side, slide);
           final tip = Opacity(
             opacity: t,
             child: Transform.scale(
-              alignment: _scaleOrigin(placement.side),
+              alignment: ddtTipScaleAlignment(placement.side),
               scale: 0.94 + 0.06 * t,
               child: child,
             ),
@@ -487,7 +253,7 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
             ],
           );
         },
-        child: _GlassTip(
+        child: DdtArrowTip(
           side: placement.side,
           arrowCenter: placement.arrowCenter,
           showArrow: placement.showArrow,
@@ -499,229 +265,6 @@ class _CalendarEventTooltipLayerState extends State<_CalendarEventTooltipLayer>
       ),
     );
   }
-
-  Alignment _scaleOrigin(_ArrowSide side) {
-    return switch (side) {
-      _ArrowSide.left => Alignment.centerLeft,
-      _ArrowSide.right => Alignment.centerRight,
-      _ArrowSide.top => Alignment.topCenter,
-      _ArrowSide.bottom => Alignment.bottomCenter,
-    };
-  }
-}
-
-class _GlassTip extends StatelessWidget {
-  const _GlassTip({
-    required this.side,
-    required this.arrowCenter,
-    required this.showArrow,
-    required this.child,
-  });
-
-  final _ArrowSide side;
-  final double arrowCenter;
-  final bool showArrow;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fill = isDark ? DdtTheme.darkSurface : DdtTheme.lightSurface;
-    final border = DdtTheme.sidePanelDivider(context);
-    final inset = showArrow
-        ? switch (side) {
-            _ArrowSide.left => const EdgeInsets.only(left: _arrowLength),
-            _ArrowSide.right => const EdgeInsets.only(right: _arrowLength),
-            _ArrowSide.top => const EdgeInsets.only(top: _arrowLength),
-            _ArrowSide.bottom => const EdgeInsets.only(bottom: _arrowLength),
-          }
-        : EdgeInsets.zero;
-
-    return CustomPaint(
-      painter: _TipShadowPainter(
-        side: side,
-        arrowCenter: arrowCenter,
-        showArrow: showArrow,
-        isDark: isDark,
-      ),
-      foregroundPainter: _TipBorderPainter(
-        side: side,
-        arrowCenter: arrowCenter,
-        showArrow: showArrow,
-        color: border,
-      ),
-      child: ClipPath(
-        clipper: _TipClipper(
-          side: side,
-          arrowCenter: arrowCenter,
-          showArrow: showArrow,
-        ),
-        child: ColoredBox(
-          color: fill,
-          child: Padding(padding: inset, child: child),
-        ),
-      ),
-    );
-  }
-}
-
-class _TipClipper extends CustomClipper<Path> {
-  const _TipClipper({
-    required this.side,
-    required this.arrowCenter,
-    required this.showArrow,
-  });
-
-  final _ArrowSide side;
-  final double arrowCenter;
-  final bool showArrow;
-
-  @override
-  Path getClip(Size size) => _tipPath(size, side, arrowCenter, showArrow);
-
-  @override
-  bool shouldReclip(covariant _TipClipper oldClipper) {
-    return oldClipper.side != side ||
-        oldClipper.arrowCenter != arrowCenter ||
-        oldClipper.showArrow != showArrow;
-  }
-}
-
-class _TipShadowPainter extends CustomPainter {
-  const _TipShadowPainter({
-    required this.side,
-    required this.arrowCenter,
-    required this.showArrow,
-    required this.isDark,
-  });
-
-  final _ArrowSide side;
-  final double arrowCenter;
-  final bool showArrow;
-  final bool isDark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _tipPath(size, side, arrowCenter, showArrow);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.black.withValues(alpha: isDark ? 0.55 : 0.22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.black.withValues(alpha: isDark ? 0.35 : 0.12)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _TipShadowPainter oldDelegate) {
-    return oldDelegate.side != side ||
-        oldDelegate.arrowCenter != arrowCenter ||
-        oldDelegate.showArrow != showArrow ||
-        oldDelegate.isDark != isDark;
-  }
-}
-
-class _TipBorderPainter extends CustomPainter {
-  const _TipBorderPainter({
-    required this.side,
-    required this.arrowCenter,
-    required this.showArrow,
-    required this.color,
-  });
-
-  final _ArrowSide side;
-  final double arrowCenter;
-  final bool showArrow;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _tipPath(size, side, arrowCenter, showArrow);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _TipBorderPainter oldDelegate) {
-    return oldDelegate.side != side ||
-        oldDelegate.arrowCenter != arrowCenter ||
-        oldDelegate.showArrow != showArrow ||
-        oldDelegate.color != color;
-  }
-}
-
-Path _tipPath(Size size, _ArrowSide side, double arrowCenter, bool showArrow) {
-  final bubble = switch (side) {
-    _ArrowSide.left when showArrow => Rect.fromLTWH(
-      _arrowLength,
-      0,
-      size.width - _arrowLength,
-      size.height,
-    ),
-    _ArrowSide.right when showArrow => Rect.fromLTWH(
-      0,
-      0,
-      size.width - _arrowLength,
-      size.height,
-    ),
-    _ArrowSide.top when showArrow => Rect.fromLTWH(
-      0,
-      _arrowLength,
-      size.width,
-      size.height - _arrowLength,
-    ),
-    _ArrowSide.bottom when showArrow => Rect.fromLTWH(
-      0,
-      0,
-      size.width,
-      size.height - _arrowLength,
-    ),
-    _ => Offset.zero & size,
-  };
-  final body = Path()
-    ..addRRect(
-      RRect.fromRectAndRadius(bubble, const Radius.circular(_tipRadius)),
-    );
-  if (!showArrow) return body;
-
-  final triangle = Path();
-  switch (side) {
-    case _ArrowSide.left:
-      triangle
-        ..moveTo(0, arrowCenter)
-        ..lineTo(_arrowLength + 1.2, arrowCenter - _arrowHalf)
-        ..lineTo(_arrowLength + 1.2, arrowCenter + _arrowHalf)
-        ..close();
-    case _ArrowSide.right:
-      triangle
-        ..moveTo(size.width, arrowCenter)
-        ..lineTo(size.width - _arrowLength - 1.2, arrowCenter - _arrowHalf)
-        ..lineTo(size.width - _arrowLength - 1.2, arrowCenter + _arrowHalf)
-        ..close();
-    case _ArrowSide.top:
-      triangle
-        ..moveTo(arrowCenter, 0)
-        ..lineTo(arrowCenter - _arrowHalf, _arrowLength + 1.2)
-        ..lineTo(arrowCenter + _arrowHalf, _arrowLength + 1.2)
-        ..close();
-    case _ArrowSide.bottom:
-      triangle
-        ..moveTo(arrowCenter, size.height)
-        ..lineTo(arrowCenter - _arrowHalf, size.height - _arrowLength - 1.2)
-        ..lineTo(arrowCenter + _arrowHalf, size.height - _arrowLength - 1.2)
-        ..close();
-  }
-  return Path.combine(PathOperation.union, body, triangle);
 }
 
 class CalendarEventTooltip extends StatefulWidget {
@@ -933,8 +476,7 @@ class _CalendarEventTooltipState extends State<CalendarEventTooltip> {
                           ),
                         ),
                       ],
-                      if (_event.body != null &&
-                          _event.body!.trim().isNotEmpty)
+                      if (_event.body != null && _event.body!.trim().isNotEmpty)
                         _FieldLine(
                           label: 'Описание',
                           valueWidget: _event.bodyType == 'html'
@@ -1120,9 +662,7 @@ class _AttendeeChipsState extends State<_AttendeeChips> {
             fontSize: DdtTypography.labelSize,
           ),
         if (hidden)
-          _MoreAttendeesButton(
-            onTap: () => setState(() => _expanded = true),
-          ),
+          _MoreAttendeesButton(onTap: () => setState(() => _expanded = true)),
       ],
     );
   }
