@@ -23,6 +23,7 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     on<AnalyticsPeriodChanged>(_onPeriodChanged);
     on<AnalyticsColumnValueToggled>(_onColumnValueToggled);
     on<AnalyticsColumnQueryChanged>(_onColumnQueryChanged);
+    on<AnalyticsExcludeWeekendsChanged>(_onExcludeWeekendsChanged);
     on<AnalyticsFiltersCleared>(_onFiltersCleared);
     on<AnalyticsTableMoreRequested>(_onTableMoreRequested);
     on<AnalyticsSessionCleared>(_onSessionCleared);
@@ -92,6 +93,16 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     return _applyFilters(
       emit,
       state.filters.setQuery(event.columnKey, event.query),
+    );
+  }
+
+  Future<void> _onExcludeWeekendsChanged(
+    AnalyticsExcludeWeekendsChanged event,
+    Emitter<AnalyticsState> emit,
+  ) {
+    return _applyFilters(
+      emit,
+      state.filters.copyWith(excludeWeekends: event.enabled),
     );
   }
 

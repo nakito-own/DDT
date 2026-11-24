@@ -16,6 +16,7 @@ import 'ddt_app_input.dart';
 import 'ddt_filter_dropdown.dart';
 import 'ddt_tappable.dart';
 import 'ddt_section_sidebar.dart';
+import 'ddt_switch.dart';
 
 class AnalyticsFiltersPanel extends StatelessWidget {
   const AnalyticsFiltersPanel({
@@ -26,6 +27,7 @@ class AnalyticsFiltersPanel extends StatelessWidget {
     required this.filters,
     required this.onDateColumnChanged,
     required this.onPeriodChanged,
+    required this.onExcludeWeekendsChanged,
     required this.onValueToggled,
     required this.onCleared,
     this.onQueryChanged,
@@ -38,6 +40,7 @@ class AnalyticsFiltersPanel extends StatelessWidget {
   final AnalyticsFilters filters;
   final ValueChanged<String> onDateColumnChanged;
   final void Function(DateTime? start, DateTime? end) onPeriodChanged;
+  final ValueChanged<bool> onExcludeWeekendsChanged;
   final void Function(String columnKey, String valueKey) onValueToggled;
   final void Function(String columnKey, String query)? onQueryChanged;
   final VoidCallback onCleared;
@@ -100,7 +103,9 @@ class AnalyticsFiltersPanel extends StatelessWidget {
           duration: DdtTheme.selectionAnimationDuration,
           switchInCurve: DdtTheme.selectionAnimationCurve,
           switchOutCurve: DdtTheme.selectionAnimationCurve,
-          child: filters.hasPeriod || filters.hasColumnFilters
+          child: filters.hasPeriod ||
+                  filters.hasColumnFilters ||
+                  filters.excludeWeekends
               ? DdtTappable(
                   key: const ValueKey('reset'),
                   onTap: onCleared,
@@ -174,6 +179,11 @@ class AnalyticsFiltersPanel extends StatelessWidget {
                           );
                         },
                       ),
+                    ),
+                    SizedBox(height: DdtSectionSidebar.fieldGap),
+                    _ExcludeWeekendsSwitch(
+                      value: filters.excludeWeekends,
+                      onChanged: onExcludeWeekendsChanged,
                     ),
                     if (computedColumns.isNotEmpty) ...[
                       SizedBox(height: DdtSectionSidebar.fieldGap),
@@ -299,6 +309,44 @@ class _ColumnQueryFieldState extends State<_ColumnQueryField> {
         });
       },
       onSubmitted: widget.onChanged,
+    );
+  }
+}
+
+class _ExcludeWeekendsSwitch extends StatelessWidget {
+  const _ExcludeWeekendsSwitch({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+      decoration: BoxDecoration(
+        color: DdtTheme.inputFillColor(context),
+        borderRadius: DdtTheme.inputControlBorderRadius,
+        border: Border.all(color: DdtTheme.borderSubtle(context)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Исключить выходные',
+              style: DdtTheme.style(
+                fontSize: DdtTypography.labelSize,
+                fontWeight: FontWeight.w500,
+                color: DdtTheme.textPrimary(context),
+              ),
+            ),
+          ),
+          SizedBox(width: 8.w),
+          DdtSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
     );
   }
 }

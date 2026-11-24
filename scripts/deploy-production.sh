@@ -118,14 +118,14 @@ rollback() {
       --file "$previous_release/compose.production.yml"
     )
     if ! RELEASE_ID="$previous_release_id" \
-      "${previous_compose[@]}" up -d --remove-orphans backend frontend caddy; then
+      "${previous_compose[@]}" up -d --remove-orphans backend mail analytics frontend caddy; then
       RELEASE_ID="$previous_release_id" \
         "${previous_compose[@]}" build backend frontend || true
       RELEASE_ID="$previous_release_id" \
-        "${previous_compose[@]}" up -d --remove-orphans backend frontend caddy || true
+        "${previous_compose[@]}" up -d --remove-orphans backend mail analytics frontend caddy || true
     fi
   else
-    "${compose[@]}" stop backend frontend caddy || true
+    "${compose[@]}" stop backend mail analytics frontend caddy || true
   fi
   prune_docker_snapshots "$previous_release_id" || true
   exit "$exit_code"
@@ -148,10 +148,12 @@ backup_file="$backup_dir/ddt-$timestamp.sql.gz"
 backup_complete=true
 
 "${compose[@]}" --profile migration run --rm migrate
-"${compose[@]}" up -d --remove-orphans mysql backend frontend caddy
+"${compose[@]}" up -d --remove-orphans mysql backend mail analytics frontend caddy
 
-"${compose[@]}" exec -T backend python -c \
-  "import urllib.request; urllib.request.urlopen('http://localhost:3000/api/health', timeout=10)"
+for service in backend mail analytics; do
+  "${compose[@]}" exec -T "$service" python -c \
+    "import urllib.request; urllib.request.urlopen('http://localhost:3000/api/health', timeout=10)"
+done
 "${compose[@]}" exec -T frontend wget -qO- http://127.0.0.1/api/health >/dev/null
 
 ln -sfn "$release_dir" "$current_link"

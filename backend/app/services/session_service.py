@@ -1,5 +1,6 @@
 import logging
 import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ from typing import TypeVar
 
 from exchangelib import Account
 from exchangelib.errors import ErrorTimeoutExpired, TransportError
+from pymysql.err import IntegrityError
 
 from app.config import settings
 from app.db import get_db
@@ -39,13 +41,53 @@ class SessionContext:
     ews_refreshed_at: datetime = field(default_factory=datetime.utcnow)
 
 
+_SESSION_ROW_SQL = """
+SELECT
+  s.token_hash,
+  s.remember_me,
+  s.expires_at,
+  a.id AS ews_account_id,
+  a.email,
+  a.username_encrypted,
+  a.password_encrypted,
+  a.ews_server,
+  u.id AS user_id,
+  u.name,
+  u.username,
+  u.display_name,
+  u.job_title,
+  u.department,
+  u.phone,
+  u.office_location,
+  u.avatar_version,
+  u.ews_account_id AS user_ews_account_id
+FROM app_sessions s
+JOIN ews_accounts a ON a.id = s.ews_account_id
+JOIN users u ON u.email = a.email
+"""
+
+
 class SessionService:
     def __init__(self) -> None:
         self._lock = Lock()
         self._memory_sessions: dict[str, SessionContext] = {}
+        self._cache_fresh_until: dict[str, float] = {}
         self._account_cache: dict[str, Account] = {}
         self._account_locks: dict[str, Lock] = {}
         self._account_waiters: dict[str, int] = {}
+
+    def _cache_ttl(self) -> float:
+        return float(max(5, settings.session_cache_ttl_seconds))
+
+    def start(self) -> None:
+        """Drop expired rows and load the remaining sessions into memory."""
+        try:
+            purged = self.purge_expired()
+            cached = self.warm_cache()
+        except Exception:
+            logger.exception("Session cache warmup failed")
+            return
+        logger.info("Session cache ready, purged=%s cached=%s", purged, cached)
 
     def _expires_at(self, remember_me: bool) -> datetime:
         if remember_me:
@@ -87,19 +129,52 @@ class SessionService:
                     raise RuntimeError("Failed to persist EWS account")
                 return row["id"]
 
-    def _insert_db_session(
+    def _replace_db_session(
         self, token_hash: str, ews_account_id: int, remember_me: bool, expires_at: datetime
-    ) -> None:
+    ) -> list[str]:
+        """Keep a single DB row per account and return the tokens it replaced."""
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO app_sessions
-                      (token_hash, ews_account_id, remember_me, expires_at)
-                    VALUES (%s, %s, %s, %s)
+                    SELECT token_hash
+                    FROM app_sessions
+                    WHERE ews_account_id = %s AND token_hash <> %s
                     """,
-                    (token_hash, ews_account_id, remember_me, expires_at),
+                    (ews_account_id, token_hash),
                 )
+                replaced = [row["token_hash"] for row in cursor.fetchall()]
+                cursor.execute(
+                    """
+                    DELETE FROM app_sessions
+                    WHERE ews_account_id = %s AND token_hash <> %s
+                    """,
+                    (ews_account_id, token_hash),
+                )
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO app_sessions
+                          (token_hash, ews_account_id, remember_me, expires_at)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (token_hash, ews_account_id, remember_me, expires_at),
+                    )
+                except IntegrityError as exc:
+                    if not exc.args or exc.args[0] != 1062:
+                        raise
+                    cursor.execute(
+                        """
+                        UPDATE app_sessions
+                        SET token_hash = %s,
+                            remember_me = %s,
+                            expires_at = %s,
+                            created_at = CURRENT_TIMESTAMP
+                        WHERE ews_account_id = %s
+                        """,
+                        (token_hash, remember_me, expires_at, ews_account_id),
+                    )
+        return replaced
 
     def _sync_user_profile(
         self, account: Account, ews_account_id: int, username: str
@@ -132,7 +207,17 @@ class SessionService:
         token_hash = crypto_service.hash_token(token)
         expires_at = self._expires_at(remember_me)
 
-        self._insert_db_session(token_hash, ews_account_id, remember_me, expires_at)
+        replaced = self._replace_db_session(
+            token_hash, ews_account_id, remember_me, expires_at
+        )
+        for previous_hash in replaced:
+            self._forget_local_session(previous_hash)
+        if replaced:
+            logger.info(
+                "Replaced %s previous session(s) for %s",
+                len(replaced),
+                email,
+            )
 
         context = SessionContext(
             token_hash=token_hash,
@@ -148,50 +233,43 @@ class SessionService:
             ews_refreshed_at=datetime.utcnow(),
         )
 
+        self._remember(context)
         with self._lock:
-            self._memory_sessions[token_hash] = context
             self._account_cache[token_hash] = account
 
         return token, context
 
-    def _load_db_session(self, token_hash: str) -> SessionContext | None:
-        with get_db() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT
-                      s.remember_me,
-                      s.expires_at,
-                      a.id AS ews_account_id,
-                      a.email,
-                      a.username_encrypted,
-                      a.password_encrypted,
-                      a.ews_server
-                    FROM app_sessions s
-                    JOIN ews_accounts a ON a.id = s.ews_account_id
-                    WHERE s.token_hash = %s
-                    """,
-                    (token_hash,),
-                )
-                row = cursor.fetchone()
-
-        if not row:
-            return None
-
+    def _context_from_row(self, row: dict) -> SessionContext | None:
         expires_at = row["expires_at"]
         if expires_at < datetime.utcnow():
-            self.delete_session(token_hash)
             return None
-
-        user = user_service.get_by_email(row["email"])
-        if user is None:
+        try:
+            username = crypto_service.decrypt(row["username_encrypted"])
+            password = crypto_service.decrypt(row["password_encrypted"])
+        except Exception:
+            logger.warning(
+                "Skipping session %s: stored credentials cannot be decrypted",
+                row["token_hash"][:8],
+            )
             return None
-
-        return SessionContext(
-            token_hash=token_hash,
+        user = UserProfile(
+            id=row["user_id"],
+            name=row["name"],
             email=row["email"],
-            username=crypto_service.decrypt(row["username_encrypted"]),
-            password=crypto_service.decrypt(row["password_encrypted"]),
+            username=row.get("username"),
+            display_name=row.get("display_name"),
+            job_title=row.get("job_title"),
+            department=row.get("department"),
+            phone=row.get("phone"),
+            office_location=row.get("office_location"),
+            avatar_version=row.get("avatar_version"),
+            ews_account_id=row.get("user_ews_account_id"),
+        )
+        return SessionContext(
+            token_hash=row["token_hash"],
+            email=row["email"],
+            username=username,
+            password=password,
             ews_server=row["ews_server"],
             remember_me=bool(row["remember_me"]),
             expires_at=expires_at,
@@ -200,6 +278,90 @@ class SessionService:
             user=user,
             ews_refreshed_at=datetime.utcnow(),
         )
+
+    def _load_db_session(self, token_hash: str) -> SessionContext | None:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"{_SESSION_ROW_SQL} WHERE s.token_hash = %s",
+                    (token_hash,),
+                )
+                row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        if row["expires_at"] < datetime.utcnow():
+            self.delete_session(token_hash)
+            return None
+        return self._context_from_row(row)
+
+    def _remember(self, context: SessionContext) -> None:
+        with self._lock:
+            self._memory_sessions[context.token_hash] = context
+            self._cache_fresh_until[context.token_hash] = (
+                time.monotonic() + self._cache_ttl()
+            )
+
+    def warm_cache(self) -> int:
+        now = datetime.utcnow()
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"{_SESSION_ROW_SQL} WHERE s.expires_at >= %s",
+                    (now,),
+                )
+                rows = cursor.fetchall()
+
+        cached = 0
+        for row in rows:
+            if row["expires_at"] < now:
+                self.delete_session(row["token_hash"])
+                continue
+            context = self._context_from_row(row)
+            if context is None:
+                continue
+            self._remember(context)
+            cached += 1
+        return cached
+
+    def purge_expired(self) -> int:
+        now = datetime.utcnow()
+        with self._lock:
+            stale = [
+                token_hash
+                for token_hash, context in self._memory_sessions.items()
+                if context.expires_at < now
+            ]
+        for token_hash in stale:
+            self.delete_session(token_hash)
+
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM app_sessions WHERE expires_at < %s",
+                    (now,),
+                )
+                removed = cursor.rowcount or 0
+        return len(stale) + int(removed)
+
+    def _confirm_cached_session(self, context: SessionContext) -> SessionContext | None:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT remember_me, expires_at
+                    FROM app_sessions
+                    WHERE token_hash = %s
+                    """,
+                    (context.token_hash,),
+                )
+                row = cursor.fetchone()
+        if not row or row["expires_at"] < datetime.utcnow():
+            return None
+        context.remember_me = bool(row["remember_me"])
+        context.expires_at = row["expires_at"]
+        return context
 
     def token_hashes_for_user(self, user_id: int) -> list[str]:
         now = datetime.utcnow()
@@ -215,21 +377,30 @@ class SessionService:
         return self.get_session_by_hash(token_hash)
 
     def get_session_by_hash(self, token_hash: str) -> SessionContext | None:
+        now_mono = time.monotonic()
         with self._lock:
             context = self._memory_sessions.get(token_hash)
+            fresh_until = self._cache_fresh_until.get(token_hash, 0.0)
 
-        if context is None:
-            context = self._load_db_session(token_hash)
-            if context is None:
+        if context is not None and now_mono < fresh_until:
+            if context.expires_at < datetime.utcnow():
+                self.delete_session(token_hash)
                 return None
-            with self._lock:
-                self._memory_sessions[token_hash] = context
+            return context
 
-        if context.expires_at < datetime.utcnow():
-            self.delete_session(token_hash)
+        if context is not None:
+            confirmed = self._confirm_cached_session(context)
+            if confirmed is None:
+                self.delete_session(token_hash)
+                return None
+            self._remember(confirmed)
+            return confirmed
+
+        loaded = self._load_db_session(token_hash)
+        if loaded is None:
             return None
-
-        return context
+        self._remember(loaded)
+        return loaded
 
     def _account_lock_for(self, token_hash: str) -> Lock:
         with self._lock:
@@ -311,9 +482,9 @@ class SessionService:
         )
         self._drop_cached_account(context.token_hash)
         context.ews_refreshed_at = datetime.utcnow()
+        self._remember(context)
         with self._lock:
             self._account_cache[context.token_hash] = account
-            self._memory_sessions[context.token_hash] = context
         owa_transport.refresh_login(context)
         return context
 
@@ -353,11 +524,10 @@ class SessionService:
         )
         context.user = user
         context.user_id = user.id
-        with self._lock:
-            self._memory_sessions[context.token_hash] = context
+        self._remember(context)
         return user
 
-    def delete_session(self, token_hash: str) -> None:
+    def _forget_local_session(self, token_hash: str) -> None:
         from app.services.ews_notification_service import ews_notification_service
         from app.services.owa_transport import owa_transport
 
@@ -365,10 +535,14 @@ class SessionService:
         owa_transport.drop_session(token_hash)
         with self._lock:
             self._memory_sessions.pop(token_hash, None)
+            self._cache_fresh_until.pop(token_hash, None)
             account = self._account_cache.pop(token_hash, None)
             self._account_locks.pop(token_hash, None)
             self._account_waiters.pop(token_hash, None)
         ews_service.close_account(account)
+
+    def delete_session(self, token_hash: str) -> None:
+        self._forget_local_session(token_hash)
 
         with get_db() as conn:
             with conn.cursor() as cursor:

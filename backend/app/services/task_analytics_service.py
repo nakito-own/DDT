@@ -12,7 +12,13 @@ from fastapi import HTTPException, status
 
 from app.db import get_db
 from app.models.task import TASK_PRIORITIES, TaskPriority, TaskStatus
+from app.services.analytics_processor import hours_between
 from app.services.analytics_queries import AnalyticsFilterSpec, TREND_GROUPINGS
+from app.services.dashboard_cache import (
+    dashboard_slot,
+    filter_cache_key,
+    task_dashboard_cache,
+)
 from app.services.space_service import SpaceNotFoundError, space_service
 from app.services.task_service import task_service
 
@@ -78,6 +84,31 @@ def _hours_between(start: datetime | None, end: datetime | None) -> float | None
 
 def _resolution_start(row: dict) -> datetime | None:
     return row.get("time_start") or row.get("time_set") or row.get("created_at")
+
+
+def _as_datetime(value: datetime | date | None) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    return None
+
+
+def _apply_task_weekends(item: dict, now: datetime) -> dict:
+    row = item["row"]
+    updated = dict(item)
+    start = _resolution_start(row)
+    done = row.get("status") == TaskStatus.DONE.value
+    finished = row.get("time_end") if done else now
+    if done and row.get("time_end") is not None:
+        hours = hours_between(start, row.get("time_end"), exclude_weekends=True)
+        updated["resolution_hours"] = None if hours is None or hours < 0 else hours
+    deadline = _as_datetime(row.get("deadline"))
+    if start is not None and deadline is not None and finished is not None:
+        spent = hours_between(start, finished, exclude_weekends=True) or 0
+        allowed = hours_between(start, deadline, exclude_weekends=True) or 0
+        updated["is_overdue"] = spent > allowed
+    return updated
 
 
 def _resolution_hours(row: dict) -> float | None:
@@ -369,17 +400,19 @@ def _build_trend(
     *,
     created_key: str = "created_at",
     closed_key: str = "time_end",
+    exclude_weekends: bool = False,
 ) -> dict:
     created_buckets: Counter[str] = Counter()
     closed_buckets: Counter[str] = Counter()
+    skip_weekends = exclude_weekends and grouping == "day"
     for item in items:
         row = item["row"]
         created_day = _as_date(row.get(created_key))
-        if created_day:
+        if created_day and not (skip_weekends and created_day.weekday() >= 5):
             created_buckets[_bucket_key(created_day, grouping)] += 1
         if row.get("status") == TaskStatus.DONE.value:
             closed_day = _as_date(row.get(closed_key))
-            if closed_day:
+            if closed_day and not (skip_weekends and closed_day.weekday() >= 5):
                 closed_buckets[_bucket_key(closed_day, grouping)] += 1
     keys = sorted(set(created_buckets) | set(closed_buckets))
     return {
@@ -389,12 +422,16 @@ def _build_trend(
     }
 
 
-def _build_daily_detail(items: list[dict]) -> list[dict]:
+def _build_daily_detail(
+    items: list[dict],
+    *,
+    exclude_weekends: bool = False,
+) -> list[dict]:
     buckets: dict[str, dict] = {}
     for item in items:
         row = item["row"]
         created_day = _as_date(row.get("created_at"))
-        if created_day:
+        if created_day and not (exclude_weekends and created_day.weekday() >= 5):
             key = created_day.isoformat()
             bucket = buckets.setdefault(
                 key,
@@ -403,7 +440,7 @@ def _build_daily_detail(items: list[dict]) -> list[dict]:
             bucket["created"] += 1
         if row.get("status") == TaskStatus.DONE.value:
             closed_day = _as_date(row.get("time_end"))
-            if closed_day:
+            if closed_day and not (exclude_weekends and closed_day.weekday() >= 5):
                 key = closed_day.isoformat()
                 bucket = buckets.setdefault(
                     key,
@@ -417,6 +454,8 @@ def _build_daily_detail(items: list[dict]) -> list[dict]:
     result = []
     for key in sorted(buckets):
         bucket = buckets[key]
+        if exclude_weekends and bucket["day"].weekday() >= 5:
+            continue
         resolutions = bucket["resolution"]
         avg_resolution = (
             sum(resolutions) / len(resolutions) if resolutions else None
@@ -591,7 +630,78 @@ class TaskAnalyticsService:
                 fetched = cursor.fetchall()
         return {row["id"]: row["name"] for row in fetched}
 
+    def _revision(self, scope: TaskAnalyticsScope) -> str:
+        if scope.owner_id is not None:
+            column = "owner_id"
+            scope_id = scope.owner_id
+            personal = "AND space_id IS NULL"
+        elif scope.space_id is not None:
+            column = "space_id"
+            scope_id = scope.space_id
+            personal = ""
+        else:
+            return "0"
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) AS total, MAX(updated_at) AS revision
+                    FROM tasks
+                    WHERE {column} = %s AND deleted = 0 {personal}
+                    """,
+                    (scope_id,),
+                )
+                row = cursor.fetchone() or {}
+        revision = row.get("revision")
+        if isinstance(revision, datetime):
+            revision = revision.isoformat()
+        return f"{row.get('total') or 0}:{revision}"
+
     def query(
+        self,
+        scope: TaskAnalyticsScope,
+        spec: AnalyticsFilterSpec,
+        *,
+        table_limit: int,
+        table_offset: int,
+    ) -> dict:
+        key = filter_cache_key(
+            "tasks",
+            spec,
+            kind=scope.kind,
+            owner_id=scope.owner_id,
+            space_id=scope.space_id,
+            revision=self._revision(scope),
+            table_limit=table_limit,
+            table_offset=table_offset,
+        )
+        return task_dashboard_cache.compute_once(
+            key,
+            lambda: self._query_uncached(
+                scope,
+                spec,
+                table_limit=table_limit,
+                table_offset=table_offset,
+            ),
+        )
+
+    def _query_uncached(
+        self,
+        scope: TaskAnalyticsScope,
+        spec: AnalyticsFilterSpec,
+        *,
+        table_limit: int,
+        table_offset: int,
+    ) -> dict:
+        with dashboard_slot():
+            return self._build_dashboard(
+                scope,
+                spec,
+                table_limit=table_limit,
+                table_offset=table_offset,
+            )
+
+    def _build_dashboard(
         self,
         scope: TaskAnalyticsScope,
         spec: AnalyticsFilterSpec,
@@ -610,6 +720,8 @@ class TaskAnalyticsService:
             _normalize_row(row, types=types, users=users, now=now) for row in raw_rows
         ]
         filtered = _filter_rows(normalized, spec, date_column)
+        if spec.exclude_weekends:
+            filtered = [_apply_task_weekends(item, now) for item in filtered]
 
         total = len(normalized)
         filtered_count = len(filtered)
@@ -658,9 +770,17 @@ class TaskAnalyticsService:
         ]
 
         trend = {
-            grouping: _build_trend(filtered, grouping) for grouping in TREND_GROUPINGS
+            grouping: _build_trend(
+                filtered,
+                grouping,
+                exclude_weekends=spec.exclude_weekends,
+            )
+            for grouping in TREND_GROUPINGS
         }
-        daily_detail = _build_daily_detail(filtered)
+        daily_detail = _build_daily_detail(
+            filtered,
+            exclude_weekends=spec.exclude_weekends,
+        )
         executor_trend = _build_executor_trend(filtered, "week")
 
         title = (

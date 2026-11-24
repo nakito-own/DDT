@@ -28,6 +28,7 @@ class AnalyticsFilterSpec:
     period_end: date | None = None
     selected: dict[str, list[str]] = field(default_factory=dict)
     queries: dict[str, str] = field(default_factory=dict)
+    exclude_weekends: bool = False
 
 
 def _avg(values: list[float]) -> float | None:
@@ -92,17 +93,81 @@ def date_bounds(tickets: list[dict], columns: list[dict]) -> dict[str, dict]:
     return bounds
 
 
-def is_overdue(ticket: dict, now: datetime) -> bool:
+def is_overdue(
+    ticket: dict,
+    now: datetime,
+    *,
+    exclude_weekends: bool = False,
+) -> bool:
     if ticket["state"] != "open":
         return False
     target = _parse_iso(ticket.get("sla_target"))
-    return target is not None and now > target
+    if target is None:
+        return False
+    if not exclude_weekends:
+        return now > target
+    created = _parse_iso(ticket.get("created_at"))
+    if created is None:
+        return now > target
+    spent = hours_between(created, now, exclude_weekends=True) or 0
+    allowed = hours_between(created, target, exclude_weekends=True) or 0
+    return spent > allowed
 
 
-def waiting_hours(ticket: dict, now: datetime) -> float | None:
+def waiting_hours(
+    ticket: dict,
+    now: datetime,
+    *,
+    exclude_weekends: bool = False,
+) -> float | None:
     if ticket["status_group"] == "waiting" and ticket.get("waiting_started_at"):
-        return hours_between(_parse_iso(ticket["waiting_started_at"]), now)
+        return _non_negative_hours(
+            hours_between(
+                _parse_iso(ticket["waiting_started_at"]),
+                now,
+                exclude_weekends=exclude_weekends,
+            )
+        )
     return ticket.get("client_response_hours")
+
+
+def _non_negative_hours(value: float | None) -> float | None:
+    if value is None or value < 0:
+        return None
+    return value
+
+
+def apply_exclude_weekends(ticket: dict, now: datetime) -> dict:
+    """Пересчитывает длительности и SLA без субботы и воскресенья."""
+    updated = dict(ticket)
+    created = _parse_iso(ticket.get("created_at"))
+    completed = _parse_iso(ticket.get("completed_at"))
+    updated["resolution_hours"] = _non_negative_hours(
+        hours_between(created, completed, exclude_weekends=True)
+    )
+    reaction_start = _parse_iso(ticket.get("comment1_at"))
+    reaction_end = _parse_iso(ticket.get("work_taken_at"))
+    if reaction_start is not None and reaction_end is not None:
+        updated["reaction_hours"] = _non_negative_hours(
+            hours_between(reaction_start, reaction_end, exclude_weekends=True)
+        )
+    waiting_start = _parse_iso(ticket.get("waiting_started_at"))
+    waiting_end = _parse_iso(ticket.get("waiting_ended_at"))
+    if ticket.get("status_group") == "waiting" and waiting_start is not None:
+        updated["client_response_hours"] = _non_negative_hours(
+            hours_between(waiting_start, now, exclude_weekends=True)
+        )
+    elif waiting_start is not None and waiting_end is not None:
+        updated["client_response_hours"] = _non_negative_hours(
+            hours_between(waiting_start, waiting_end, exclude_weekends=True)
+        )
+    target = _parse_iso(ticket.get("sla_target"))
+    if created is not None and completed is not None and target is not None:
+        spent = hours_between(created, completed, exclude_weekends=True)
+        allowed = hours_between(created, target, exclude_weekends=True)
+        if spent is not None and allowed is not None:
+            updated["sla_met"] = spent <= allowed
+    return updated
 
 
 def count_by(tickets: list[dict], key: str, *, limit: int | None = None) -> list[dict]:
@@ -158,7 +223,13 @@ def _format_period_label(key: str, group_by: str) -> str:
     return f"{start.strftime('%d.%m')}–{end.strftime('%d.%m')}"
 
 
-def _enumerate_periods(min_key: str, max_key: str, group_by: str) -> list[str]:
+def _enumerate_periods(
+    min_key: str,
+    max_key: str,
+    group_by: str,
+    *,
+    exclude_weekends: bool = False,
+) -> list[str]:
     if group_by == "month":
         year, month = map(int, min_key.split("-"))
         end_year, end_month = map(int, max_key.split("-"))
@@ -176,24 +247,36 @@ def _enumerate_periods(min_key: str, max_key: str, group_by: str) -> list[str]:
     end = date.fromisoformat(max_key)
     result = []
     while cursor <= end:
-        result.append(cursor.isoformat())
+        if not (exclude_weekends and group_by == "day" and cursor.weekday() >= 5):
+            result.append(cursor.isoformat())
         cursor += step
     return result
 
 
-def build_trend(tickets: list[dict], group_by: str) -> dict:
+def build_trend(
+    tickets: list[dict],
+    group_by: str,
+    *,
+    exclude_weekends: bool = False,
+) -> dict:
+    skip_weekends = exclude_weekends and group_by == "day"
     buckets: dict[str, dict[str, int]] = defaultdict(lambda: {"created": 0, "closed": 0})
     for ticket in tickets:
         created_key = _period_key(ticket.get("created_at"), group_by)
-        if created_key:
+        if created_key and not (skip_weekends and _is_weekend_day(created_key)):
             buckets[created_key]["created"] += 1
         closed_key = _period_key(ticket.get("completed_at"), group_by)
-        if closed_key:
+        if closed_key and not (skip_weekends and _is_weekend_day(closed_key)):
             buckets[closed_key]["closed"] += 1
 
     if not buckets:
         return {"labels": [], "created": [], "closed": []}
-    keys = _enumerate_periods(min(buckets), max(buckets), group_by)
+    keys = _enumerate_periods(
+        min(buckets),
+        max(buckets),
+        group_by,
+        exclude_weekends=skip_weekends,
+    )
     return {
         "labels": [_format_period_label(key, group_by) for key in keys],
         "created": [buckets[key]["created"] if key in buckets else 0 for key in keys],
@@ -201,7 +284,15 @@ def build_trend(tickets: list[dict], group_by: str) -> dict:
     }
 
 
-def build_daily_detail(tickets: list[dict]) -> list[dict]:
+def _is_weekend_day(key: str) -> bool:
+    return date.fromisoformat(key[:10]).weekday() >= 5
+
+
+def build_daily_detail(
+    tickets: list[dict],
+    *,
+    exclude_weekends: bool = False,
+) -> list[dict]:
     days: dict[str, dict] = {}
 
     def bucket(day: str) -> dict:
@@ -209,16 +300,18 @@ def build_daily_detail(tickets: list[dict]) -> list[dict]:
 
     for ticket in tickets:
         created = ticket.get("created_at")
-        if created:
+        if created and not (exclude_weekends and _is_weekend_day(created)):
             bucket(created[:10])["created"] += 1
             if ticket.get("reaction_hours") is not None:
                 bucket(created[:10])["reactions"].append(ticket["reaction_hours"])
         closed = ticket.get("completed_at")
-        if closed:
+        if closed and not (exclude_weekends and _is_weekend_day(closed)):
             bucket(closed[:10])["closed"] += 1
 
     result = []
     for day in sorted(days):
+        if exclude_weekends and _is_weekend_day(day):
+            continue
         item = days[day]
         reaction = _avg(item["reactions"])
         result.append(
@@ -259,13 +352,18 @@ def build_solved(tickets: list[dict]) -> dict:
     }
 
 
-def aggregate_oiv_waiting(tickets: list[dict], now: datetime) -> list[dict]:
+def aggregate_oiv_waiting(
+    tickets: list[dict],
+    now: datetime,
+    *,
+    exclude_weekends: bool = False,
+) -> list[dict]:
     groups: dict[str, dict] = {}
     for ticket in tickets:
         is_waiting = ticket["status_group"] == "waiting"
         if not (ticket.get("has_waiting_episode") or is_waiting):
             continue
-        hours = waiting_hours(ticket, now)
+        hours = waiting_hours(ticket, now, exclude_weekends=exclude_weekends)
         if hours is None and not is_waiting:
             continue
 
@@ -363,7 +461,13 @@ def build_cross_matrix(tickets: list[dict], row_key: str, col_key: str) -> dict:
     }
 
 
-def build_kpi(tickets: list[dict], oiv_waiting: list[dict], now: datetime) -> dict:
+def build_kpi(
+    tickets: list[dict],
+    oiv_waiting: list[dict],
+    now: datetime,
+    *,
+    exclude_weekends: bool = False,
+) -> dict:
     closed = [ticket for ticket in tickets if ticket["state"] == "closed"]
     open_tickets = [ticket for ticket in tickets if ticket["state"] == "open"]
     with_sla = [ticket for ticket in closed if ticket.get("sla_met") is not None]
@@ -386,7 +490,11 @@ def build_kpi(tickets: list[dict], oiv_waiting: list[dict], now: datetime) -> di
         "confirmed": sum(
             1 for ticket in tickets if (ticket.get("user_confirmed") or "").lower() == "да"
         ),
-        "overdue_open": sum(1 for ticket in open_tickets if is_overdue(ticket, now)),
+        "overdue_open": sum(
+            1
+            for ticket in open_tickets
+            if is_overdue(ticket, now, exclude_weekends=exclude_weekends)
+        ),
         "median_resolution_hours": median(resolution) if resolution else None,
         "median_reaction_hours": median(reactions) if reactions else None,
         "reaction_count": len(reactions),
@@ -398,7 +506,12 @@ def build_kpi(tickets: list[dict], oiv_waiting: list[dict], now: datetime) -> di
     }
 
 
-def _table_row(ticket: dict, now: datetime) -> dict:
+def _table_row(
+    ticket: dict,
+    now: datetime,
+    *,
+    exclude_weekends: bool = False,
+) -> dict:
     return {
         "id": ticket["id"],
         "permalink": ticket.get("permalink"),
@@ -417,7 +530,7 @@ def _table_row(ticket: dict, now: datetime) -> dict:
         "reaction_hours": ticket.get("reaction_hours"),
         "error_side": ticket.get("error_side"),
         "sla_met": ticket.get("sla_met"),
-        "is_overdue": is_overdue(ticket, now),
+        "is_overdue": is_overdue(ticket, now, exclude_weekends=exclude_weekends),
     }
 
 
@@ -433,7 +546,13 @@ def query_dashboard(
     columns: list[dict] = dataset["columns"]
     date_column = resolve_date_column(columns, spec.date_column)
     filtered = filter_tickets(tickets, spec, date_column)
-    oiv_waiting = aggregate_oiv_waiting(filtered, now)
+    if spec.exclude_weekends:
+        filtered = [apply_exclude_weekends(ticket, now) for ticket in filtered]
+    oiv_waiting = aggregate_oiv_waiting(
+        filtered,
+        now,
+        exclude_weekends=spec.exclude_weekends,
+    )
     ordered = sorted(filtered, key=lambda ticket: ticket.get("created_at") or "", reverse=True)
 
     return {
@@ -442,9 +561,21 @@ def query_dashboard(
         "date_column": date_column,
         "columns": columns,
         "date_bounds": date_bounds(tickets, columns),
-        "kpi": build_kpi(filtered, oiv_waiting, now),
+        "kpi": build_kpi(
+            filtered,
+            oiv_waiting,
+            now,
+            exclude_weekends=spec.exclude_weekends,
+        ),
         "charts": {
-            "trend": {group_by: build_trend(filtered, group_by) for group_by in TREND_GROUPINGS},
+            "trend": {
+                group_by: build_trend(
+                    filtered,
+                    group_by,
+                    exclude_weekends=spec.exclude_weekends,
+                )
+                for group_by in TREND_GROUPINGS
+            },
             "type": count_by(filtered, "type"),
             "block": count_by(filtered, "block", limit=TOP_CHART_LIMIT),
             "oiv": count_by(filtered, "oiv", limit=TOP_CHART_LIMIT),
@@ -457,7 +588,10 @@ def query_dashboard(
                 for row in oiv_waiting
                 if row["avg_waiting_hours"] is not None
             ],
-            "daily_detail": build_daily_detail(filtered),
+            "daily_detail": build_daily_detail(
+                filtered,
+                exclude_weekends=spec.exclude_weekends,
+            ),
             "status_by_category": build_status_by_category(filtered),
             "solved": build_solved(filtered),
         },
@@ -470,7 +604,11 @@ def query_dashboard(
         },
         "records": {
             "items": [
-                _table_row(ticket, now)
+                _table_row(
+                    ticket,
+                    now,
+                    exclude_weekends=spec.exclude_weekends,
+                )
                 for ticket in ordered[table_offset : table_offset + table_limit]
             ],
             "total": len(filtered),

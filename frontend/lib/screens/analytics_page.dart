@@ -31,6 +31,7 @@ import '../widgets/ddt_icon.dart';
 enum AnalyticsSection {
   overview('Основные данные'),
   summary('Сводная аналитика'),
+  quality('Качество данных'),
   table('Таблица');
 
   const AnalyticsSection(this.label);
@@ -45,10 +46,13 @@ enum AnalyticsSection {
   }
 
   static List<AnalyticsSection> forDashboard(AnalyticsDashboardKind kind) {
-    if (kind.isTaskDashboard || kind == AnalyticsDashboardKind.krrWorks) {
+    if (kind == AnalyticsDashboardKind.krrWorks) {
+      return [overview, quality, table];
+    }
+    if (kind.isTaskDashboard) {
       return [overview, table];
     }
-    return values;
+    return [overview, summary, table];
   }
 }
 
@@ -153,6 +157,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               onRefresh: () {},
               onDateColumnChanged: (_) {},
               onPeriodChanged: (_, _) {},
+              onExcludeWeekendsChanged: (_) {},
               onValueToggled: (_, _) {},
               onFiltersCleared: () {},
               onTableMore: () {},
@@ -177,6 +182,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               onRefresh: () {},
               onDateColumnChanged: (_) {},
               onPeriodChanged: (_, _) {},
+              onExcludeWeekendsChanged: (_) {},
               onValueToggled: (_, _) {},
               onQueryChanged: (_, _) {},
               onFiltersCleared: () {},
@@ -195,6 +201,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   bloc.add(AnalyticsDateColumnChanged(key)),
               onPeriodChanged: (start, end) =>
                   bloc.add(AnalyticsPeriodChanged(start: start, end: end)),
+              onExcludeWeekendsChanged: (enabled) =>
+                  bloc.add(AnalyticsExcludeWeekendsChanged(enabled)),
               onValueToggled: (column, value) => bloc.add(
                 AnalyticsColumnValueToggled(columnKey: column, valueKey: value),
               ),
@@ -217,6 +225,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             onRefresh: () {},
             onDateColumnChanged: (_) {},
             onPeriodChanged: (_, _) {},
+            onExcludeWeekendsChanged: (_) {},
             onValueToggled: (_, _) {},
             onFiltersCleared: () {},
             onTableMore: () {},
@@ -244,6 +253,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               bloc.add(AnalyticsDateColumnChanged(key)),
           onPeriodChanged: (start, end) =>
               bloc.add(AnalyticsPeriodChanged(start: start, end: end)),
+          onExcludeWeekendsChanged: (enabled) =>
+              bloc.add(AnalyticsExcludeWeekendsChanged(enabled)),
           onValueToggled: (column, value) => bloc.add(
             AnalyticsColumnValueToggled(columnKey: column, valueKey: value),
           ),
@@ -300,6 +311,7 @@ class _AnalyticsDashboardView extends StatefulWidget {
     required this.onRefresh,
     required this.onDateColumnChanged,
     required this.onPeriodChanged,
+    required this.onExcludeWeekendsChanged,
     required this.onValueToggled,
     required this.onFiltersCleared,
     required this.onTableMore,
@@ -316,6 +328,7 @@ class _AnalyticsDashboardView extends StatefulWidget {
   final VoidCallback onRefresh;
   final ValueChanged<String> onDateColumnChanged;
   final void Function(DateTime? start, DateTime? end) onPeriodChanged;
+  final ValueChanged<bool> onExcludeWeekendsChanged;
   final void Function(String column, String value) onValueToggled;
   final VoidCallback onFiltersCleared;
   final VoidCallback onTableMore;
@@ -329,6 +342,24 @@ class _AnalyticsDashboardView extends StatefulWidget {
 class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
   bool _trendIsLine = false;
   AnalyticsTrendGroupBy _trendGroupBy = AnalyticsTrendGroupBy.day;
+  final _sectionScroll = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _AnalyticsDashboardView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section == widget.section) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_sectionScroll.hasClients) return;
+      if (_sectionScroll.offset == 0) return;
+      _sectionScroll.jumpTo(0);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sectionScroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -344,7 +375,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
 
         final isTaskDashboard = widget.dashboardKind.isTaskDashboard;
         final sectionSlivers = switch (widget.section) {
-          AnalyticsSection.overview => [
+          AnalyticsSection.overview || AnalyticsSection.quality => [
             SliverToBoxAdapter(
               child: isTaskDashboard
                   ? TaskAnalyticsKpiGrid(
@@ -408,14 +439,21 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
           ],
         };
 
+        final topInset = DdtShellMetrics.of(context).contentInsetTop;
+        final compact = DdtAdaptive.isCompact(context);
+        final controls = _DashboardSectionControls(
+          dashboardKind: widget.dashboardKind,
+          section: widget.section,
+          isRefreshing: widget.isRefreshing,
+          onSectionChanged: widget.onSectionChanged,
+          onRefresh: widget.onRefresh,
+        );
+
         final dashboardScroll = CustomScrollView(
-          key: PageStorageKey('analytics-${widget.section.name}'),
+          primary: false,
+          controller: _sectionScroll,
           slivers: [
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: DdtShellMetrics.of(context).contentInsetTop,
-              ),
-            ),
+            SliverToBoxAdapter(child: SizedBox(height: topInset)),
             SliverPadding(
               padding: EdgeInsets.only(bottom: 12.h),
               sliver: SliverToBoxAdapter(
@@ -426,10 +464,8 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
                       widget.filters.hasPeriod ||
                       widget.filters.hasColumnFilters,
                   errorMessage: widget.errorMessage,
-                  section: widget.section,
-                  isRefreshing: widget.isRefreshing,
-                  onSectionChanged: widget.onSectionChanged,
-                  onRefresh: widget.onRefresh,
+                  controlsSpacer: controls,
+                  compact: compact,
                 ),
               ),
             ),
@@ -443,9 +479,19 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
           ],
         );
 
-        final dashboardWithFades = DdtSectionRefreshOverlay(
+        final fadedScroll = DdtSectionRefreshOverlay(
           isRefreshing: widget.isRefreshing,
           child: DdtScrollEdgeFade(child: dashboardScroll),
+        );
+        final dashboardWithFades = Stack(
+          children: [
+            fadedScroll,
+            Positioned(
+              top: topInset,
+              right: 0,
+              child: controls,
+            ),
+          ],
         );
 
         final filtersPanel = AnalyticsFiltersPanel(
@@ -456,6 +502,7 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
           filters: widget.filters,
           onDateColumnChanged: widget.onDateColumnChanged,
           onPeriodChanged: widget.onPeriodChanged,
+          onExcludeWeekendsChanged: widget.onExcludeWeekendsChanged,
           onValueToggled: widget.onValueToggled,
           onCleared: widget.onFiltersCleared,
         );
@@ -499,42 +546,24 @@ class _AnalyticsDashboardViewState extends State<_AnalyticsDashboardView> {
   }
 }
 
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({
-    required this.dashboard,
+class _DashboardSectionControls extends StatelessWidget {
+  const _DashboardSectionControls({
     required this.dashboardKind,
-    required this.filtered,
     required this.section,
     required this.isRefreshing,
     required this.onSectionChanged,
     required this.onRefresh,
-    this.errorMessage,
   });
 
-  final AnalyticsDashboard? dashboard;
   final AnalyticsDashboardKind dashboardKind;
-  final bool filtered;
   final AnalyticsSection section;
   final bool isRefreshing;
   final ValueChanged<AnalyticsSection> onSectionChanged;
   final VoidCallback onRefresh;
-  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
-    final loaded = dashboard;
-    final fetched = loaded == null
-        ? ''
-        : DateFormat('dd.MM.yyyy HH:mm').format(loaded.fetchedAt.toLocal());
-    final entity = dashboardKind.isTaskDashboard ? 'задач' : 'заявок';
-    final count = loaded == null
-        ? ''
-        : filtered
-        ? 'показано ${loaded.filteredCount} из ${loaded.totalCount} $entity'
-        : '${loaded.totalCount} $entity';
-    final error = errorMessage;
-
-    final controls = Row(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         DdtSegmentedControl<AnalyticsSection>(
@@ -566,6 +595,39 @@ class _DashboardHeader extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader({
+    required this.dashboard,
+    required this.dashboardKind,
+    required this.filtered,
+    this.controlsSpacer,
+    this.compact = false,
+    this.errorMessage,
+  });
+
+  final AnalyticsDashboard? dashboard;
+  final AnalyticsDashboardKind dashboardKind;
+  final bool filtered;
+  final Widget? controlsSpacer;
+  final bool compact;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final loaded = dashboard;
+    final fetched = loaded == null
+        ? ''
+        : DateFormat('dd.MM.yyyy HH:mm').format(loaded.fetchedAt.toLocal());
+    final entity = dashboardKind.isTaskDashboard ? 'задач' : 'заявок';
+    final count = loaded == null
+        ? ''
+        : filtered
+        ? 'показано ${loaded.filteredCount} из ${loaded.totalCount} $entity'
+        : '${loaded.totalCount} $entity';
+    final error = errorMessage;
 
     final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,25 +671,36 @@ class _DashboardHeader extends StatelessWidget {
       ],
     );
 
-    if (DdtAdaptive.isCompact(context)) {
+    final reserved = controlsSpacer == null
+        ? null
+        : Visibility(
+            visible: false,
+            maintainSize: true,
+            maintainState: true,
+            maintainAnimation: true,
+            child: controlsSpacer!,
+          );
+    if (compact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           titleBlock,
-          SizedBox(height: 10.h),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: controls,
-          ),
+          if (reserved != null) ...[
+            SizedBox(height: 10.h),
+            Align(alignment: Alignment.centerRight, child: reserved),
+          ],
         ],
       );
     }
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(child: titleBlock),
-        SizedBox(width: 12.w),
-        controls,
+        if (reserved != null) ...[
+          SizedBox(width: 12.w),
+          reserved,
+        ],
       ],
     );
   }

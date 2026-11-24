@@ -114,6 +114,10 @@ class KrrTrendSeries(BaseModel):
 class KrrCharts(BaseModel):
     created: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
     changed: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
+    created_work: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
+    changed_work: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
+    created_card: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
+    changed_card: KrrTrendSeries = Field(default_factory=KrrTrendSeries)
     oiv_class: list[CountPoint] = Field(default_factory=list)
     stage: list[CountPoint] = Field(default_factory=list)
     district: list[CountPoint] = Field(default_factory=list)
@@ -121,6 +125,105 @@ class KrrCharts(BaseModel):
     status: list[CountPoint] = Field(default_factory=list)
     year: list[CountPoint] = Field(default_factory=list)
     activation: list[CountPoint] = Field(default_factory=list)
+
+
+class KrrSchedule(BaseModel):
+    early: int = 0
+    on_time: int = 0
+    late: int = 0
+    unfinished: int = 0
+    incomplete_dates: int = 0
+    overdue_open: int = 0
+    dated_completed: int = 0
+    early_share: float | None = None
+    on_time_share: float | None = None
+    late_share: float | None = None
+    avg_deviation_days: float | None = None
+    avg_duration_days: float | None = None
+
+
+class KrrQualityIndex(BaseModel):
+    score: float | None = None
+    completeness: float | None = None
+    correctness: float | None = None
+    consistency: float | None = None
+    freshness: float | None = None
+    uniqueness: float | None = None
+    weights: dict[str, float] = Field(default_factory=dict)
+
+
+class KrrFieldFill(BaseModel):
+    key: str
+    label: str
+    filled: int = 0
+    empty: int = 0
+    applicable: int = 0
+    percent: float | None = None
+
+
+class KrrRule(BaseModel):
+    code: str
+    title: str
+    description: str
+    count: int = 0
+    severity: Literal["critical", "warning", "info"]
+    group: str
+
+
+class KrrAreaRow(BaseModel):
+    id_unique: int
+    id_work: int | None = None
+    name_work_version: str | None = None
+    address: str | None = None
+    stage: str | None = None
+    link: str | None = None
+
+
+class KrrInsights(BaseModel):
+    works: int = 0
+    rows_without_work_id: int = 0
+    completed: int = 0
+    in_progress: int = 0
+    cancelled: int = 0
+    other_stage: int = 0
+    square_sum: float | None = None
+    square_avg: float | None = None
+    square_known: int = 0
+    stage_buckets: list[CountPoint] = Field(default_factory=list)
+    oiv: list[CountPoint] = Field(default_factory=list)
+    year_versions: list[CountPoint] = Field(default_factory=list)
+    year_works: list[CountPoint] = Field(default_factory=list)
+    year_square: list[CountPoint] = Field(default_factory=list)
+    cancel_reasons: list[CountPoint] = Field(default_factory=list)
+    categories: dict[str, list[CountPoint]] = Field(default_factory=dict)
+    schedule: KrrSchedule = Field(default_factory=KrrSchedule)
+    quality: KrrQualityIndex = Field(default_factory=KrrQualityIndex)
+    fields: list[KrrFieldFill] = Field(default_factory=list)
+    rules: list[KrrRule] = Field(default_factory=list)
+    version_buckets: list[CountPoint] = Field(default_factory=list)
+    duplicate_id_unique: int = 0
+    repeated_version_works: int = 0
+    works_missing_first_version: int | None = None
+    multiple_without_archive: int | None = None
+    actual_flag_available: bool = False
+    freshness: list[CountPoint] = Field(default_factory=list)
+    freshness_avg_days: float | None = None
+    freshness_known: int = 0
+    stale_by_oiv: list[CountPoint] = Field(default_factory=list)
+    missing_area_total: int = 0
+    missing_area: list[KrrAreaRow] = Field(default_factory=list)
+    unavailable: list[str] = Field(default_factory=list)
+    snapshot_note: str = ""
+
+
+class KrrIssueRow(KrrAreaRow):
+    problem: str = ""
+
+
+class KrrIssuePage(BaseModel):
+    total: int = 0
+    problem: str = ""
+    items: list[KrrIssueRow] = Field(default_factory=list)
 
 
 class KrrDashboardRecords(BaseModel):
@@ -142,6 +245,7 @@ class KrrDashboardResponse(BaseModel):
     kpi: KrrKpi
     charts: KrrCharts
     records: KrrDashboardRecords
+    insights: KrrInsights = Field(default_factory=KrrInsights)
 
 
 class KrrWorkPage(BaseModel):

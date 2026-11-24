@@ -15,5 +15,6 @@ CREATE TABLE IF NOT EXISTS app_sessions (
   remember_me BOOLEAN NOT NULL DEFAULT FALSE,
   expires_at DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_app_sessions_account (ews_account_id),
   FOREIGN KEY (ews_account_id) REFERENCES ews_accounts(id) ON DELETE CASCADE
 );
