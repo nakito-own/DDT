@@ -11,11 +11,9 @@ import '../models/task_status.dart';
 }) {
   if (from == to) return (timeStart: timeStart, timeEnd: timeEnd);
   final moment = now ?? DateTime.now();
-  return switch (to) {
-    TaskStatus.inProgress => (timeStart: moment, timeEnd: null),
-    TaskStatus.done => (timeStart: timeStart ?? moment, timeEnd: moment),
-    TaskStatus.todo => (timeStart: null, timeEnd: null),
-  };
+  if (to.isActive) return (timeStart: moment, timeEnd: null);
+  if (to.isClosed) return (timeStart: timeStart ?? moment, timeEnd: moment);
+  return (timeStart: null, timeEnd: null);
 }
 
 Task applyTaskStatusDates(Task task, TaskStatus to, {DateTime? now}) {

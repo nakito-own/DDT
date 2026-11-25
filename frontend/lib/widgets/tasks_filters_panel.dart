@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../theme/ddt_icons.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
+import '../models/queue_settings.dart';
 import '../models/task_priority.dart';
 import '../models/task_status.dart';
 import '../models/user_profile.dart';
@@ -31,6 +32,7 @@ class TasksFiltersPanel extends StatefulWidget {
 
 class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
   late final TextEditingController _searchController;
+  final Map<int, TextEditingController> _fieldControllers = {};
 
   @override
   void initState() {
@@ -46,6 +48,9 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
+    for (final controller in _fieldControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -61,11 +66,11 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
     _searchController.text = query;
   }
 
-  static TaskStatus? _statusFromKey(String key) {
-    for (final status in TaskStatus.values) {
+  TaskStatus? _statusFromKey(String key) {
+    for (final status in context.read<TasksBloc>().state.boardStatuses) {
       if (status.value == key) return status;
     }
-    return null;
+    return TaskStatus.fromValue(key);
   }
 
   static TaskPriority? _priorityFromKey(String key) {
@@ -80,12 +85,142 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
     return null;
   }
 
+  String _componentSummary(TasksState state) {
+    final names = [
+      for (final component in state.queueComponents)
+        if (component.id != null &&
+            state.componentFilters.contains(component.id))
+          component.name,
+    ];
+    if (names.isEmpty) return 'Все компоненты';
+    return names.join(', ');
+  }
+
+  void _syncFieldControllers(TasksState state) {
+    for (final entry in _fieldControllers.entries) {
+      final text = state.fieldFilters[entry.key]?.text ?? '';
+      if (entry.value.text == text) continue;
+      entry.value.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+  }
+
+  Widget _fieldFilter(BuildContext context, TasksState state, QueueField field) {
+    final id = field.id!;
+    final filter = state.fieldFilters[id] ?? const TaskFieldFilter();
+    switch (field.fieldType) {
+      case 'checkbox':
+        final key = switch (filter.checked) {
+          true => 'yes',
+          false => 'no',
+          null => '',
+        };
+        return DdtSectionSidebarField(
+          label: field.name,
+          child: DdtSearchableFilterDropdown(
+            summary: switch (key) {
+              'yes' => 'Да',
+              'no' => 'Нет',
+              _ => 'Все',
+            },
+            active: filter.checked != null,
+            multi: false,
+            options: const [
+              DdtFilterOption(key: '', label: 'Все'),
+              DdtFilterOption(key: 'yes', label: 'Да'),
+              DdtFilterOption(key: 'no', label: 'Нет'),
+            ],
+            selected: {key},
+            onSelected: (value) {
+              context.read<TasksBloc>().add(
+                TasksFieldFilterChanged(
+                  id,
+                  filter.copyWith(
+                    checked: () => switch (value) {
+                      'yes' => true,
+                      'no' => false,
+                      _ => null,
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      case 'list':
+        return DdtSectionSidebarField(
+          label: field.name,
+          child: DdtSearchableFilterDropdown(
+            summary: filter.options.isEmpty ? 'Все' : filter.options.join(', '),
+            active: filter.options.isNotEmpty,
+            options: [
+              for (final option in field.options)
+                DdtFilterOption(key: option, label: option),
+            ],
+            selected: filter.options,
+            emptyLabel: 'Нет вариантов',
+            onSelected: (value) {
+              final next = Set<String>.from(filter.options);
+              if (!next.add(value)) next.remove(value);
+              context.read<TasksBloc>().add(
+                TasksFieldFilterChanged(id, filter.copyWith(options: next)),
+              );
+            },
+          ),
+        );
+      case 'user':
+        return _PersonFilterField(
+          label: field.name,
+          emptyLabel: 'Все',
+          userId: filter.userId,
+          onChanged: (userId) {
+            context.read<TasksBloc>().add(
+              TasksFieldFilterChanged(
+                id,
+                filter.copyWith(userId: () => userId),
+              ),
+            );
+          },
+        );
+      default:
+        final controller = _fieldControllers.putIfAbsent(id, () {
+          final controller = TextEditingController(text: filter.text);
+          controller.addListener(() {
+            final bloc = context.read<TasksBloc>();
+            final current = bloc.state.fieldFilters[id] ?? const TaskFieldFilter();
+            if (controller.text == current.text) return;
+            bloc.add(
+              TasksFieldFilterChanged(
+                id,
+                current.copyWith(text: controller.text),
+              ),
+            );
+          });
+          return controller;
+        });
+        return DdtSectionSidebarField(
+          label: field.name,
+          child: DdtAppInput(
+            controller: controller,
+            hint: 'Содержит…',
+            variant: DdtInputVariant.compact,
+            borderRadius: DdtTheme.inputControlBorderRadius,
+          ),
+        );
+    }
+  }
+
   bool _hasActiveFilters(TasksState state) {
-    final allStatuses = state.statusFilters.length == TaskStatus.values.length;
+    final allStatuses =
+        state.boardStatuses.every(state.statusFilters.contains);
     return state.searchQuery.trim().isNotEmpty ||
         !allStatuses ||
         state.priorityFilter != null ||
         state.typeFilter != null ||
+        state.componentFilters.isNotEmpty ||
+        state.fieldFilters.values.any((filter) => filter.isActive) ||
         state.authorFilter != null ||
         state.executorFilter != null ||
         state.responsibleFilter != null ||
@@ -100,8 +235,12 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
 
     return BlocConsumer<TasksBloc, TasksState>(
       listenWhen: (previous, current) =>
-          previous.searchQuery != current.searchQuery,
-      listener: (context, state) => _syncSearchFromBloc(state.searchQuery),
+          previous.searchQuery != current.searchQuery ||
+          previous.fieldFilters != current.fieldFilters,
+      listener: (context, state) {
+        _syncSearchFromBloc(state.searchQuery);
+        _syncFieldControllers(state);
+      },
       buildWhen: (previous, current) =>
           previous.searchQuery != current.searchQuery ||
           previous.statusFilters != current.statusFilters ||
@@ -114,17 +253,23 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
           previous.sortOption != current.sortOption ||
           previous.showArchived != current.showArchived ||
           previous.taskTypes != current.taskTypes ||
+          previous.queueFields != current.queueFields ||
+          previous.queueComponents != current.queueComponents ||
+          previous.componentFilters != current.componentFilters ||
+          previous.fieldFilters != current.fieldFilters ||
+          previous.statuses != current.statuses ||
           previous.filteredTasks.length != current.filteredTasks.length,
       builder: (context, state) {
         final statusOptions = [
-          for (final status in TaskStatus.values)
+          for (final status in state.boardStatuses)
             DdtFilterOption(key: status.value, label: status.label),
         ];
         final selectedStatuses = {
           for (final status in state.statusFilters) status.value,
         };
-        final allStatusesSelected =
-            selectedStatuses.length == TaskStatus.values.length;
+        final allStatusesSelected = state.boardStatuses.every(
+          state.statusFilters.contains,
+        );
 
         final priorityOptions = [
           const DdtFilterOption(key: '', label: 'Все приоритеты'),
@@ -242,6 +387,33 @@ class _TasksFiltersPanelState extends State<TasksFiltersPanel> {
                   },
                 ),
               ),
+            if (state.queueComponents.isNotEmpty)
+              DdtSectionSidebarField(
+                label: 'Компоненты',
+                child: DdtSearchableFilterDropdown(
+                  summary: _componentSummary(state),
+                  active: state.componentFilters.isNotEmpty,
+                  options: [
+                    for (final component in state.queueComponents)
+                      if (component.id != null)
+                        DdtFilterOption(
+                          key: '${component.id}',
+                          label: component.name,
+                        ),
+                  ],
+                  selected: {for (final id in state.componentFilters) '$id'},
+                  emptyLabel: 'Нет компонентов',
+                  onSelected: (key) {
+                    final id = int.tryParse(key);
+                    if (id == null) return;
+                    context.read<TasksBloc>().add(
+                      TasksComponentFilterToggled(id),
+                    );
+                  },
+                ),
+              ),
+            for (final field in state.queueFields)
+              if (field.id != null) _fieldFilter(context, state, field),
             if (inSpace) ...[
               _PersonFilterField(
                 label: 'Автор',

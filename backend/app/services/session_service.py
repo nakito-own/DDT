@@ -9,8 +9,6 @@ from typing import TypeVar
 
 from exchangelib import Account
 from exchangelib.errors import ErrorTimeoutExpired, TransportError
-from pymysql.err import IntegrityError
-
 from app.config import settings
 from app.db import get_db
 from app.services.crypto_service import crypto_service
@@ -24,6 +22,16 @@ from app.services.user_service import UserProfile, user_service, user_profile_to
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+@dataclass
+class SessionDevice:
+    id: int
+    device_name: str | None
+    os_name: str | None
+    ip_country: str | None
+    logged_in_at: datetime
+    is_current: bool
 
 
 @dataclass
@@ -129,52 +137,43 @@ class SessionService:
                     raise RuntimeError("Failed to persist EWS account")
                 return row["id"]
 
-    def _replace_db_session(
-        self, token_hash: str, ews_account_id: int, remember_me: bool, expires_at: datetime
-    ) -> list[str]:
-        """Keep a single DB row per account and return the tokens it replaced."""
+    def _insert_db_session(
+        self,
+        token_hash: str,
+        ews_account_id: int,
+        remember_me: bool,
+        expires_at: datetime,
+        device_name: str | None,
+        os_name: str | None,
+        ip_country: str | None,
+    ) -> None:
+        """Insert one more live session. Other devices of this account stay signed in."""
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT token_hash
-                    FROM app_sessions
-                    WHERE ews_account_id = %s AND token_hash <> %s
+                    INSERT INTO app_sessions
+                      (
+                        token_hash,
+                        ews_account_id,
+                        remember_me,
+                        expires_at,
+                        device_name,
+                        os_name,
+                        ip_country
+                      )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (ews_account_id, token_hash),
+                    (
+                        token_hash,
+                        ews_account_id,
+                        remember_me,
+                        expires_at,
+                        device_name,
+                        os_name,
+                        ip_country,
+                    ),
                 )
-                replaced = [row["token_hash"] for row in cursor.fetchall()]
-                cursor.execute(
-                    """
-                    DELETE FROM app_sessions
-                    WHERE ews_account_id = %s AND token_hash <> %s
-                    """,
-                    (ews_account_id, token_hash),
-                )
-                try:
-                    cursor.execute(
-                        """
-                        INSERT INTO app_sessions
-                          (token_hash, ews_account_id, remember_me, expires_at)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        (token_hash, ews_account_id, remember_me, expires_at),
-                    )
-                except IntegrityError as exc:
-                    if not exc.args or exc.args[0] != 1062:
-                        raise
-                    cursor.execute(
-                        """
-                        UPDATE app_sessions
-                        SET token_hash = %s,
-                            remember_me = %s,
-                            expires_at = %s,
-                            created_at = CURRENT_TIMESTAMP
-                        WHERE ews_account_id = %s
-                        """,
-                        (token_hash, remember_me, expires_at, ews_account_id),
-                    )
-        return replaced
 
     def _sync_user_profile(
         self, account: Account, ews_account_id: int, username: str
@@ -197,6 +196,9 @@ class SessionService:
         password: str,
         email: str,
         remember_me: bool,
+        device_name: str | None = None,
+        os_name: str | None = None,
+        ip_country: str | None = None,
     ) -> tuple[str, SessionContext]:
         account = ews_service.connect_account(username, password, email)
 
@@ -207,17 +209,15 @@ class SessionService:
         token_hash = crypto_service.hash_token(token)
         expires_at = self._expires_at(remember_me)
 
-        replaced = self._replace_db_session(
-            token_hash, ews_account_id, remember_me, expires_at
+        self._insert_db_session(
+            token_hash,
+            ews_account_id,
+            remember_me,
+            expires_at,
+            device_name,
+            os_name,
+            ip_country,
         )
-        for previous_hash in replaced:
-            self._forget_local_session(previous_hash)
-        if replaced:
-            logger.info(
-                "Replaced %s previous session(s) for %s",
-                len(replaced),
-                email,
-            )
 
         context = SessionContext(
             token_hash=token_hash,
@@ -554,6 +554,83 @@ class SessionService:
     def logout(self, token: str) -> None:
         token_hash = crypto_service.hash_token(token)
         self.delete_session(token_hash)
+
+    def remember_device_if_missing(
+        self,
+        token_hash: str,
+        device_name: str | None,
+        os_name: str | None,
+        ip_country: str | None,
+    ) -> None:
+        """Fill device fields captured before this metadata existed. Later logins keep theirs."""
+        if not any((device_name, os_name, ip_country)):
+            return
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE app_sessions
+                    SET device_name = COALESCE(device_name, %s),
+                        os_name = COALESCE(os_name, %s),
+                        ip_country = COALESCE(ip_country, %s)
+                    WHERE token_hash = %s
+                      AND (
+                        device_name IS NULL
+                        OR os_name IS NULL
+                        OR ip_country IS NULL
+                      )
+                    """,
+                    (device_name, os_name, ip_country, token_hash),
+                )
+
+    def list_account_sessions(
+        self, ews_account_id: int, current_token_hash: str
+    ) -> list[SessionDevice]:
+        now = datetime.utcnow()
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, token_hash, device_name, os_name, ip_country, created_at
+                    FROM app_sessions
+                    WHERE ews_account_id = %s AND expires_at >= %s
+                    ORDER BY created_at DESC, id DESC
+                    """,
+                    (ews_account_id, now),
+                )
+                rows = cursor.fetchall()
+
+        devices = [
+            SessionDevice(
+                id=row["id"],
+                device_name=row.get("device_name"),
+                os_name=row.get("os_name"),
+                ip_country=row.get("ip_country"),
+                logged_in_at=row["created_at"],
+                is_current=row["token_hash"] == current_token_hash,
+            )
+            for row in rows
+        ]
+        current = [item for item in devices if item.is_current]
+        others = [item for item in devices if not item.is_current]
+        return current + others
+
+    def delete_account_session(self, session_id: int, ews_account_id: int) -> bool:
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT token_hash
+                    FROM app_sessions
+                    WHERE id = %s AND ews_account_id = %s
+                    """,
+                    (session_id, ews_account_id),
+                )
+                row = cursor.fetchone()
+        if not row:
+            return False
+        self.delete_session(row["token_hash"])
+        return True
 
 
 def session_user_dict(context: SessionContext) -> dict:

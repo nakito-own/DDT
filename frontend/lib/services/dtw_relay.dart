@@ -12,7 +12,7 @@ class DtwRawPage {
 }
 
 /// Cuts `data` objects out of a DTW page. A string scan stays off the object
-/// graph, so a thousand geometry rows do not freeze the UI.
+/// graph, so a large page does not freeze the UI.
 DtwRawPage splitDtwPage(String raw) {
   final totalMatch = RegExp(r'"totalCount"\s*:\s*(\d+)').firstMatch(raw);
   final total = int.tryParse(totalMatch?.group(1) ?? '') ?? 0;
@@ -89,6 +89,7 @@ class DtwRelay {
     required this.pageSize,
     required this.offsetParam,
     required this.limitParam,
+    required this.attributes,
     http.Client? client,
   }) : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
        _client = client ?? http.Client();
@@ -100,6 +101,7 @@ class DtwRelay {
   final int pageSize;
   final String offsetParam;
   final String limitParam;
+  final String attributes;
   final http.Client _client;
 
   static const _timeout = Duration(seconds: 120);
@@ -203,13 +205,12 @@ class DtwRelay {
   }
 
   Uri _pageUri(int offset) {
+    // queryParameters encodes the comma as %2C. DTW then returns 500.
+    // The working form is attributes=id_unique, id_work.
+    final attributesQuery = attributes.isEmpty ? '' : 'attributes=$attributes&';
     return Uri.parse(
-      '$baseUrl/app/api/data-output/datasets/GetDataWithRequest/$datasetId',
-    ).replace(
-      queryParameters: {
-        offsetParam: '$offset',
-        limitParam: '$pageSize',
-      },
+      '$baseUrl/app/api/data-output/datasets/GetDataWithRequest/$datasetId'
+      '?$attributesQuery$offsetParam=$offset&$limitParam=$pageSize',
     );
   }
 

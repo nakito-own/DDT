@@ -37,6 +37,8 @@ import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_side_panel_divider.dart';
 import '../widgets/ddt_user_avatar.dart';
+import '../widgets/task_queue_rules.dart';
+import '../models/queue_settings.dart';
 
 part 'task_edit_page.dart';
 
@@ -78,6 +80,10 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
   DateTime? _deadline;
   TaskRef? _parent;
   List<TaskRef> _children = [];
+  List<TaskFieldValue> _fieldValues = [];
+  List<int> _componentIds = [];
+  TaskNotifications _notifications = const TaskNotifications();
+  var _queueApplied = false;
 
   @override
   void didChangeDependencies() {
@@ -133,6 +139,40 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
       title: task.title,
       status: task.status,
     );
+  }
+
+  void _applyQueueDefaults(QueueSettings queue) {
+    if (!mounted || _queueApplied) return;
+    final requested = GoRouterState.of(context).uri.queryParameters['status'];
+    TaskStatus status = queue.defaultStatus;
+    if (requested != null) {
+      for (final item in queue.statuses) {
+        if (item.value == requested) status = item;
+      }
+    }
+    final dates = statusTransitionDates(
+      from: _status,
+      to: status,
+      timeStart: _timeStart,
+      timeEnd: _timeEnd,
+    );
+    setState(() {
+      _queueApplied = true;
+      _status = status;
+      _timeStart = dates.timeStart;
+      _timeEnd = dates.timeEnd;
+      _typeId = queue.defaultTypeId;
+      _priority = TaskPriority.fromValue(queue.defaultPriority);
+      if (queue.defaultDeadlineDays != null) {
+        _deadline = DateTime.now().add(Duration(days: queue.defaultDeadlineDays!));
+      }
+      _fieldValues = [
+        for (final field in queue.fields)
+          if (field.id != null) field.toValue(),
+      ];
+      _componentIds = List<int>.of(queue.defaultComponentIds);
+      _notifications = queue.defaultNotifications;
+    });
   }
 
   void _setStatus(TaskStatus next) {
@@ -232,13 +272,20 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
       executorId: assigned(_executorId),
       responsibleId: assigned(_responsibleId),
       timeSet: _timeSet,
-      timeStart: _timeStart ?? (_status == TaskStatus.inProgress ? now : null),
-      timeEnd: _timeEnd ?? (_status == TaskStatus.done ? now : null),
+      timeStart: _timeStart ?? (_status.isActive ? now : null),
+      timeEnd: _timeEnd ?? (_status.isClosed ? now : null),
       deadline: _deadline,
       priority: _priority,
       parent: _parent,
       parentId: _parent?.id,
       children: _children,
+      fieldValues: _fieldValues,
+      components: [
+        for (final id in _componentIds)
+          TaskComponentRef(id: id, name: ''),
+      ],
+      notifications: _notifications,
+      queueRulesSpecified: _queueApplied,
     );
 
     context.read<TasksBloc>().add(TaskCreateRequested(draft));
@@ -269,8 +316,12 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
             onClose: _close,
             onSubmit: () => _submit(personal: personal),
           );
-          final parameters = TaskParametersForm(
+          final parameters = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TaskParametersForm(
             personal: personal,
+            statuses: state.boardStatuses,
             taskTypes: state.taskTypes,
             candidates: candidates,
             status: _status,
@@ -297,6 +348,18 @@ class _TaskCreatePageState extends State<TaskCreatePage> {
             onDeadline: (value) => setState(() => _deadline = value),
             onParent: (key) => _setParentKey(key, candidates),
             onToggleChild: (key) => _toggleChildKey(key, candidates),
+          ),
+              TaskQueueRulesLoader(
+                spaceKey: context.read<TasksBloc>().spaceKey,
+                fieldValues: _fieldValues,
+                componentIds: _componentIds,
+                notifications: _notifications,
+                onFieldValues: (values) => setState(() => _fieldValues = values),
+                onComponentIds: (ids) => setState(() => _componentIds = ids),
+                onNotifications: (value) => setState(() => _notifications = value),
+                onQueue: _applyQueueDefaults,
+              ),
+            ],
           );
 
           if (!wide) {
@@ -545,6 +608,7 @@ class TaskParametersForm extends StatelessWidget {
   const TaskParametersForm({
     super.key,
     required this.personal,
+    this.statuses = TaskStatus.values,
     required this.taskTypes,
     required this.candidates,
     required this.status,
@@ -572,9 +636,11 @@ class TaskParametersForm extends StatelessWidget {
     required this.onParent,
     required this.onToggleChild,
     this.tintValues = false,
+    this.showRelations = true,
   });
 
   final bool personal;
+  final List<TaskStatus> statuses;
   final List<TaskType> taskTypes;
   final List<Task> candidates;
   final TaskStatus status;
@@ -604,18 +670,10 @@ class TaskParametersForm extends StatelessWidget {
 
   /// В просмотре поле окрашивается в цвет выбранного статуса, типа или приоритета.
   final bool tintValues;
+  final bool showRelations;
 
   @override
   Widget build(BuildContext context) {
-    final parentSummary = parent == null
-        ? 'Нет'
-        : '${parent!.key} · ${parent!.title}';
-    final childSummary = children.isEmpty
-        ? 'Нет'
-        : children.length == 1
-        ? '${children.first.key} · ${children.first.title}'
-        : 'Выбрано: ${children.length}';
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -635,23 +693,27 @@ class TaskParametersForm extends StatelessWidget {
           active: true,
           selected: {status.value},
           options: [
-            for (final item in TaskStatus.values)
+            for (final item in statuses)
               DdtFilterOption(key: item.value, label: item.label),
           ],
-          onSelected: (key) => onStatus(TaskStatus.fromValue(key)),
+          onSelected: (key) => onStatus(
+            statuses.firstWhere(
+              (item) => item.value == key,
+              orElse: () => TaskStatus.fromValue(key),
+            ),
+          ),
         ),
         _DropdownRow(
           label: 'Тип',
-          summary: _typeName(taskTypes, typeId) ?? 'Не указан',
+          summary: _typeName(taskTypes, typeId) ?? 'Нет типов',
           tint: tintValues && typeId != null ? taskTypeColor(typeId!) : null,
           active: typeId != null,
-          selected: {typeId?.toString() ?? ''},
+          selected: {if (typeId != null) '$typeId'},
           options: [
-            const DdtFilterOption(key: '', label: 'Не указан'),
             for (final type in taskTypes)
               DdtFilterOption(key: '${type.id}', label: type.name),
           ],
-          onSelected: (key) => onType(key.isEmpty ? null : int.tryParse(key)),
+          onSelected: (key) => onType(int.tryParse(key)),
         ),
         _DropdownRow(
           label: 'Приоритет',
@@ -705,6 +767,55 @@ class TaskParametersForm extends StatelessWidget {
           nullable: true,
           onChanged: onTimeEnd,
         ),
+        if (showRelations)
+          TaskRelationsEditor(
+            candidates: candidates,
+            parent: parent,
+            children: children,
+            onParent: onParent,
+            onToggleChild: onToggleChild,
+          ),
+        _DateDropdownRow(
+          label: 'Дедлайн',
+          value: deadline,
+          nullable: true,
+          onChanged: onDeadline,
+        ),
+      ],
+    );
+  }
+}
+
+class TaskRelationsEditor extends StatelessWidget {
+  const TaskRelationsEditor({
+    super.key,
+    required this.candidates,
+    required this.parent,
+    required this.children,
+    required this.onParent,
+    required this.onToggleChild,
+  });
+
+  final List<Task> candidates;
+  final TaskRef? parent;
+  final List<TaskRef> children;
+  final ValueChanged<String> onParent;
+  final ValueChanged<String> onToggleChild;
+
+  @override
+  Widget build(BuildContext context) {
+    final parentSummary = parent == null
+        ? 'Нет'
+        : '${parent!.key} · ${parent!.title}';
+    final childSummary = children.isEmpty
+        ? 'Нет'
+        : children.length == 1
+        ? '${children.first.key} · ${children.first.title}'
+        : 'Выбрано: ${children.length}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         _DropdownRow(
           label: 'Родитель',
           summary: parentSummary,
@@ -726,7 +837,6 @@ class TaskParametersForm extends StatelessWidget {
           summary: childSummary,
           active: children.isNotEmpty,
           multi: true,
-          alignTop: children.isNotEmpty,
           selected: {for (final child in children) child.key},
           options: [
             for (final task in candidates)
@@ -738,28 +848,6 @@ class TaskParametersForm extends StatelessWidget {
           ],
           emptyLabel: 'Нет доступных задач',
           onSelected: onToggleChild,
-          trailing: children.isEmpty
-              ? null
-              : Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: Wrap(
-                    spacing: 6.w,
-                    runSpacing: 6.h,
-                    children: [
-                      for (final child in children)
-                        _ChildChip(
-                          label: child.key,
-                          onRemove: () => onToggleChild(child.key),
-                        ),
-                    ],
-                  ),
-                ),
-        ),
-        _DateDropdownRow(
-          label: 'Дедлайн',
-          value: deadline,
-          nullable: true,
-          onChanged: onDeadline,
         ),
       ],
     );
@@ -967,8 +1055,6 @@ class _DropdownRow extends StatelessWidget {
     required this.onSelected,
     this.multi = false,
     this.emptyLabel = 'Нет значений',
-    this.trailing,
-    this.alignTop = false,
     this.tint,
   });
 
@@ -980,8 +1066,6 @@ class _DropdownRow extends StatelessWidget {
   final ValueChanged<String> onSelected;
   final bool multi;
   final String emptyLabel;
-  final Widget? trailing;
-  final bool alignTop;
   final Color? tint;
 
   @override
@@ -989,16 +1073,11 @@ class _DropdownRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: 10.h),
       child: Row(
-        crossAxisAlignment: alignTop
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 108.w,
-            child: Padding(
-              padding: EdgeInsets.only(top: alignTop ? 8.h : 0),
-              child: Text(label, style: _paramLabelStyle(context)),
-            ),
+            child: Text(label, style: _paramLabelStyle(context)),
           ),
           SizedBox(width: 12.w),
           Expanded(
@@ -1015,7 +1094,6 @@ class _DropdownRow extends StatelessWidget {
                   multi: multi,
                   emptyLabel: emptyLabel,
                 ),
-                ?trailing,
               ],
             ),
           ),
@@ -1137,52 +1215,6 @@ class _PersonDropdownRow extends StatelessWidget {
               onChanged(key.isEmpty ? null : int.tryParse(key)),
         );
       },
-    );
-  }
-}
-
-class _ChildChip extends StatelessWidget {
-  const _ChildChip({required this.label, required this.onRemove});
-
-  final String label;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: DdtTheme.badgeBorderRadius,
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.white.withValues(alpha: 0.72),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.11)
-              : DdtTheme.borderSubtle(context),
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(8.w, 3.h, 4.w, 3.h),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: DdtTheme.style(
-                fontSize: DdtTypography.labelSmallSize,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(width: 4.w),
-            _MarkButton(
-              icon: DdtIcons.closeCircle,
-              label: 'Убрать $label',
-              onPressed: onRemove,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -35,6 +35,7 @@ class KrrRelayBegin(BaseModel):
     page_size: int = 200
     offset_param: str = "offset"
     limit_param: str = "limit"
+    attributes: str = ""
     today: KrrSnapshotStatus
     yesterday: KrrSnapshotStatus
 

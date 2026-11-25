@@ -12,6 +12,7 @@ import '../models/task_status.dart';
 import '../theme/ddt_scroll_behavior.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
+import '../utils/task_status_dates.dart';
 import '../utils/ddt_toast.dart';
 import 'task_create_page.dart';
 import 'task_details_page.dart';
@@ -53,9 +54,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
 
   final Map<String, GlobalKey> _taskCardKeys = {};
   final Map<int, Size> _taskCardSizes = {};
-  final Map<TaskStatus, GlobalKey<_KanbanTaskListState>> _taskListKeys = {
-    for (final status in TaskStatus.values) status: GlobalKey(),
-  };
+  final Map<TaskStatus, GlobalKey<_KanbanTaskListState>> _taskListKeys = {};
   int? _draggingTaskId;
   TaskStatus? _draggingFromStatus;
   int? _draggingFromIndex;
@@ -84,25 +83,24 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     };
   }
 
+  List<TaskStatus> get _statuses =>
+      context.read<TasksBloc>().state.boardStatuses;
+
   List<Task> _columnTasks(TaskStatus status) =>
       _localColumns[status] ?? const [];
 
+  GlobalKey<_KanbanTaskListState> _listKey(TaskStatus status) =>
+      _taskListKeys.putIfAbsent(status, GlobalKey.new);
+
   GlobalKey _taskCardKey(TaskStatus status, int taskId) =>
-      _taskCardKeys.putIfAbsent('${status.name}_$taskId', () => GlobalKey());
+      _taskCardKeys.putIfAbsent('${status.value}_$taskId', () => GlobalKey());
 
   void _registerTaskCardSize(int taskId, Size size) {
     _taskCardSizes[taskId] = size;
   }
 
   Task _updatedTaskForColumn(Task task, TaskStatus to) {
-    var updated = task.copyWith(status: to);
-    if (to == TaskStatus.inProgress && updated.timeStart == null) {
-      updated = updated.copyWith(timeStart: DateTime.now());
-    }
-    if (to == TaskStatus.done && updated.timeEnd == null) {
-      updated = updated.copyWith(timeEnd: DateTime.now());
-    }
-    return updated;
+    return applyTaskStatusDates(task, to);
   }
 
   void _applyMove(Task task, TaskStatus from, TaskStatus to, int toIndex) {
@@ -290,7 +288,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
       key: ValueKey(status),
       status: status,
       tasks: _columnTasks(status),
-      taskListKey: _taskListKeys[status]!,
+      taskListKey: _listKey(status),
       draggingTaskId: _draggingTaskId,
       dropIndex: _dropStatus == status ? _dropIndex : null,
       placeholderHeight: _draggingTaskId == null
@@ -310,7 +308,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   }
 
   void _showColumn(int next) {
-    final index = next.clamp(0, TaskStatus.values.length - 1);
+    final index = next.clamp(0, _statuses.length - 1);
     if (!_columnController.hasClients) {
       setState(() => _columnIndex = index);
       return;
@@ -326,7 +324,8 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
   }
 
   Widget _compactKanban(BuildContext context) {
-    final lastColumn = TaskStatus.values.length - 1;
+    final statuses = _statuses;
+    final lastColumn = statuses.isEmpty ? 0 : statuses.length - 1;
     final underBar = _underAppBar(context);
 
     return Stack(
@@ -338,13 +337,13 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
             bottom: kDdtScrollEdgeFadeHeight.h,
             child: PageView.builder(
               controller: _columnController,
-              itemCount: TaskStatus.values.length,
+              itemCount: statuses.length,
               onPageChanged: (next) {
                 if (next == _columnIndex) return;
                 setState(() => _columnIndex = next);
               },
               itemBuilder: (context, page) {
-                return _plainKanbanList(TaskStatus.values[page]);
+                return _plainKanbanList(statuses[page]);
               },
             ),
           ),
@@ -360,8 +359,9 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
                   ? (_columnController.page ?? _columnIndex.toDouble())
                   : _columnIndex.toDouble();
               final index = page.round().clamp(0, lastColumn);
-              final status = TaskStatus.values[index];
+              final status = statuses[index.clamp(0, lastColumn)];
               return _KanbanColumnPager(
+                statuses: statuses,
                 index: index,
                 taskCount: _columnTasks(status).length,
                 onChanged: _showColumn,
@@ -378,6 +378,7 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
     return BlocListener<TasksBloc, TasksState>(
       listenWhen: (previous, current) =>
           previous.columns != current.columns ||
+          previous.statuses != current.statuses ||
           previous.taskTypes != current.taskTypes,
       listener: (context, state) {
         if (_draggingTaskId != null) return;
@@ -391,17 +392,15 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
             return _compactKanban(context);
           }
 
+          final statuses = context.watch<TasksBloc>().state.boardStatuses;
+
           if (isWide) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (
-                  var index = 0;
-                  index < TaskStatus.values.length;
-                  index++
-                ) ...[
+                for (var index = 0; index < statuses.length; index++) ...[
                   if (index > 0) const _KanbanColumnGap(),
-                  Expanded(child: _kanbanColumn(TaskStatus.values[index])),
+                  Expanded(child: _kanbanColumn(statuses[index])),
                 ],
               ],
             );
@@ -411,10 +410,10 @@ class _KanbanBoardPageState extends State<KanbanBoardPage> {
             height: constraints.maxHeight,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: TaskStatus.values.length,
+              itemCount: statuses.length,
               separatorBuilder: (context, index) => const _KanbanColumnGap(),
               itemBuilder: (context, index) {
-                final status = TaskStatus.values[index];
+                final status = statuses[index];
 
                 return SizedBox(width: 320.w, child: _kanbanColumn(status));
               },
@@ -437,11 +436,13 @@ class _KanbanColumnGap extends StatelessWidget {
 
 class _KanbanColumnPager extends StatelessWidget {
   const _KanbanColumnPager({
+    required this.statuses,
     required this.index,
     required this.taskCount,
     required this.onChanged,
   });
 
+  final List<TaskStatus> statuses;
   final int index;
   final int taskCount;
   final ValueChanged<int> onChanged;
@@ -449,9 +450,9 @@ class _KanbanColumnPager extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canBack = index > 0;
-    final canForward = index < TaskStatus.values.length - 1;
+    final canForward = index < statuses.length - 1;
     final foreground = DdtTheme.textPrimary(context);
-    final status = TaskStatus.values[index];
+    final status = statuses[index];
     final statusColor = statusColumnColor(status);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -461,7 +462,7 @@ class _KanbanColumnPager extends StatelessWidget {
         children: [
           IconButton(
             tooltip: canBack
-                ? TaskStatus.values[index - 1].label
+                ? statuses[index - 1].label
                 : 'Предыдущая колонка',
             visualDensity: VisualDensity.compact,
             onPressed: canBack ? () => onChanged(index - 1) : null,
@@ -536,7 +537,7 @@ class _KanbanColumnPager extends StatelessWidget {
           ),
           IconButton(
             tooltip: canForward
-                ? TaskStatus.values[index + 1].label
+                ? statuses[index + 1].label
                 : 'Следующая колонка',
             visualDensity: VisualDensity.compact,
             onPressed: canForward ? () => onChanged(index + 1) : null,

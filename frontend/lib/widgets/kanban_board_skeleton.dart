@@ -16,9 +16,9 @@ class KanbanBoardSkeleton extends StatelessWidget {
   const KanbanBoardSkeleton({super.key});
 
   static const _cardHeights = {
-    TaskStatus.todo: [112.0, 88.0, 100.0],
-    TaskStatus.inProgress: [108.0, 92.0],
-    TaskStatus.done: [96.0, 84.0],
+    'todo': [112.0, 88.0, 100.0],
+    'in_progress': [108.0, 92.0],
+    'done': [96.0, 84.0],
   };
 
   @override
@@ -82,7 +82,8 @@ class _SkeletonColumn extends StatelessWidget {
     final borderColor = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : DdtTheme.lightBorderSubtle.withValues(alpha: 0.90);
-    final heights = KanbanBoardSkeleton._cardHeights[status] ?? const [100.0];
+    final heights =
+        KanbanBoardSkeleton._cardHeights[status.value] ?? const [100.0];
 
     return ClipRRect(
       borderRadius: DdtTheme.radius,

@@ -88,6 +88,25 @@ final class TasksTypeFilterChanged extends TasksEvent {
   List<Object?> get props => [typeId];
 }
 
+final class TasksComponentFilterToggled extends TasksEvent {
+  const TasksComponentFilterToggled(this.componentId);
+
+  final int componentId;
+
+  @override
+  List<Object?> get props => [componentId];
+}
+
+final class TasksFieldFilterChanged extends TasksEvent {
+  const TasksFieldFilterChanged(this.fieldId, this.filter);
+
+  final int fieldId;
+  final TaskFieldFilter? filter;
+
+  @override
+  List<Object?> get props => [fieldId, filter];
+}
+
 /// Установить фильтр по автору (null = все авторы).
 final class TasksAuthorFilterChanged extends TasksEvent {
   const TasksAuthorFilterChanged(this.userId);

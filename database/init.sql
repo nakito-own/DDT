@@ -96,7 +96,10 @@ CREATE TABLE IF NOT EXISTS app_sessions (
   ews_account_id INT NOT NULL,
   remember_me BOOLEAN NOT NULL DEFAULT FALSE,
   expires_at DATETIME NOT NULL,
+  device_name VARCHAR(255) NULL,
+  os_name VARCHAR(128) NULL,
+  ip_country VARCHAR(128) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_app_sessions_account (ews_account_id),
+  KEY idx_app_sessions_account (ews_account_id),
   FOREIGN KEY (ews_account_id) REFERENCES ews_accounts(id) ON DELETE CASCADE
 );

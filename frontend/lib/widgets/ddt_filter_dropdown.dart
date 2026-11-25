@@ -105,6 +105,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
     this.multi = true,
     this.emptyLabel = 'Нет значений',
     this.tint,
+    this.height,
   });
 
   final String summary;
@@ -115,6 +116,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
   final bool multi;
   final String emptyLabel;
   final Color? tint;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +126,7 @@ class DdtSearchableFilterDropdown extends StatelessWidget {
           label: summary,
           active: active,
           tint: tint,
+          height: height,
           badge: multi ? selected.length : 0,
           onTap: () => showDdtSearchableFilterMenu(
             context: context,
@@ -193,6 +196,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
     this.compact = false,
     this.frosted = false,
     this.tint,
+    this.height,
   });
 
   final String label;
@@ -202,6 +206,7 @@ class DdtFilterDropdownAnchor extends StatefulWidget {
   final int badge;
   final bool compact;
   final bool frosted;
+  final double? height;
 
   /// Цвет выбранного значения. Заливка, обводка и текст берутся из него.
   final Color? tint;
@@ -270,9 +275,10 @@ class _DdtFilterDropdownAnchorState extends State<DdtFilterDropdownAnchor> {
               duration: DdtTheme.selectionAnimationDuration,
               curve: DdtTheme.selectionAnimationCurve,
               width: double.infinity,
-              height: widget.compact
-                  ? kDdtCompactFilterDropdownHeight
-                  : DdtTheme.compactInputControlHeight,
+              height: widget.height ??
+                  (widget.compact
+                      ? kDdtCompactFilterDropdownHeight
+                      : DdtTheme.compactInputControlHeight),
               alignment: Alignment.center,
               padding: EdgeInsets.symmetric(
                 horizontal: widget.compact ? 10.w : 12.w,

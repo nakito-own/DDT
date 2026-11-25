@@ -108,7 +108,6 @@ FIELDS: tuple[Field, ...] = (
     Field("changed_data_work", "changed_data_work", "date"),
     Field("created_date_version", "created_date_version", "date"),
     Field("changed_date_version", "changed_date_version", "date"),
-    Field("geometry_2d", "geometry_2d", "text"),
     Field("ref_13048_id", "13048_id_unique", "str", 64),
     Field("ref_13049_id", "13049_id_unique", "str", 64),
 )
@@ -119,7 +118,7 @@ _FALSE = {"false", "0", "no", "нет"}
 
 
 def upsert_sql() -> str:
-    columns = [field.column for field in FIELDS] + ["snapshot_date"]
+    columns = [field.column for field in FIELDS] + ["snapshot_date", "sync_generation"]
     assignments = ", ".join(
         f"{column} = new_row.{column}"
         for column in columns
@@ -132,6 +131,11 @@ def upsert_sql() -> str:
         f"VALUES ({placeholders}) AS new_row "
         f"ON DUPLICATE KEY UPDATE {assignments}, synced_at = CURRENT_TIMESTAMP"
     )
+
+
+def dtw_attributes() -> str:
+    """DTW wants attributes separated by a comma and a space, unencoded."""
+    return ", ".join(field.key for field in FIELDS)
 
 
 def encode_row(raw: dict, snapshot_date: date) -> tuple | None:

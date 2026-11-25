@@ -97,6 +97,8 @@ abstract final class DdtIcons {
   static const FaIconData fileZip = FontAwesomeIcons.fileZipper;
   static const FaIconData fileTable = FontAwesomeIcons.table;
   static const FaIconData drafts = FontAwesomeIcons.filePen;
+  static const FaIconData laptop = FontAwesomeIcons.laptop;
+  static const FaIconData mobile = FontAwesomeIcons.mobileScreen;
   static const FaIconData globe = FontAwesomeIcons.globe;
   static const FaIconData book = FontAwesomeIcons.book;
 

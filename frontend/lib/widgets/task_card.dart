@@ -245,6 +245,12 @@ class _TaskCardTags extends StatelessWidget {
           color: statusColumnColor(task.status),
         ),
         if (task.type != null) TaskTypeBadge(label: task.type!.name),
+        for (final component in task.components)
+          if (component.name.isNotEmpty)
+            _MetaTag(icon: DdtIcons.grid, label: component.name),
+        for (final field in task.fieldValues)
+          if (!field.isEmpty)
+            _MetaTag(icon: DdtIcons.penToSquare, label: '${field.name}: ${field.displayValue}'),
         if (task.priority != null) TaskPriorityBadge(priority: task.priority!),
         if (task.comments.isNotEmpty)
           _MetaTag(icon: DdtIcons.comment, label: '${task.comments.length}'),

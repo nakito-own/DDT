@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../models/queue_settings.dart';
 import '../../models/task.dart';
 import '../../models/task_priority.dart';
 import '../../models/task_ref.dart';
@@ -48,6 +49,8 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     on<TasksStatusFilterToggled>(_onStatusFilterToggled);
     on<TasksPriorityFilterChanged>(_onPriorityFilterChanged);
     on<TasksTypeFilterChanged>(_onTypeFilterChanged);
+    on<TasksComponentFilterToggled>(_onComponentFilterToggled);
+    on<TasksFieldFilterChanged>(_onFieldFilterChanged);
     on<TasksAuthorFilterChanged>(_onAuthorFilterChanged);
     on<TasksExecutorFilterChanged>(_onExecutorFilterChanged);
     on<TasksResponsibleFilterChanged>(_onResponsibleFilterChanged);
@@ -89,14 +92,15 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
         isLoading: true,
         errorMessage: () => null,
         columns: event.reset
-            ? {for (final status in TaskStatus.values) status: <Task>[]}
+            ? {for (final status in state.boardStatuses) status: <Task>[]}
             : null,
         taskTypes: event.reset ? const [] : null,
       ),
     );
 
     try {
-      final types = await _api.fetchTaskTypes();
+      final queue = await _api.fetchQueueSettings();
+      final types = queue.types;
       if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
       final includeArchived = archivedOnly || state.showArchived;
       final tasks = archivedOnly
@@ -108,14 +112,23 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
           : const <Task>[];
       if (request != _boardRequest || requestedSpace != _api.spaceKey) return;
 
-      final columns = _groupTasks([
-        ...tasks,
-        ...archived,
-      ], includeArchived: includeArchived);
+      final board = _boardStatuses(queue.statuses, [...tasks, ...archived]);
+      final selectAll = state.statuses.every(state.statusFilters.contains);
+      final columns = _groupTasks(
+        [...tasks, ...archived],
+        includeArchived: includeArchived,
+        statuses: board,
+      );
       emit(
         state.copyWith(
           isLoading: false,
+          statuses: board,
           taskTypes: types,
+          queueFields: queue.fields,
+          queueComponents: queue.components,
+          statusFilters: selectAll
+              ? board.toSet()
+              : state.statusFilters.where(board.contains).toSet(),
           columns: columns,
           errorMessage: () => null,
         ),
@@ -136,6 +149,10 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       state.copyWith(
         columns: {for (final s in TaskStatus.values) s: <Task>[]},
         taskTypes: [],
+        queueFields: const [],
+        queueComponents: const [],
+        componentFilters: const {},
+        fieldFilters: const {},
         errorMessage: () => null,
         viewMode: TasksViewMode.list,
         spaceViewMode: TasksViewMode.list,
@@ -205,6 +222,29 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     emit(state.copyWith(typeFilter: () => event.typeId));
   }
 
+  void _onComponentFilterToggled(
+    TasksComponentFilterToggled event,
+    Emitter<TasksState> emit,
+  ) {
+    final next = Set<int>.from(state.componentFilters);
+    if (!next.add(event.componentId)) next.remove(event.componentId);
+    emit(state.copyWith(componentFilters: next));
+  }
+
+  void _onFieldFilterChanged(
+    TasksFieldFilterChanged event,
+    Emitter<TasksState> emit,
+  ) {
+    final next = Map<int, TaskFieldFilter>.from(state.fieldFilters);
+    final filter = event.filter;
+    if (filter == null || !filter.isActive) {
+      next.remove(event.fieldId);
+    } else {
+      next[event.fieldId] = filter;
+    }
+    emit(state.copyWith(fieldFilters: next));
+  }
+
   void _onAuthorFilterChanged(
     TasksAuthorFilterChanged event,
     Emitter<TasksState> emit,
@@ -253,9 +293,11 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     emit(
       state.copyWith(
         searchQuery: '',
-        statusFilters: Set.of(TaskStatus.values),
+        statusFilters: state.boardStatuses.toSet(),
         priorityFilter: () => null,
         typeFilter: () => null,
+        componentFilters: const {},
+        fieldFilters: const {},
         authorFilter: () => null,
         executorFilter: () => null,
         responsibleFilter: () => null,
@@ -337,6 +379,11 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
             : draft.comments.first.text,
         parentKey: draft.parent?.key,
         childKeys: draft.children.map((child) => child.key).toList(),
+        fieldValues: draft.queueRulesSpecified ? draft.fieldValues : null,
+        componentIds: draft.queueRulesSpecified
+            ? [for (final item in draft.components) item.id]
+            : null,
+        notifications: draft.queueRulesSpecified ? draft.notifications : null,
       );
       final columns = _syncTaskRelations(
         _replaceTaskInColumns(state.columns, original: draft, saved: created),
@@ -511,16 +558,29 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
+  List<TaskStatus> _boardStatuses(List<TaskStatus> configured, List<Task> tasks) {
+    final statuses = configured.isEmpty
+        ? List<TaskStatus>.of(TaskStatus.values)
+        : List<TaskStatus>.of(configured);
+    for (final task in tasks) {
+      if (statuses.any((status) => status == task.status)) continue;
+      statuses.add(task.status);
+    }
+    return statuses;
+  }
+
   Map<TaskStatus, List<Task>> _groupTasks(
     Iterable<Task> tasks, {
     required bool includeArchived,
+    List<TaskStatus>? statuses,
   }) {
-    final columns = {for (final status in TaskStatus.values) status: <Task>[]};
+    final order = statuses ?? state.boardStatuses;
+    final columns = {for (final status in order) status: <Task>[]};
     final seen = <int>{};
     for (final task in tasks) {
       if (task.deleted || !seen.add(task.id)) continue;
       if (task.archive && !includeArchived) continue;
-      columns[task.status]?.add(task);
+      columns.putIfAbsent(task.status, () => <Task>[]).add(task);
     }
     return columns;
   }
@@ -677,6 +737,12 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
     return next.copyWith(children: cleaned);
   }
 
+  String _fieldKey(List<TaskFieldValue> values) {
+    return [
+      for (final field in values) '${field.fieldId}:${field.value}',
+    ].join('|');
+  }
+
   Map<String, dynamic> _buildUpdatePayload(Task original, Task updated) {
     final payload = <String, dynamic>{};
 
@@ -716,6 +782,25 @@ class TasksBloc extends Bloc<TasksEvent, TasksState> {
       original.deadline?.toUtc().toIso8601String(),
     );
     putIfChanged('priority', updated.priority?.value, original.priority?.value);
+    if (updated.queueRulesSpecified) {
+      final fieldsChanged = _fieldKey(updated.fieldValues) !=
+          _fieldKey(original.fieldValues);
+      if (fieldsChanged) {
+        payload['field_values'] = [
+          for (final field in updated.fieldValues) field.toJson(),
+        ];
+      }
+      final nextComponents = [for (final item in updated.components) item.id]
+        ..sort();
+      final prevComponents = [for (final item in original.components) item.id]
+        ..sort();
+      if (nextComponents.join(',') != prevComponents.join(',')) {
+        payload['component_ids'] = nextComponents;
+      }
+      if (updated.notifications != original.notifications) {
+        payload['notifications'] = updated.notifications.toJson();
+      }
+    }
     putIfChanged(
       'parent_key',
       updated.parent?.key ?? '',
