@@ -4,12 +4,14 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../models/app_session_device.dart';
 import '../models/calendar_event.dart';
 import '../models/colleague_calendar.dart';
 import '../models/contact.dart';
 import '../models/mail_inbox_options.dart';
 import '../models/mail_message.dart';
 import '../models/user_profile.dart';
+import '../utils/client_device.dart';
 import 'api_client.dart';
 import 'attachment_download.dart';
 import 'owa_client.dart';
@@ -57,6 +59,7 @@ class EwsApi {
     required String email,
     required bool rememberMe,
   }) async {
+    final device = readClientDevice();
     final response = await _client.post(
       '/api/ews/auth/login',
       auth: false,
@@ -66,6 +69,8 @@ class EwsApi {
         'password': password,
         'email': email,
         'remember_me': rememberMe,
+        'device_name': device.name,
+        'os_name': device.os,
       },
     );
 
@@ -106,6 +111,31 @@ class EwsApi {
       expiresAt: DateTime.parse(data['expires_at'] as String),
       user: UserProfile.fromJson(data['user'] as Map<String, dynamic>),
     );
+  }
+
+  Future<List<AppSessionDevice>> loadSessions() async {
+    final device = readClientDevice();
+    final response = await _client.post(
+      '/api/ews/auth/sessions/current',
+      body: {'device_name': device.name, 'os_name': device.os},
+    );
+    if (response.statusCode != 200) {
+      throw Exception(_readError(response) ?? 'Не удалось загрузить устройства');
+    }
+    final data = ApiClient.decodeMap(response);
+    final sessions = data['sessions'];
+    if (sessions is! List) return const [];
+    return [
+      for (final item in sessions)
+        if (item is Map) AppSessionDevice.fromJson(Map<String, dynamic>.from(item)),
+    ];
+  }
+
+  Future<void> revokeSession(int sessionId) async {
+    final response = await _client.delete('/api/ews/auth/sessions/$sessionId');
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw Exception(_readError(response) ?? 'Не удалось завершить сессию');
+    }
   }
 
   Future<void> logout() async {

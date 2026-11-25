@@ -21,6 +21,26 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
     username: str | None = None
     remember_me: bool = True
+    device_name: str | None = Field(default=None, max_length=255)
+    os_name: str | None = Field(default=None, max_length=128)
+
+
+class SessionDeviceRequest(BaseModel):
+    device_name: str | None = Field(default=None, max_length=255)
+    os_name: str | None = Field(default=None, max_length=128)
+
+
+class SessionDeviceResponse(BaseModel):
+    id: int
+    device_name: str | None = None
+    os_name: str | None = None
+    ip_country: str | None = None
+    logged_in_at: datetime
+    is_current: bool
+
+
+class SessionDeviceListResponse(BaseModel):
+    sessions: list[SessionDeviceResponse]
 
 
 class LoginResponse(BaseModel):

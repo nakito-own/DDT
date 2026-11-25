@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ddt_frontend/blocs/tasks/tasks_bloc.dart';
+import 'package:ddt_frontend/models/queue_settings.dart';
 import 'package:ddt_frontend/models/task.dart';
 import 'package:ddt_frontend/models/task_status.dart';
 import 'package:ddt_frontend/models/task_type.dart';
@@ -55,6 +56,9 @@ void main() {
 }
 
 class _WidgetTestTasksApi extends TasksApi {
+  @override
+  Future<QueueSettings> fetchQueueSettings() async => QueueSettings.fallback();
+
   @override
   Future<List<TaskType>> fetchTaskTypes() async => const [];
 

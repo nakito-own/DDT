@@ -6,6 +6,7 @@
 
 import logging
 import threading
+import time
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -15,11 +16,12 @@ from app.config import settings
 from app.db import get_db
 from app.services.analytics_processor import analytics_now
 from app.services.dtw_client import DtwClient, DtwError, DtwNotConfiguredError
-from app.services.krr_records import encode_row, upsert_sql
+from app.services.krr_records import dtw_attributes, encode_row, upsert_sql
 
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 40
+_DELETE_BATCH = 200
 _MAX_PAGES = 500
 _DB_TIMEOUT = 120
 # DTW itself accepts this page size. The browser splits each page into
@@ -53,6 +55,8 @@ class KrrDatasetService:
         self._thread: threading.Thread | None = None
         self._relay_token: str | None = None
         self._relay_seen: set[tuple[int | None, ...]] = set()
+        self._relay_generation = 0
+        self._relay_stored = 0
 
     def start_sync(self, *, force: bool = False) -> tuple[dict[str, Any], bool]:
         today = _today()
@@ -68,7 +72,7 @@ class KrrDatasetService:
             self._mark_running(today)
             self._thread = threading.Thread(
                 target=self._sync,
-                args=(today,),
+                args=(today, self._next_generation()),
                 name="krr-sync",
                 daemon=True,
             )
@@ -87,6 +91,7 @@ class KrrDatasetService:
                 payload["page_size"] = _RELAY_PAGE_SIZE
                 payload["offset_param"] = settings.dtw_offset_param
                 payload["limit_param"] = settings.dtw_limit_param
+                payload["attributes"] = dtw_attributes()
                 payload["base_url"] = ""
                 payload["login"] = ""
                 payload["password"] = ""
@@ -95,8 +100,9 @@ class KrrDatasetService:
                 raise DtwNotConfiguredError()
             self._relay_token = uuid.uuid4().hex
             self._relay_seen = set()
+            self._relay_generation = self._next_generation()
+            self._relay_stored = 0
             self._mark_running(today)
-            self._clear_snapshot_rows(today)
             payload = self.status(fetched_from_api=False)
             payload.update(
                 {
@@ -108,6 +114,7 @@ class KrrDatasetService:
                     "page_size": _RELAY_PAGE_SIZE,
                     "offset_param": settings.dtw_offset_param.strip() or "offset",
                     "limit_param": settings.dtw_limit_param.strip() or "limit",
+                    "attributes": dtw_attributes(),
                 }
             )
             return payload
@@ -134,8 +141,9 @@ class KrrDatasetService:
             )
         with self._lock:
             snapshot_date = self._require_relay(sync_id)
-            accepted = self._insert_rows(rows, snapshot_date)
-            stored = self._count_rows(snapshot_date)
+            accepted = self._insert_rows(rows, snapshot_date, self._relay_generation)
+            self._relay_stored += accepted
+            stored = self._relay_stored
             self._update_progress(
                 snapshot_date,
                 name=name.strip(),
@@ -153,27 +161,33 @@ class KrrDatasetService:
     def finish_client_sync(self, sync_id: str) -> dict[str, Any]:
         with self._lock:
             snapshot_date = self._require_relay(sync_id)
-            stored = self._count_rows(snapshot_date)
-            if stored <= 0:
-                self._relay_token = None
-                self._relay_seen = set()
-                self._clear_snapshot_rows(snapshot_date)
-                self._fail(snapshot_date, "DTW не вернул строк набора КРР.")
-                raise KrrRelayError("DTW не вернул строк набора КРР.", 502)
-            self._commit(snapshot_date)
+            generation = self._relay_generation
+            accepted = self._relay_stored
             self._relay_token = None
             self._relay_seen = set()
-        logger.info("KRR relay stored %s rows for %s", stored, snapshot_date.isoformat())
+            self._relay_stored = 0
+        if accepted <= 0:
+            self._fail(snapshot_date, "DTW не вернул строк набора КРР.")
+            raise KrrRelayError("DTW не вернул строк набора КРР.", 502)
+        self._drop_other_generations(snapshot_date, generation)
+        self._commit(snapshot_date)
+        logger.info(
+            "KRR relay stored %s rows for %s",
+            accepted,
+            snapshot_date.isoformat(),
+        )
         return self.status(fetched_from_api=True)
 
     def abort_client_sync(self, sync_id: str, message: str) -> None:
         text = message.strip() or "Не удалось загрузить набор КРР."
         with self._lock:
             snapshot_date = self._require_relay(sync_id)
+            generation = self._relay_generation
             self._relay_token = None
             self._relay_seen = set()
-            self._clear_snapshot_rows(snapshot_date)
-            self._fail(snapshot_date, text[:2000])
+            self._relay_stored = 0
+        self._drop_generation(snapshot_date, generation)
+        self._restore_or_fail(snapshot_date, text[:2000])
         logger.info("KRR relay aborted: %s", text[:240])
 
     def status(self, *, fetched_from_api: bool = False) -> dict[str, Any]:
@@ -290,11 +304,17 @@ class KrrDatasetService:
             return None
         return _public_row(row)
 
-    def _sync(self, snapshot_date: date) -> None:
+    def _sync(self, snapshot_date: date, generation: int) -> None:
         try:
-            self._clear_snapshot_rows(snapshot_date)
             client = DtwClient()
-            stored = self._download(client, snapshot_date)
+            stored = self._download(client, snapshot_date, generation)
+            if stored <= 0:
+                self._restore_or_fail(
+                    snapshot_date,
+                    "DTW не вернул строк набора КРР.",
+                )
+                return
+            self._drop_other_generations(snapshot_date, generation)
             self._commit(snapshot_date)
             logger.info(
                 "KRR sync stored %s rows for %s",
@@ -303,11 +323,11 @@ class KrrDatasetService:
             )
         except Exception as exc:
             logger.exception("KRR dataset sync failed")
-            self._clear_snapshot_rows(snapshot_date)
+            self._drop_generation(snapshot_date, generation)
             message = str(exc).strip() or "Не удалось загрузить набор КРР."
-            self._fail(snapshot_date, message[:2000])
+            self._restore_or_fail(snapshot_date, message[:2000])
 
-    def _download(self, client: DtwClient, snapshot_date: date) -> int:
+    def _download(self, client: DtwClient, snapshot_date: date, generation: int) -> int:
         page_size = max(1, settings.dtw_page_size)
         offset = 0
         total = 0
@@ -340,7 +360,7 @@ class KrrDatasetService:
                 )
             seen_pages.add(signature)
 
-            stored += self._insert_rows(rows, snapshot_date)
+            stored += self._insert_rows(rows, snapshot_date, generation)
             self._update_progress(
                 snapshot_date,
                 name=name,
@@ -368,7 +388,7 @@ class KrrDatasetService:
             )
         return stored
 
-    def _insert_rows(self, rows: list[Any], snapshot_date: date) -> int:
+    def _insert_rows(self, rows: list[Any], snapshot_date: date, generation: int) -> int:
         encoded: list[tuple] = []
         skipped = 0
         for raw in rows:
@@ -376,7 +396,7 @@ class KrrDatasetService:
             if item is None:
                 skipped += 1
                 continue
-            encoded.append(item)
+            encoded.append((*item, generation))
         if skipped:
             logger.warning("Skipped %s KRR rows without id_unique", skipped)
         if not encoded:
@@ -389,17 +409,9 @@ class KrrDatasetService:
 
     def _commit(self, snapshot_date: date) -> None:
         keep_from = snapshot_date - timedelta(days=1)
+        stored = self._count_rows(snapshot_date)
         with get_db(write_timeout=_DB_TIMEOUT) as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) AS row_count
-                    FROM krr_work_versions
-                    WHERE snapshot_date = %s
-                    """,
-                    (snapshot_date,),
-                )
-                stored = int(cursor.fetchone()["row_count"])
                 cursor.execute(
                     """
                     UPDATE krr_daily_snapshots
@@ -412,24 +424,69 @@ class KrrDatasetService:
                     (stored, snapshot_date),
                 )
                 cursor.execute(
-                    "DELETE FROM krr_work_versions WHERE snapshot_date < %s",
-                    (keep_from,),
-                )
-                cursor.execute(
                     "DELETE FROM krr_daily_snapshots WHERE snapshot_date < %s",
                     (keep_from,),
                 )
+        self._delete_in_batches(
+            "DELETE FROM krr_work_versions WHERE snapshot_date < %s",
+            (keep_from,),
+        )
 
-    def _clear_snapshot_rows(self, snapshot_date: date) -> None:
+    def _next_generation(self) -> int:
+        generation = int(time.time())
+        if generation <= self._relay_generation:
+            generation = self._relay_generation + 1
+        self._relay_generation = generation
+        return generation
+
+    def _drop_generation(self, snapshot_date: date, generation: int) -> None:
+        self._delete_in_batches(
+            """
+            DELETE FROM krr_work_versions
+            WHERE snapshot_date = %s AND sync_generation = %s
+            """,
+            (snapshot_date, generation),
+        )
+
+    def _drop_other_generations(self, snapshot_date: date, generation: int) -> None:
+        self._delete_in_batches(
+            """
+            DELETE FROM krr_work_versions
+            WHERE snapshot_date = %s AND sync_generation <> %s
+            """,
+            (snapshot_date, generation),
+        )
+
+    def _delete_in_batches(self, sql: str, params: tuple) -> None:
+        statement = sql.strip() + " LIMIT %s"
         try:
-            with get_db(write_timeout=_DB_TIMEOUT) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        "DELETE FROM krr_work_versions WHERE snapshot_date = %s",
-                        (snapshot_date,),
-                    )
+            while True:
+                with get_db(write_timeout=_DB_TIMEOUT) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(statement, (*params, _DELETE_BATCH))
+                        if cursor.rowcount <= 0:
+                            return
         except Exception:
-            logger.exception("Failed to clear KRR snapshot %s", snapshot_date)
+            logger.exception("Failed to delete KRR rows in batches")
+
+    def _restore_or_fail(self, snapshot_date: date, message: str) -> None:
+        remaining = self._count_rows(snapshot_date)
+        if remaining <= 0:
+            self._fail(snapshot_date, message)
+            return
+        with get_db() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE krr_daily_snapshots
+                    SET status = 'succeeded',
+                        stored_count = %s,
+                        error_message = NULL,
+                        finished_at = CURRENT_TIMESTAMP
+                    WHERE snapshot_date = %s
+                    """,
+                    (remaining, snapshot_date),
+                )
 
     def _mark_running(self, snapshot_date: date) -> None:
         with get_db() as conn:
@@ -520,8 +577,13 @@ class KrrDatasetService:
                 )
             if page_start and signature:
                 self._relay_seen.add(signature)
-            accepted = self._insert_rows(rows, snapshot_date) if rows else 0
-            stored = self._count_rows(snapshot_date)
+            accepted = (
+                self._insert_rows(rows, snapshot_date, self._relay_generation)
+                if rows
+                else 0
+            )
+            self._relay_stored += accepted
+            stored = self._relay_stored
             self._update_progress(
                 snapshot_date,
                 name=name,

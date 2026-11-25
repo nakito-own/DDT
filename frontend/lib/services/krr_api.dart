@@ -39,13 +39,16 @@ class KrrApi {
       pageSize: _asInt(begin['page_size'], fallback: 200),
       offsetParam: _param(begin['offset_param'], 'offset'),
       limitParam: _param(begin['limit_param'], 'limit'),
+      attributes: begin['attributes']?.toString() ?? '',
     );
+    // The next DTW page is downloaded while the current one is posted.
+    // Uploads stay in order: the server accepts one slice at a time.
+    Future<String>? prefetched;
     try {
       var offset = 0;
       var finished = false;
+      var raw = await relay.loadPage(offset);
       for (var page = 0; page < DtwRelay.maxPages; page++) {
-        await _yieldFrame();
-        final raw = await relay.loadPage(offset);
         await _yieldFrame();
         final parsed = splitDtwPage(raw);
         if (parsed.rows.isEmpty) {
@@ -56,6 +59,9 @@ class KrrApi {
             parsed.rows.length < relay.pageSize ||
             (parsed.totalCount > 0 &&
                 offset + parsed.rows.length >= parsed.totalCount);
+        if (!pageEnds && page + 1 < DtwRelay.maxPages) {
+          prefetched = relay.loadPage(offset + parsed.rows.length);
+        }
         var index = 0;
         var pageStart = true;
         while (index < parsed.rows.length) {
@@ -87,6 +93,12 @@ class KrrApi {
           finished = true;
           break;
         }
+        final next = prefetched;
+        prefetched = null;
+        if (next == null) {
+          break;
+        }
+        raw = await next;
       }
       if (!finished) {
         throw Exception('Загрузка КРР остановлена: слишком много страниц.');
@@ -96,6 +108,8 @@ class KrrApi {
       await _abort(syncId, error);
       rethrow;
     } finally {
+      // A page may already be in flight when the upload stops early.
+      prefetched?.then((_) {}, onError: (_) {});
       relay.close();
     }
   }

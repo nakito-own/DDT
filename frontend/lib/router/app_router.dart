@@ -21,6 +21,7 @@ import '../screens/mail_page.dart';
 import '../utils/mail_compose.dart';
 import '../screens/notes_page.dart';
 import '../screens/main_shell_page.dart';
+import '../screens/queue_settings_page.dart';
 import '../screens/settings_page.dart';
 import '../screens/task_create_page.dart';
 import '../screens/task_details_page.dart';
@@ -130,6 +131,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
                             : TaskEditPage(taskKey: taskKey),
                       );
                     },
+                  ),
+                  GoRoute(
+                    path: 'settings',
+                    name: RoutePaths.nameTasksSettings,
+                    pageBuilder: (context, state) => _buildFullscreenPage(
+                      key: state.pageKey,
+                      child: const QueueSettingsPage(),
+                    ),
                   ),
                   GoRoute(
                     path: 'new',
@@ -260,6 +269,14 @@ AppRouter createAppRouter(AuthBloc authBloc) {
               );
             },
             routes: [
+              GoRoute(
+                path: '/space/:spaceKey/settings',
+                name: RoutePaths.nameSpaceSettings,
+                pageBuilder: (context, state) => _buildFullscreenPage(
+                  key: state.pageKey,
+                  child: const QueueSettingsPage(),
+                ),
+              ),
               GoRoute(
                 path: '/space/:spaceKey/new',
                 name: RoutePaths.nameSpaceTaskCreate,

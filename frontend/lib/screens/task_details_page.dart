@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme/ddt_icons.dart';
 
 import '../blocs/tasks/tasks_bloc.dart';
+import '../models/queue_settings.dart';
 import '../models/task.dart';
 import '../models/task_link.dart';
 import '../models/task_priority.dart';
@@ -25,6 +26,7 @@ import '../widgets/ddt_desktop_shortcuts.dart';
 import '../widgets/ddt_round_back_button.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/task_comments_section.dart';
+import '../widgets/task_queue_rules.dart';
 import 'task_create_page.dart';
 import '../theme/ddt_typography.dart';
 import '../widgets/ddt_icon.dart';
@@ -298,6 +300,8 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                           SizedBox(height: 16.h),
                           _TaskDescription(task: task),
                           SizedBox(height: 20.h),
+                          _TaskRelationsBlock(task: task),
+                          SizedBox(height: 20.h),
                           _TaskParametersPanel(
                             task: task,
                             pinned: false,
@@ -500,6 +504,8 @@ class _TaskMainContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _TaskDescription(task: task, showHeading: false),
+          SizedBox(height: 20.h),
+          _TaskRelationsBlock(task: task),
           Divider(
             height: 32.h,
             thickness: 1,
@@ -928,6 +934,9 @@ Task _parameterEdit(
   bool parentSpecified = false,
   TaskRef? parent,
   List<TaskRef>? children,
+  List<TaskFieldValue>? fieldValues,
+  List<TaskComponentRef>? components,
+  TaskNotifications? notifications,
 }) {
   return Task(
     id: task.id,
@@ -954,9 +963,106 @@ Task _parameterEdit(
     deleted: task.deleted,
     archive: task.archive,
     comments: task.comments,
+    fieldValues: fieldValues ?? task.fieldValues,
+    components: components ?? task.components,
+    notifications: notifications ?? task.notifications,
+    queueRulesSpecified: true,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
   );
+}
+
+class _TaskRelationsBlock extends StatelessWidget {
+  const _TaskRelationsBlock({required this.task});
+
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    final parent = task.parent;
+    final children = task.children;
+    if (parent == null && children.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Связи',
+          style: DdtTheme.style(
+            fontSize: DdtTypography.labelSize,
+            fontWeight: FontWeight.w600,
+            color: DdtTheme.sidePanelTextMuted(context),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        if (parent != null)
+          _TaskRelationLink(task: task, related: parent, role: 'Родитель'),
+        for (final child in children)
+          _TaskRelationLink(task: task, related: child, role: 'Дочерняя'),
+      ],
+    );
+  }
+}
+
+class _TaskRelationLink extends StatelessWidget {
+  const _TaskRelationLink({
+    required this.task,
+    required this.related,
+    required this.role,
+  });
+
+  final Task task;
+  final TaskRef related;
+  final String role;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isDark ? DdtTheme.accentColor : DdtTheme.primaryColor;
+    final title = related.title.trim().isEmpty
+        ? related.key
+        : '${related.key} · ${related.title}';
+
+    return InkWell(
+      onTap: () => context.push(
+        RoutePaths.forTask(
+          taskKey: related.key,
+          spaceId: task.spaceId,
+          spaceKey: task.spaceKey,
+        ),
+      ),
+      borderRadius: DdtTheme.radius,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 6.h),
+        child: Row(
+          children: [
+            DdtIcon(DdtIcons.link, size: 14.sp, color: accent),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DdtTheme.style(
+                  fontSize: DdtTypography.labelSize,
+                  fontWeight: FontWeight.w500,
+                  color: accent,
+                ),
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Text(
+              role,
+              style: DdtTheme.style(
+                fontSize: DdtTypography.captionSize,
+                color: DdtTheme.sidePanelTextMuted(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TaskParametersPanel extends StatelessWidget {
@@ -1050,6 +1156,7 @@ class _TaskParametersPanel extends StatelessWidget {
         TaskParametersForm(
           tintValues: true,
           personal: personal,
+          statuses: bloc.state.boardStatuses,
           taskTypes: bloc.state.taskTypes,
           candidates: candidates,
           status: task.status,
@@ -1132,6 +1239,27 @@ class _TaskParametersPanel extends StatelessWidget {
           ),
           onParent: (key) => _setParent(key, candidates),
           onToggleChild: (key) => _toggleChild(key, candidates),
+        ),
+        TaskQueueRulesLoader(
+          spaceKey: task.spaceKey ?? bloc.spaceKey,
+          showNotifications: false,
+          fieldValues: task.fieldValues,
+          componentIds: [for (final item in task.components) item.id],
+          notifications: task.notifications,
+          onFieldValues: (values) => onChanged(
+            _parameterEdit(task, fieldValues: values),
+          ),
+          onComponentIds: (ids) => onChanged(
+            _parameterEdit(
+              task,
+              components: [
+                for (final id in ids) TaskComponentRef(id: id, name: ''),
+              ],
+            ),
+          ),
+          onNotifications: (value) => onChanged(
+            _parameterEdit(task, notifications: value),
+          ),
         ),
         if (links.isNotEmpty) ...[
           SizedBox(height: 8.h),

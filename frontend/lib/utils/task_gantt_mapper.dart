@@ -7,7 +7,6 @@ import 'package:flutter_gantt/flutter_gantt.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../models/task.dart';
-import '../models/task_status.dart';
 import '../theme/ddt_theme.dart';
 import '../utils/task_formatters.dart';
 import '../theme/ddt_typography.dart';
@@ -65,7 +64,7 @@ const int ganttUnfinishedFadeDays = 3;
 /// and only fades on the following days.
 DateTime taskGanttVisualEnd(Task task) {
   final scheduled = taskGanttEnd(task);
-  if (task.status == TaskStatus.done) return scheduled;
+  if (task.status.isClosed) return scheduled;
 
   final fadeThrough = ganttToday().add(
     const Duration(days: ganttUnfinishedFadeDays),
@@ -131,7 +130,7 @@ class _TaskGanttBar extends StatelessWidget {
     final statusColor = task == null
         ? AppColors.primary
         : statusColumnColor(task.status);
-    final unfinished = task == null || task.status != TaskStatus.done;
+    final unfinished = task == null || !task.status.isClosed;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(6.r);
     final fill = statusColor.withValues(alpha: isDark ? 0.30 : 0.18);

@@ -10,6 +10,8 @@ from app.schemas.task import (
     UpdateTaskStatusRequest,
 )
 from app.services.session_service import SessionContext
+from app.schemas.queue import QueueSettingsResponse, QueueSettingsWrite
+from app.services.queue_service import QueueSettingsError, queue_service
 from app.services.task_service import (
     TaskNotFoundError,
     TaskRelationError,
@@ -34,6 +36,24 @@ def list_deleted_tasks(context: SessionContext = Depends(get_current_session)):
 @router.get("/archived", response_model=list[TaskResponse])
 def list_archived_tasks(context: SessionContext = Depends(get_current_session)):
     return task_service.list_archived_tasks(context.user_id)
+
+
+@router.get("/queue-settings", response_model=QueueSettingsResponse)
+def get_personal_queue_settings(
+    context: SessionContext = Depends(get_current_session),
+):
+    return queue_service.get_personal(context.user_id)
+
+
+@router.put("/queue-settings", response_model=QueueSettingsResponse)
+def save_personal_queue_settings(
+    payload: QueueSettingsWrite,
+    context: SessionContext = Depends(get_current_session),
+):
+    try:
+        return queue_service.save_personal(context.user_id, payload)
+    except QueueSettingsError as exc:
+        raise task_relation_error(exc) from exc
 
 
 @router.post("", response_model=TaskResponse, status_code=201)

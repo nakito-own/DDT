@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../models/queue_settings.dart';
 import '../models/task.dart';
 import '../models/task_comment.dart';
 import '../models/task_link.dart';
@@ -17,6 +18,25 @@ class TasksApi {
       spaceKey == null ? '/api/tasks' : '/api/spaces/$spaceKey/tasks';
 
   String _itemPath(String taskRef) => '/api/tasks/$taskRef';
+
+  String get _queueSettingsPath => spaceKey == null
+      ? '/api/tasks/queue-settings'
+      : '/api/spaces/$spaceKey/queue-settings';
+
+  Future<QueueSettings> fetchQueueSettings() async {
+    final response = await _client.get(_queueSettingsPath);
+    _ensureSuccess(response);
+    return QueueSettings.fromJson(ApiClient.decodeMap(response));
+  }
+
+  Future<QueueSettings> saveQueueSettings(QueueSettings settings) async {
+    final response = await _client.put(
+      _queueSettingsPath,
+      body: settings.toJson(),
+    );
+    _ensureSuccess(response);
+    return QueueSettings.fromJson(ApiClient.decodeMap(response));
+  }
 
   Future<List<TaskType>> fetchTaskTypes() async {
     final response = await _client.get('/api/task-types');
@@ -64,6 +84,9 @@ class TasksApi {
     String? initialComment,
     String? parentKey,
     List<String>? childKeys,
+    List<TaskFieldValue>? fieldValues,
+    List<int>? componentIds,
+    TaskNotifications? notifications,
   }) async {
     final response = await _client.post(
       _tasksPath,
@@ -93,6 +116,10 @@ class TasksApi {
           'initial_comment': initialComment.trim(),
         if (parentKey != null && parentKey.isNotEmpty) 'parent_key': parentKey,
         if (childKeys != null && childKeys.isNotEmpty) 'child_keys': childKeys,
+        if (fieldValues != null)
+          'field_values': [for (final field in fieldValues) field.toJson()],
+        if (componentIds != null) 'component_ids': componentIds,
+        if (notifications != null) 'notifications': notifications.toJson(),
       },
     );
     _ensureSuccess(response, expectedStatus: 201);

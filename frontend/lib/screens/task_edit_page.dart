@@ -76,6 +76,9 @@ class _TaskEditPageState extends State<TaskEditPage> {
   DateTime? _deadline;
   TaskRef? _parent;
   List<TaskRef> _children = [];
+  List<TaskFieldValue> _fieldValues = [];
+  List<int> _componentIds = [];
+  TaskNotifications _notifications = const TaskNotifications();
 
   @override
   void initState() {
@@ -141,6 +144,9 @@ class _TaskEditPageState extends State<TaskEditPage> {
     _deadline = task.deadline;
     _parent = task.parent;
     _children = List<TaskRef>.of(task.children);
+    _fieldValues = List<TaskFieldValue>.of(task.fieldValues);
+    _componentIds = [for (final item in task.components) item.id];
+    _notifications = task.notifications;
     for (final link in task.links ?? const <TaskLink>[]) {
       final draft = _LinkDraft();
       draft.urlController.text = link.url;
@@ -351,6 +357,12 @@ class _TaskEditPageState extends State<TaskEditPage> {
       archive: source.archive,
       links: links,
       comments: source.comments,
+      fieldValues: _fieldValues,
+      components: [
+        for (final id in _componentIds) TaskComponentRef(id: id, name: ''),
+      ],
+      notifications: _notifications,
+      queueRulesSpecified: true,
       createdAt: source.createdAt,
       updatedAt: DateTime.now(),
     );
@@ -423,6 +435,7 @@ class _TaskEditPageState extends State<TaskEditPage> {
           children: [
             TaskParametersForm(
               personal: personal,
+              statuses: state.boardStatuses,
               taskTypes: state.taskTypes,
               candidates: candidates,
               status: _status,
@@ -449,6 +462,15 @@ class _TaskEditPageState extends State<TaskEditPage> {
               onDeadline: (value) => setState(() => _deadline = value),
               onParent: (key) => _setParentKey(key, candidates),
               onToggleChild: (key) => _toggleChildKey(key, candidates),
+            ),
+            TaskQueueRulesLoader(
+              spaceKey: widget.spaceKey ?? context.read<TasksBloc>().spaceKey,
+              fieldValues: _fieldValues,
+              componentIds: _componentIds,
+              notifications: _notifications,
+              onFieldValues: (values) => setState(() => _fieldValues = values),
+              onComponentIds: (ids) => setState(() => _componentIds = ids),
+              onNotifications: (value) => setState(() => _notifications = value),
             ),
             _LinksEditor(
               links: _links,

@@ -1,11 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from app.dependencies import bearer_scheme, get_current_session
-from app.schemas.ews import LoginRequest, LoginResponse, MeResponse, UserProfileResponse
+from app.schemas.ews import (
+    LoginRequest,
+    LoginResponse,
+    MeResponse,
+    SessionDeviceListResponse,
+    SessionDeviceRequest,
+    SessionDeviceResponse,
+    UserProfileResponse,
+)
+from app.services.client_device import resolve_device_labels
 from app.services.ews_credentials import resolve_ews_username
 from app.services.ews_runtime import EwsOverloadedError, run_blocking, run_ews
 from app.services.ews_service import EwsAuthError, EwsConnectionError, ews_service
+from app.services.geoip_service import client_ip, country_for_ip
 from app.services.session_service import SessionContext, session_service, session_user_dict
 
 router = APIRouter()
@@ -21,8 +31,40 @@ def _build_me_response(context: SessionContext, *, connected: bool) -> MeRespons
     )
 
 
+def _device_from_request(
+    request: Request, device_name: str | None, os_name: str | None
+) -> tuple[str | None, str | None, str | None]:
+    name, operating_system = resolve_device_labels(
+        device_name,
+        os_name,
+        request.headers.get("user-agent"),
+    )
+    return name, operating_system, country_for_ip(client_ip(request))
+
+
+def _session_list(context: SessionContext) -> SessionDeviceListResponse:
+    if context.ews_account_id is None:
+        return SessionDeviceListResponse(sessions=[])
+    devices = session_service.list_account_sessions(
+        context.ews_account_id, context.token_hash
+    )
+    return SessionDeviceListResponse(
+        sessions=[
+            SessionDeviceResponse(
+                id=device.id,
+                device_name=device.device_name,
+                os_name=device.os_name,
+                ip_country=device.ip_country,
+                logged_in_at=device.logged_in_at,
+                is_current=device.is_current,
+            )
+            for device in devices
+        ]
+    )
+
+
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest):
+async def login(payload: LoginRequest, request: Request):
     try:
         username = resolve_ews_username(str(payload.email), payload.username)
     except ValueError as exc:
@@ -31,6 +73,13 @@ async def login(payload: LoginRequest):
             detail=str(exc),
         ) from exc
 
+    device_name, os_name, ip_country = await run_blocking(
+        _device_from_request,
+        request,
+        payload.device_name,
+        payload.os_name,
+    )
+
     try:
         token, context = await run_blocking(
             session_service.create_session,
@@ -38,6 +87,9 @@ async def login(payload: LoginRequest):
             payload.password,
             str(payload.email),
             payload.remember_me,
+            device_name,
+            os_name,
+            ip_country,
         )
     except EwsOverloadedError as exc:
         raise HTTPException(
@@ -66,6 +118,46 @@ async def login(payload: LoginRequest):
         expires_at=context.expires_at,
         user=UserProfileResponse(**session_user_dict(context)),
     )
+
+
+@router.get("/sessions", response_model=SessionDeviceListResponse)
+def list_sessions(context: SessionContext = Depends(get_current_session)):
+    return _session_list(context)
+
+
+@router.post("/sessions/current", response_model=SessionDeviceListResponse)
+async def describe_current_session(
+    payload: SessionDeviceRequest,
+    request: Request,
+    context: SessionContext = Depends(get_current_session),
+):
+    """Store device metadata for a session opened before it was collected."""
+    device_name, os_name, ip_country = await run_blocking(
+        _device_from_request,
+        request,
+        payload.device_name,
+        payload.os_name,
+    )
+    await run_blocking(
+        session_service.remember_device_if_missing,
+        context.token_hash,
+        device_name,
+        os_name,
+        ip_country,
+    )
+    return await run_blocking(_session_list, context)
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_session(
+    session_id: int,
+    context: SessionContext = Depends(get_current_session),
+):
+    if context.ews_account_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    removed = session_service.delete_account_session(session_id, context.ews_account_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

@@ -109,6 +109,16 @@ class _SpaceAppBarActionsState extends State<_SpaceAppBarActions> {
               ? null
               : () => context.go(RoutePaths.spaceArchiveFor(selectedSpaceKey)),
         ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+        _AppBarIconAction(
+          tooltip: 'Настройки',
+          icon: DdtIcons.settings,
+          isActive: location.endsWith('/settings'),
+          glassCircle: true,
+          onPressed: selectedSpaceKey == null
+              ? null
+              : () => context.push(RoutePaths.spaceSettingsFor(selectedSpaceKey)),
+        ),
         ],
         if (!compact) SizedBox(width: DdtTheme.shellSizeOf(context, 10)),
         if (compact)
@@ -247,6 +257,14 @@ class _TasksAppBarActions extends StatelessWidget {
           isActive: archiveOpen,
           glassCircle: true,
           onPressed: () => context.go(RoutePaths.tasksArchive),
+        ),
+        SizedBox(width: DdtTheme.shellSizeOf(context, 8)),
+        _AppBarIconAction(
+          tooltip: 'Настройки',
+          icon: DdtIcons.settings,
+          isActive: location.endsWith('/settings'),
+          glassCircle: true,
+          onPressed: () => context.push(RoutePaths.tasksSettings),
         ),
       ],
     );
