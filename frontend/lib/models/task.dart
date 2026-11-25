@@ -1,4 +1,5 @@
 import '../utils/api_date_time.dart';
+import 'queue_settings.dart';
 import 'task_comment.dart';
 import 'task_link.dart';
 import 'task_priority.dart';
@@ -33,6 +34,10 @@ class Task {
     this.archive = false,
     this.links,
     this.comments = const [],
+    this.fieldValues = const [],
+    this.components = const [],
+    this.notifications = const TaskNotifications(),
+    this.queueRulesSpecified = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -62,6 +67,10 @@ class Task {
   final bool archive;
   final List<TaskLink>? links;
   final List<TaskComment> comments;
+  final List<TaskFieldValue> fieldValues;
+  final List<TaskComponentRef> components;
+  final TaskNotifications notifications;
+  final bool queueRulesSpecified;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -78,7 +87,11 @@ class Task {
       id: json['id'] as int,
       key: json['key'] as String? ?? '',
       title: json['title'] as String,
-      status: TaskStatus.fromValue(json['status'] as String),
+      status: TaskStatus.fromValue(
+        json['status'] as String? ?? 'todo',
+        label: json['status_name'] as String?,
+        category: json['status_category'] as String?,
+      ),
       typeId: json['type_id'] as int?,
       type: json['type'] != null
           ? TaskType.fromJson(json['type'] as Map<String, dynamic>)
@@ -122,6 +135,18 @@ class Task {
               )
               .toList() ??
           const [],
+      fieldValues: [
+        for (final item in json['field_values'] as List<dynamic>? ?? const [])
+          TaskFieldValue.fromJson(item as Map<String, dynamic>),
+      ],
+      components: [
+        for (final item in json['components'] as List<dynamic>? ?? const [])
+          TaskComponentRef.fromJson(item as Map<String, dynamic>),
+      ],
+      notifications: TaskNotifications.fromJson(
+        json['notifications'] as Map<String, dynamic>?,
+      ),
+      queueRulesSpecified: json['notifications'] != null,
       createdAt: json['created_at'] != null
           ? parseApiDateTime(json['created_at'] as String)
           : null,
@@ -192,6 +217,10 @@ class Task {
     bool? archive,
     List<TaskLink>? links,
     List<TaskComment>? comments,
+    List<TaskFieldValue>? fieldValues,
+    List<TaskComponentRef>? components,
+    TaskNotifications? notifications,
+    bool? queueRulesSpecified,
   }) {
     return Task(
       id: id ?? this.id,
@@ -219,6 +248,10 @@ class Task {
       archive: archive ?? this.archive,
       links: links ?? this.links,
       comments: comments ?? this.comments,
+      fieldValues: fieldValues ?? this.fieldValues,
+      components: components ?? this.components,
+      notifications: notifications ?? this.notifications,
+      queueRulesSpecified: queueRulesSpecified ?? this.queueRulesSpecified,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

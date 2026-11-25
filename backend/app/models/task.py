@@ -58,12 +58,32 @@ def map_task_ref_row(row):
     }
 
 
-def map_task_row(row, *, type_=None, links=None, comments=None, parent=None, children=None):
+def map_task_row(
+    row,
+    *,
+    type_=None,
+    links=None,
+    comments=None,
+    parent=None,
+    children=None,
+    field_values=None,
+    components=None,
+    notifications=None,
+):
+    category = row.get("status_category")
+    if not category:
+        category = {
+            "todo": "open",
+            "in_progress": "active",
+            "done": "closed",
+        }.get(row.get("status"), "open")
     return {
         "id": row["id"],
         "key": row.get("task_key") or "",
         "title": row["title"],
         "status": row["status"],
+        "status_name": row.get("status_name") or row["status"],
+        "status_category": category,
         "type_id": row["type_id"],
         "type": type_,
         "description": row["description"],
@@ -85,6 +105,16 @@ def map_task_row(row, *, type_=None, links=None, comments=None, parent=None, chi
         "comments": comments or [],
         "parent": parent,
         "children": children or [],
+        "field_values": field_values or [],
+        "components": components or [],
+        "notifications": notifications
+        or {
+            "notify_assigned": True,
+            "notify_updated": True,
+            "notify_comment": True,
+            "notify_deleted": True,
+            "deadline_reminder_hours": None,
+        },
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

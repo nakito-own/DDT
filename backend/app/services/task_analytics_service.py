@@ -94,11 +94,33 @@ def _as_datetime(value: datetime | date | None) -> datetime | None:
     return None
 
 
+def _is_closed(row: dict) -> bool:
+    category = row.get("status_category")
+    if category:
+        return category == "closed"
+    return row.get("status") == TaskStatus.DONE.value
+
+
+def _is_active(row: dict) -> bool:
+    category = row.get("status_category")
+    if category:
+        return category == "active"
+    return row.get("status") == TaskStatus.IN_PROGRESS.value
+
+
+def _status_label(row: dict) -> str:
+    name = row.get("status_name")
+    if name:
+        return name
+    status = row.get("status") or ""
+    return STATUS_LABELS.get(status, status or EMPTY_LABEL)
+
+
 def _apply_task_weekends(item: dict, now: datetime) -> dict:
     row = item["row"]
     updated = dict(item)
     start = _resolution_start(row)
-    done = row.get("status") == TaskStatus.DONE.value
+    done = _is_closed(row)
     finished = row.get("time_end") if done else now
     if done and row.get("time_end") is not None:
         hours = hours_between(start, row.get("time_end"), exclude_weekends=True)
@@ -112,7 +134,7 @@ def _apply_task_weekends(item: dict, now: datetime) -> dict:
 
 
 def _resolution_hours(row: dict) -> float | None:
-    if row.get("status") != TaskStatus.DONE.value:
+    if not _is_closed(row):
         return None
     end = row.get("time_end")
     if end is None:
@@ -124,7 +146,7 @@ def _is_overdue_deadline(row: dict, now: datetime) -> bool:
     deadline = row.get("deadline")
     if deadline is None:
         return False
-    if row.get("status") == TaskStatus.DONE.value:
+    if _is_closed(row):
         completed = row.get("time_end")
         return completed is not None and completed > deadline
     return deadline < now
@@ -163,13 +185,16 @@ def _build_columns(
             for key_value, count in counter.most_common()
         ]
 
+    status_counts: Counter[str] = Counter()
+    status_labels: dict[str, str] = {}
+    for row in rows:
+        key = row.get("status") or ""
+        status_counts[key] += 1
+        status_labels[key] = _status_label(row)
     status_options = [
-        {
-            "key": status.value,
-            "label": STATUS_LABELS[status.value],
-            "value": sum(1 for row in rows if row.get("status") == status.value),
-        }
-        for status in TaskStatus
+        {"key": key, "label": status_labels.get(key, key), "value": count}
+        for key, count in status_counts.most_common()
+        if key
     ]
     priority_options = [
         {
@@ -410,7 +435,7 @@ def _build_trend(
         created_day = _as_date(row.get(created_key))
         if created_day and not (skip_weekends and created_day.weekday() >= 5):
             created_buckets[_bucket_key(created_day, grouping)] += 1
-        if row.get("status") == TaskStatus.DONE.value:
+        if _is_closed(row):
             closed_day = _as_date(row.get(closed_key))
             if closed_day and not (skip_weekends and closed_day.weekday() >= 5):
                 closed_buckets[_bucket_key(closed_day, grouping)] += 1
@@ -438,7 +463,7 @@ def _build_daily_detail(
                 {"day": created_day, "created": 0, "closed": 0, "resolution": []},
             )
             bucket["created"] += 1
-        if row.get("status") == TaskStatus.DONE.value:
+        if _is_closed(row):
             closed_day = _as_date(row.get("time_end"))
             if closed_day and not (exclude_weekends and closed_day.weekday() >= 5):
                 key = closed_day.isoformat()
@@ -476,7 +501,7 @@ def _build_executor_trend(items: list[dict], grouping: str) -> dict:
     executor_closed: Counter[int | None] = Counter()
     for item in items:
         row = item["row"]
-        if row.get("status") != TaskStatus.DONE.value:
+        if not _is_closed(row):
             continue
         executor_closed[row.get("executor_id")] += 1
     top_ids = [
@@ -493,7 +518,7 @@ def _build_executor_trend(items: list[dict], grouping: str) -> dict:
     }
     for item in items:
         row = item["row"]
-        if row.get("status") != TaskStatus.DONE.value:
+        if not _is_closed(row):
             continue
         executor_id = row.get("executor_id")
         if executor_id not in series_data:
@@ -532,13 +557,13 @@ def _build_records(
     for item in slice_items:
         row = item["row"]
         status = row.get("status") or TaskStatus.TODO.value
-        is_done = status == TaskStatus.DONE.value
+        is_done = _is_closed(row)
         rows.append(
             {
                 "id": row.get("key") or row.get("task_key") or str(row.get("id")),
                 "permalink": None,
                 "state": "closed" if is_done else "open",
-                "state_label": STATUS_LABELS.get(status, status),
+                "state_label": _status_label(row),
                 "type": item["fields"]["type"],
                 "subject": row.get("title"),
                 "member": item["fields"]["executor"],
@@ -624,7 +649,7 @@ class TaskAnalyticsService:
         with get_db() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT id, name FROM task_types WHERE id IN ({placeholders})",
+                    f"SELECT id, name FROM queue_task_types WHERE id IN ({placeholders})",
                     list(type_ids),
                 )
                 fetched = cursor.fetchall()
@@ -736,7 +761,7 @@ class TaskAnalyticsService:
         open_count = sum(
             1
             for item in filtered
-            if item["row"].get("status") != TaskStatus.DONE.value
+            if not _is_closed(item["row"])
         )
         closed_count = filtered_count - open_count
         blockers = sum(
@@ -755,8 +780,7 @@ class TaskAnalyticsService:
         for item in filtered:
             fields = item["fields"]
             type_counter[fields["type"]] += 1
-            status = item["row"].get("status") or ""
-            status_counter[STATUS_LABELS.get(status, status or EMPTY_LABEL)] += 1
+            status_counter[_status_label(item["row"])] += 1
             priority = item["row"].get("priority")
             if priority:
                 priority_counter[PRIORITY_LABELS.get(priority, priority)] += 1
@@ -814,7 +838,7 @@ class TaskAnalyticsService:
                 "waiting_open": sum(
                     1
                     for item in filtered
-                    if item["row"].get("status") == TaskStatus.IN_PROGRESS.value
+                    if _is_active(item["row"])
                 ),
                 "median_resolution_hours": median_resolution,
                 "median_reaction_hours": None,

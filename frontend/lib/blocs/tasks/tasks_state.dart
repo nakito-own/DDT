@@ -1,9 +1,49 @@
 part of 'tasks_bloc.dart';
 
+final class TaskFieldFilter extends Equatable {
+  const TaskFieldFilter({
+    this.text = '',
+    this.options = const {},
+    this.userId,
+    this.checked,
+  });
+
+  final String text;
+  final Set<String> options;
+  final int? userId;
+  final bool? checked;
+
+  bool get isActive =>
+      text.trim().isNotEmpty ||
+      options.isNotEmpty ||
+      userId != null ||
+      checked != null;
+
+  TaskFieldFilter copyWith({
+    String? text,
+    Set<String>? options,
+    int? Function()? userId,
+    bool? Function()? checked,
+  }) {
+    return TaskFieldFilter(
+      text: text ?? this.text,
+      options: options ?? this.options,
+      userId: userId != null ? userId() : this.userId,
+      checked: checked != null ? checked() : this.checked,
+    );
+  }
+
+  @override
+  List<Object?> get props => [text, options, userId, checked];
+}
+
 final class TasksState extends Equatable {
   const TasksState({
     this.columns = const {},
+    this.statuses = TaskStatus.values,
     this.taskTypes = const [],
+    this.queueFields = const [],
+    this.queueComponents = const [],
     this.isLoading = false,
     this.errorMessage,
     this.viewMode = TasksViewMode.list,
@@ -13,6 +53,8 @@ final class TasksState extends Equatable {
     this.statusFilters = const {},
     this.priorityFilter,
     this.typeFilter,
+    this.componentFilters = const {},
+    this.fieldFilters = const {},
     this.authorFilter,
     this.executorFilter,
     this.responsibleFilter,
@@ -22,7 +64,10 @@ final class TasksState extends Equatable {
   });
 
   final Map<TaskStatus, List<Task>> columns;
+  final List<TaskStatus> statuses;
   final List<TaskType> taskTypes;
+  final List<QueueField> queueFields;
+  final List<QueueComponent> queueComponents;
   final bool isLoading;
   final String? errorMessage;
   final TasksViewMode viewMode;
@@ -39,6 +84,8 @@ final class TasksState extends Equatable {
   final Set<TaskStatus> statusFilters;
   final TaskPriority? priorityFilter;
   final int? typeFilter;
+  final Set<int> componentFilters;
+  final Map<int, TaskFieldFilter> fieldFilters;
   final int? authorFilter;
   final int? executorFilter;
   final int? responsibleFilter;
@@ -46,9 +93,12 @@ final class TasksState extends Equatable {
   final TasksSortOption sortOption;
   final bool showArchived;
 
-  List<Task> get allTasks => TaskStatus.values
-      .expand((status) => columns[status] ?? const <Task>[])
-      .toList();
+  List<TaskStatus> get boardStatuses =>
+      statuses.isEmpty ? TaskStatus.values : statuses;
+
+  List<Task> get allTasks => [
+    for (final status in boardStatuses) ...columns[status] ?? const <Task>[],
+  ];
 
   List<Task> get filteredTasks {
     final query = searchQuery.trim().toLowerCase();
@@ -61,6 +111,17 @@ final class TasksState extends Equatable {
       }
       if (typeFilter != null && task.typeId != typeFilter) {
         return false;
+      }
+      if (componentFilters.isNotEmpty) {
+        final ids = task.components.map((item) => item.id).toSet();
+        if (!componentFilters.any(ids.contains)) return false;
+      }
+      for (final field in queueFields) {
+        final id = field.id;
+        if (id == null) continue;
+        final filter = fieldFilters[id];
+        if (filter == null || !filter.isActive) continue;
+        if (!_fieldMatches(task, field, filter)) return false;
       }
       if (authorFilter != null && task.authorId != authorFilter) {
         return false;
@@ -94,8 +155,43 @@ final class TasksState extends Equatable {
       case TasksSortOption.titleAsc:
         return a.title.toLowerCase().compareTo(b.title.toLowerCase());
       case TasksSortOption.status:
-        return a.status.index.compareTo(b.status.index);
+        return _statusRank(a.status).compareTo(_statusRank(b.status));
     }
+  }
+
+  bool _fieldMatches(Task task, QueueField field, TaskFieldFilter filter) {
+    TaskFieldValue? stored;
+    for (final item in task.fieldValues) {
+      if (item.fieldId == field.id) {
+        stored = item;
+        break;
+      }
+    }
+    switch (field.fieldType) {
+      case 'checkbox':
+        final enabled = stored?.value == true;
+        return filter.checked == null || enabled == filter.checked;
+      case 'user':
+        if (filter.userId == null) return true;
+        return '${stored?.value}' == '${filter.userId}';
+      case 'list':
+        if (filter.options.isEmpty) return true;
+        final selected = stored?.value is List
+            ? (stored!.value as List).map((item) => item.toString()).toSet()
+            : <String>{
+                if (stored?.value != null) stored!.value.toString(),
+              };
+        return filter.options.any(selected.contains);
+      default:
+        final needle = filter.text.trim().toLowerCase();
+        if (needle.isEmpty) return true;
+        return (stored?.displayValue.toLowerCase() ?? '').contains(needle);
+    }
+  }
+
+  int _statusRank(TaskStatus status) {
+    final index = boardStatuses.indexWhere((item) => item == status);
+    return index < 0 ? boardStatuses.length : index;
   }
 
   int _priorityRank(TaskPriority? priority) {
@@ -112,7 +208,10 @@ final class TasksState extends Equatable {
 
   TasksState copyWith({
     Map<TaskStatus, List<Task>>? columns,
+    List<TaskStatus>? statuses,
     List<TaskType>? taskTypes,
+    List<QueueField>? queueFields,
+    List<QueueComponent>? queueComponents,
     bool? isLoading,
     String? Function()? errorMessage,
     TasksViewMode? viewMode,
@@ -122,6 +221,8 @@ final class TasksState extends Equatable {
     Set<TaskStatus>? statusFilters,
     TaskPriority? Function()? priorityFilter,
     int? Function()? typeFilter,
+    Set<int>? componentFilters,
+    Map<int, TaskFieldFilter>? fieldFilters,
     int? Function()? authorFilter,
     int? Function()? executorFilter,
     int? Function()? responsibleFilter,
@@ -131,7 +232,10 @@ final class TasksState extends Equatable {
   }) {
     return TasksState(
       columns: columns ?? this.columns,
+      statuses: statuses ?? this.statuses,
       taskTypes: taskTypes ?? this.taskTypes,
+      queueFields: queueFields ?? this.queueFields,
+      queueComponents: queueComponents ?? this.queueComponents,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
       viewMode: viewMode ?? this.viewMode,
@@ -145,6 +249,8 @@ final class TasksState extends Equatable {
           ? priorityFilter()
           : this.priorityFilter,
       typeFilter: typeFilter != null ? typeFilter() : this.typeFilter,
+      componentFilters: componentFilters ?? this.componentFilters,
+      fieldFilters: fieldFilters ?? this.fieldFilters,
       authorFilter: authorFilter != null ? authorFilter() : this.authorFilter,
       executorFilter: executorFilter != null
           ? executorFilter()
@@ -161,7 +267,10 @@ final class TasksState extends Equatable {
   @override
   List<Object?> get props => [
     columns,
+    statuses,
     taskTypes,
+    queueFields,
+    queueComponents,
     isLoading,
     errorMessage,
     viewMode,
@@ -171,6 +280,8 @@ final class TasksState extends Equatable {
     statusFilters,
     priorityFilter,
     typeFilter,
+    componentFilters,
+    fieldFilters,
     authorFilter,
     executorFilter,
     responsibleFilter,

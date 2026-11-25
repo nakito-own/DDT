@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ddt_frontend/blocs/tasks/tasks_bloc.dart';
+import 'package:ddt_frontend/models/queue_settings.dart';
 import 'package:ddt_frontend/models/task.dart';
 import 'package:ddt_frontend/models/tasks_view_mode.dart';
 import 'package:ddt_frontend/models/task_link.dart';
@@ -346,6 +347,9 @@ class _BoardApi extends TasksApi {
   Map<String, dynamic> lastBody = const {};
 
   @override
+  Future<QueueSettings> fetchQueueSettings() async => QueueSettings.fallback();
+
+  @override
   Future<List<TaskType>> fetchTaskTypes() async => const [];
 
   @override
@@ -394,6 +398,9 @@ class _FakeTasksApi extends TasksApi {
   final int? taskSpaceId;
 
   @override
+  Future<QueueSettings> fetchQueueSettings() async => QueueSettings.fallback();
+
+  @override
   Future<List<TaskType>> fetchTaskTypes() async => const [];
 
   @override
@@ -416,6 +423,9 @@ class _FakeTasksApi extends TasksApi {
     String? initialComment,
     String? parentKey,
     List<String>? childKeys,
+    List<TaskFieldValue>? fieldValues,
+    List<int>? componentIds,
+    TaskNotifications? notifications,
   }) async {
     return Task(
       id: createdId,

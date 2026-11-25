@@ -58,7 +58,6 @@ _FILL_FIELDS = (
     ("contractor", "Подрядчик", "text", "all"),
     ("customer", "Заказчик", "text", "customer"),
     ("square", "Площадь", "number", "all"),
-    ("geometry_2d", "Геометрия", "geometry", "all"),
     ("work_year", "Год работ", "number", "all"),
     ("stage", "Стадия", "text", "all"),
     ("departmental_oiv", "Ведомственный ОИВ", "text", "all"),
@@ -832,8 +831,6 @@ def _scope_sql(scope: str) -> str:
 def _filled_sql(key: str, kind: str) -> str:
     if kind == "date" or kind == "number":
         return f"v.`{key}` IS NOT NULL"
-    if kind == "geometry":
-        return f"(v.`{key}` IS NOT NULL AND CHAR_LENGTH(v.`{key}`) > 0)"
     return f"(v.`{key}` IS NOT NULL AND TRIM(CAST(v.`{key}` AS CHAR)) <> '')"
 
 

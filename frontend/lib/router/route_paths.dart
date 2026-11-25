@@ -15,6 +15,7 @@ abstract final class RoutePaths {
   static const tasksGantt = '/tasks/gantt';
   static const tasksArchive = '/tasks/archive';
   static const tasksNew = '/tasks/new';
+  static const tasksSettings = '/tasks/settings';
   static const taskDetails = '/tasks/:taskKey';
 
   static String task(String taskKey) => '/tasks/$taskKey';
@@ -68,6 +69,7 @@ abstract final class RoutePaths {
   static String spaceArchiveFor(String spaceKey) => '/space/$spaceKey/archive';
   static String spaceTask(String taskKey) => '/space/$taskKey';
   static String spaceTaskNew(String spaceKey) => '/space/$spaceKey/new';
+  static String spaceSettingsFor(String spaceKey) => '/space/$spaceKey/settings';
   static const notes = '/notes';
   static const note = '/notes/:noteId';
 
@@ -98,6 +100,7 @@ abstract final class RoutePaths {
     'gantt',
     'archive',
     'new',
+    'settings',
   };
 
   static bool isTaskKey(String value) => taskKeyPattern.hasMatch(value);
@@ -120,6 +123,8 @@ abstract final class RoutePaths {
   static const nameTasksArchive = 'tasks-archive';
   static const nameTaskDetails = 'task-details';
   static const nameTaskCreate = 'task-create';
+  static const nameTasksSettings = 'tasks-settings';
+  static const nameSpaceSettings = 'space-settings';
   static const nameTaskEdit = 'task-edit';
   static const nameMail = 'mail';
   static const nameMailNew = 'mail-new';

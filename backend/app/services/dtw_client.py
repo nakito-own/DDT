@@ -9,6 +9,7 @@ from typing import Any
 import requests
 
 from app.config import settings
+from app.services.krr_records import dtw_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -99,14 +100,20 @@ class DtwClient:
         logger.info("DTW access token received")
         return token
 
+    def _page_url(self, offset: int) -> str:
+        # requests encodes a params dict, and DTW rejects %2C in attributes.
+        # The comma and the following space must stay readable.
+        attributes = dtw_attributes()
+        return (
+            f"{self._data_url}?attributes={attributes}"
+            f"&{self._offset_param}={offset}"
+            f"&{self._limit_param}={self._page_size}"
+        )
+
     def _get_page(self, token: str, offset: int) -> requests.Response:
         try:
             return self._session.get(
-                self._data_url,
-                params={
-                    self._offset_param: offset,
-                    self._limit_param: self._page_size,
-                },
+                self._page_url(offset),
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Accept": "application/json",

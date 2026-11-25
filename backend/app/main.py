@@ -27,6 +27,7 @@ from app.services.ews_keepalive import ews_keepalive_service
 from app.services.ews_notification_service import ews_notification_service
 from app.services.ews_runtime import shutdown_ews_executor
 from app.services.notification_hub import notification_hub
+from app.services.task_notification_service import task_deadline_reminder_service
 from app.services.session_service import session_service
 
 logger = logging.getLogger(__name__)
@@ -42,8 +43,10 @@ async def lifespan(_app: FastAPI):
     if _runs_exchange_background():
         notification_hub.set_loop(asyncio.get_running_loop())
         ews_keepalive_service.start()
+        task_deadline_reminder_service.start()
     yield
     if _runs_exchange_background():
+        task_deadline_reminder_service.stop()
         ews_keepalive_service.stop()
         ews_notification_service.shutdown_all()
     if settings.app_role in {"all", "api", "mail"}:

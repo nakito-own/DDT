@@ -7,6 +7,7 @@ from pymysql.err import IntegrityError
 from app.db import get_db
 from app.models.task import map_task_comment_row, map_task_link_row, map_task_row, map_task_type_row
 from app.schemas.task import CreateTaskRequest, TaskLinkPayload, UpdateTaskRequest
+from app.services.queue_service import QueueSettingsError, _load_json, queue_service
 from app.services.task_key import build_task_key, normalize_user_key_prefix
 
 
@@ -16,10 +17,17 @@ SELECT
   tt.id AS type_ref_id,
   tt.name AS type_name,
   tt.created_at AS type_created_at,
-  s.space_key AS space_key
+  s.space_key AS space_key,
+  qs.name AS status_name,
+  qs.category AS status_category
 FROM tasks t
-LEFT JOIN task_types tt ON tt.id = t.type_id
+LEFT JOIN queue_task_types tt ON tt.id = t.type_id
 LEFT JOIN spaces s ON s.id = t.space_id
+LEFT JOIN queue_settings q
+  ON (t.space_id IS NOT NULL AND q.space_id = t.space_id)
+  OR (t.space_id IS NULL AND q.owner_id = t.owner_id)
+LEFT JOIN queue_statuses qs
+  ON qs.queue_id = q.id AND qs.status_key = t.status
 """
 
 
@@ -83,6 +91,69 @@ class TaskService:
         for row in rows:
             grouped[row["task_id"]].append(map_task_comment_row(row))
         return grouped
+
+    def _fetch_queue_extras(self, cursor, task_ids: list[int]) -> tuple[dict, dict, dict]:
+        fields: dict[int, list[dict]] = {task_id: [] for task_id in task_ids}
+        components: dict[int, list[dict]] = {task_id: [] for task_id in task_ids}
+        notifications: dict[int, dict] = {}
+        if not task_ids:
+            return fields, components, notifications
+        placeholders = ", ".join(["%s"] * len(task_ids))
+        cursor.execute(
+            f"""
+            SELECT v.task_id, v.field_id, v.value_json, f.name, f.field_type,
+                   f.list_multiple, f.options_json
+            FROM task_field_values v
+            JOIN queue_fields f ON f.id = v.field_id
+            WHERE v.task_id IN ({placeholders})
+            ORDER BY f.sort_order, f.id
+            """,
+            task_ids,
+        )
+        for row in cursor.fetchall():
+            value = _load_json(row["value_json"])
+            if value is None or value == "" or value == []:
+                continue
+            fields[row["task_id"]].append(
+                {
+                    "field_id": row["field_id"],
+                    "name": row["name"],
+                    "field_type": row["field_type"],
+                    "list_multiple": bool(row["list_multiple"]),
+                    "options": _load_json(row["options_json"]) or [],
+                    "value": value,
+                }
+            )
+        cursor.execute(
+            f"""
+            SELECT tc.task_id, c.id, c.name
+            FROM task_components tc
+            JOIN queue_components c ON c.id = tc.component_id
+            WHERE tc.task_id IN ({placeholders})
+            ORDER BY c.sort_order, c.id
+            """,
+            task_ids,
+        )
+        for row in cursor.fetchall():
+            components[row["task_id"]].append({"id": row["id"], "name": row["name"]})
+        cursor.execute(
+            f"""
+            SELECT task_id, notify_assigned, notify_updated, notify_comment,
+                   notify_deleted, deadline_reminder_hours
+            FROM task_notification_settings
+            WHERE task_id IN ({placeholders})
+            """,
+            task_ids,
+        )
+        for row in cursor.fetchall():
+            notifications[row["task_id"]] = {
+                "notify_assigned": bool(row["notify_assigned"]),
+                "notify_updated": bool(row["notify_updated"]),
+                "notify_comment": bool(row["notify_comment"]),
+                "notify_deleted": bool(row["notify_deleted"]),
+                "deadline_reminder_hours": row["deadline_reminder_hours"],
+            }
+        return fields, components, notifications
 
     def _map_ref(self, row) -> dict:
         return {
@@ -186,6 +257,9 @@ class TaskService:
         comments=None,
         parent=None,
         children=None,
+        field_values=None,
+        components=None,
+        notifications=None,
     ) -> dict:
         task_type = None
         if row.get("type_ref_id"):
@@ -204,6 +278,9 @@ class TaskService:
             comments=comments or [],
             parent=parent,
             children=children or [],
+            field_values=field_values,
+            components=components,
+            notifications=notifications,
         )
 
     def _serialize_rows(self, cursor, rows: list[dict]) -> list[dict]:
@@ -211,6 +288,7 @@ class TaskService:
         links = self._fetch_links(cursor, task_ids)
         comments = self._fetch_comments(cursor, task_ids)
         parents, children = self._fetch_relations(cursor, rows)
+        fields, components, notifications = self._fetch_queue_extras(cursor, task_ids)
         return [
             self._serialize_task(
                 row,
@@ -218,6 +296,9 @@ class TaskService:
                 comments=comments.get(row["id"], []),
                 parent=parents.get(row["parent_id"]) if row.get("parent_id") else None,
                 children=children.get(row["id"], []),
+                field_values=fields.get(row["id"], []),
+                components=components.get(row["id"], []),
+                notifications=notifications.get(row["id"]),
             )
             for row in rows
         ]
@@ -516,6 +597,15 @@ class TaskService:
 
         with get_db() as conn:
             with conn.cursor() as cursor:
+                try:
+                    resolved = queue_service.resolve_create(
+                        cursor,
+                        owner_id=owner_id,
+                        space_id=space_id,
+                        payload=payload,
+                    )
+                except QueueSettingsError as exc:
+                    raise TaskRelationError(str(exc)) from exc
                 cursor.execute(
                     """
                     INSERT INTO tasks (
@@ -526,8 +616,8 @@ class TaskService:
                     """,
                     (
                         payload.title,
-                        payload.status.value,
-                        payload.type_id,
+                        resolved["status"],
+                        resolved["type_id"],
                         payload.description,
                         payload.executor_id if space_id is not None else author_id,
                         author_id,
@@ -537,8 +627,8 @@ class TaskService:
                         time_set,
                         payload.time_start,
                         payload.time_end,
-                        payload.deadline,
-                        payload.priority.value if payload.priority else None,
+                        resolved["deadline"],
+                        resolved["priority"].value if resolved["priority"] else None,
                     ),
                 )
                 task_id = cursor.lastrowid
@@ -554,6 +644,15 @@ class TaskService:
                     raise TaskRelationError(
                         "Не удалось выделить ключ задачи, попробуйте ещё раз"
                     ) from exc
+                queue_service.replace_task_fields(
+                    cursor, task_id, resolved["queue"], resolved["field_values"]
+                )
+                queue_service.replace_task_components(
+                    cursor, task_id, resolved["queue"], resolved["component_ids"]
+                )
+                queue_service.replace_task_notifications(
+                    cursor, task_id, resolved["notifications"]
+                )
                 if payload.links:
                     self._replace_links(cursor, task_id, payload.links)
                 if payload.initial_comment:
@@ -687,6 +786,9 @@ class TaskService:
             exclude_unset=True,
             exclude={"parent_key", "child_keys"},
         )
+        field_values = updates.pop("field_values", None)
+        component_ids = updates.pop("component_ids", None)
+        notifications = updates.pop("notifications", None)
         links = updates.pop("links", None)
         parent_specified = "parent_key" in payload.model_fields_set
         children_specified = "child_keys" in payload.model_fields_set
@@ -715,13 +817,47 @@ class TaskService:
                 if (
                     not updates
                     and links is None
+                    and field_values is None
+                    and component_ids is None
+                    and notifications is None
                     and not parent_specified
                     and not children_specified
                 ):
                     return self._serialize_rows(cursor, [row])[0]
 
-                if "status" in updates and updates["status"] is not None:
-                    updates["status"] = updates["status"].value
+                try:
+                    queue = queue_service.queue_for_task_row(cursor, row)
+                    if "status" in updates and updates["status"] is not None:
+                        queue_service.validate_status(
+                            cursor,
+                            owner_id=row["owner_id"],
+                            space_id=row.get("space_id"),
+                            status=updates["status"],
+                        )
+                    if "type_id" in updates:
+                        queue_service.validate_type(
+                            cursor,
+                            owner_id=row["owner_id"],
+                            space_id=row.get("space_id"),
+                            type_id=updates["type_id"],
+                        )
+                    if field_values is not None:
+                        queue_service.replace_task_fields(
+                            cursor,
+                            resolved_id,
+                            queue,
+                            field_values,
+                        )
+                    if component_ids is not None:
+                        queue_service.replace_task_components(
+                            cursor, resolved_id, queue, component_ids
+                        )
+                    if notifications is not None:
+                        queue_service.replace_task_notifications(
+                            cursor, resolved_id, notifications
+                        )
+                except QueueSettingsError as exc:
+                    raise TaskRelationError(str(exc)) from exc
                 if "priority" in updates and updates["priority"] is not None:
                     updates["priority"] = updates["priority"].value
 
@@ -829,7 +965,7 @@ def task_not_found() -> HTTPException:
     )
 
 
-def task_relation_error(exc: TaskRelationError) -> HTTPException:
+def task_relation_error(exc: Exception) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=str(exc),

@@ -26,7 +26,7 @@ String formatUserRef(int? userId, {required String fallback}) {
 }
 
 bool isTaskOverdue(Task task) {
-  if (task.deadline == null || task.status == TaskStatus.done) {
+  if (task.deadline == null || task.status.isClosed) {
     return false;
   }
 
@@ -49,14 +49,9 @@ Color priorityColor(TaskPriority priority) {
 }
 
 Color statusColumnColor(TaskStatus status) {
-  switch (status) {
-    case TaskStatus.todo:
-      return const Color(0xFF6B85C7);
-    case TaskStatus.inProgress:
-      return const Color(0xFF4A90C2);
-    case TaskStatus.done:
-      return const Color(0xFF3E9B74);
-  }
+  if (status.isClosed) return const Color(0xFF3E9B74);
+  if (status.isActive) return const Color(0xFF4A90C2);
+  return const Color(0xFF6B85C7);
 }
 
 const _taskTypePalette = <Color>[

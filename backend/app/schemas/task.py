@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.task import TaskPriority, TaskStatus
+from app.models.task import TaskPriority
 
 
 class TaskTypeResponse(BaseModel):
@@ -38,18 +39,55 @@ class CreateTaskCommentRequest(BaseModel):
         return value
 
 
+class TaskFieldValuePayload(BaseModel):
+    field_id: int
+    value: Any = None
+
+
+class TaskNotificationsPayload(BaseModel):
+    notify_assigned: bool = True
+    notify_updated: bool = True
+    notify_comment: bool = True
+    notify_deleted: bool = True
+    deadline_reminder_hours: int | None = Field(default=None, ge=1, le=24 * 90)
+
+
+class TaskFieldValueResponse(BaseModel):
+    field_id: int
+    name: str
+    field_type: str
+    list_multiple: bool = False
+    options: list[str] = Field(default_factory=list)
+    value: Any = None
+
+
+class TaskComponentResponse(BaseModel):
+    id: int
+    name: str
+
+
+class TaskNotificationsResponse(BaseModel):
+    notify_assigned: bool = True
+    notify_updated: bool = True
+    notify_comment: bool = True
+    notify_deleted: bool = True
+    deadline_reminder_hours: int | None = None
+
+
 class TaskRefResponse(BaseModel):
     id: int
     key: str
     title: str
-    status: TaskStatus
+    status: str
 
 
 class TaskResponse(BaseModel):
     id: int
     key: str
     title: str
-    status: TaskStatus
+    status: str
+    status_name: str = ""
+    status_category: str = "open"
     type_id: int | None = None
     type: TaskTypeResponse | None = None
     description: str = ""
@@ -71,13 +109,18 @@ class TaskResponse(BaseModel):
     comments: list[TaskCommentResponse] = Field(default_factory=list)
     parent: TaskRefResponse | None = None
     children: list[TaskRefResponse] = Field(default_factory=list)
+    field_values: list[TaskFieldValueResponse] = Field(default_factory=list)
+    components: list[TaskComponentResponse] = Field(default_factory=list)
+    notifications: TaskNotificationsResponse = Field(
+        default_factory=TaskNotificationsResponse
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class CreateTaskRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
-    status: TaskStatus = TaskStatus.TODO
+    status: str | None = None
     type_id: int | None = None
     description: str = ""
     executor_id: int | None = None
@@ -91,6 +134,9 @@ class CreateTaskRequest(BaseModel):
     initial_comment: str | None = Field(default=None, max_length=10000)
     parent_key: str | None = Field(default=None, max_length=191)
     child_keys: list[str] = Field(default_factory=list)
+    field_values: list[TaskFieldValuePayload] | None = None
+    component_ids: list[int] | None = None
+    notifications: TaskNotificationsPayload | None = None
 
     @field_validator("initial_comment")
     @classmethod
@@ -111,7 +157,7 @@ class CreateTaskRequest(BaseModel):
 
 class UpdateTaskRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    status: TaskStatus | None = None
+    status: str | None = None
     type_id: int | None = None
     description: str | None = None
     executor_id: int | None = None
@@ -126,6 +172,9 @@ class UpdateTaskRequest(BaseModel):
     parent_key: str | None = Field(default=None, max_length=191)
     child_keys: list[str] | None = None
     archive: bool | None = None
+    field_values: list[TaskFieldValuePayload] | None = None
+    component_ids: list[int] | None = None
+    notifications: TaskNotificationsPayload | None = None
 
     @field_validator("parent_key")
     @classmethod
@@ -137,4 +186,4 @@ class UpdateTaskRequest(BaseModel):
 
 
 class UpdateTaskStatusRequest(BaseModel):
-    status: TaskStatus
+    status: str = Field(min_length=1, max_length=50)

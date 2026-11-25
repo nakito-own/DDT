@@ -24,6 +24,7 @@ import '../widgets/ddt_icon.dart';
 import '../widgets/ddt_scroll_edge_fade.dart';
 import '../widgets/ddt_shell_metrics.dart';
 import '../widgets/ddt_switch.dart';
+import '../widgets/settings_devices_section.dart';
 import '../widgets/ddt_user_avatar.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -107,6 +108,11 @@ class _SettingsPageState extends State<SettingsPage> {
                           );
                         },
                       ),
+                    ),
+                    SizedBox(height: _sectionGap.h),
+                    const _SettingsSection(
+                      title: 'Устройства',
+                      child: SettingsDevicesSection(),
                     ),
                     SizedBox(height: _sectionGap.h),
                     _SettingsSection(

@@ -15,6 +15,8 @@ from app.services.space_service import (
     SpaceNotFoundError,
     space_service,
 )
+from app.schemas.queue import QueueSettingsResponse, QueueSettingsWrite
+from app.services.queue_service import QueueSettingsError, queue_service
 from app.services.task_service import (
     TaskNotFoundError,
     TaskRelationError,
@@ -43,6 +45,28 @@ def _require_space(space_ref: str) -> dict:
 @router.get("", response_model=list[SpaceResponse])
 def list_spaces(_context: SessionContext = Depends(get_current_session)):
     return space_service.list_spaces()
+
+
+@router.get("/{space_ref}/queue-settings", response_model=QueueSettingsResponse)
+def get_space_queue_settings(
+    space_ref: str,
+    _context: SessionContext = Depends(get_current_session),
+):
+    space = _require_space(space_ref)
+    return queue_service.get_space(space["id"])
+
+
+@router.put("/{space_ref}/queue-settings", response_model=QueueSettingsResponse)
+def save_space_queue_settings(
+    space_ref: str,
+    payload: QueueSettingsWrite,
+    _context: SessionContext = Depends(get_current_session),
+):
+    space = _require_space(space_ref)
+    try:
+        return queue_service.save_space(space["id"], payload)
+    except QueueSettingsError as exc:
+        raise task_relation_error(exc) from exc
 
 
 @router.get("/{space_ref}/tasks", response_model=list[TaskResponse])
